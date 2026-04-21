@@ -34,6 +34,18 @@ const defaultCourses = [
   { id: 'c3', code: 'CS301', name: 'Data Structures', program: 'Computer Science BSc', year: '3' }
 ];
 
+const defaultSubjects = [
+  { id: 'sub1', name: 'Mathematics' },
+  { id: 'sub2', name: 'Physics' },
+  { id: 'sub3', name: 'Computer Science' }
+];
+
+const defaultTags = [
+  { id: 'tag1', name: 'Lecture' },
+  { id: 'tag2', name: 'Seminar' },
+  { id: 'tag3', name: 'Lab' }
+];
+
 const defaultGroups = [
   { id: 'g1', name: 'Year 10A', size: 25, timeProfileId: 'tp1' },
   { id: 'g2', name: 'Year 10B', size: 15, timeProfileId: 'tp2' } // This group uses the weekend profile
@@ -259,13 +271,15 @@ export default function App() {
   const [timeProfiles, setTimeProfiles] = useState(defaultTimeProfiles);
   const [faculty, setFaculty] = useState(defaultFaculty);
   const [courses, setCourses] = useState(defaultCourses);
+  const [subjects, setSubjects] = useState(defaultSubjects);
+  const [activityTags, setActivityTags] = useState(defaultTags);
   const [groups, setGroups] = useState(defaultGroups);
   const [rooms, setRooms] = useState(defaultRooms);
   const [activities, setActivities] = useState(defaultActivities);
   const [constraints, setConstraints] = useState(defaultConstraints);
 
   // Forms State
-  const [newAct, setNewAct] = useState({ facultyId: '', courseId: '', groupId: '', roomId: '', duration: 1 });
+  const [newAct, setNewAct] = useState({ facultyId: '', courseId: '', subjectId: '', tagId: '', groupId: '', roomId: '', duration: 1 });
   const [activeProfileId, setActiveProfileId] = useState(timeProfiles[0]?.id);
 
   // Generation State
@@ -297,42 +311,86 @@ export default function App() {
         let placed = false;
         const duration = parseInt(act.duration) || 1;
 
-        // Find Group & its Time Profile
         const group = groups.find(g => g.id === act.groupId);
         const groupSize = parseInt(group?.size) || 0;
         const profile = timeProfiles.find(tp => tp.id === group?.timeProfileId) || timeProfiles[0];
-
-        // Use group-specific days and hours
         const groupDays = profile ? profile.days : [];
         const groupHours = profile ? profile.hours : [];
 
-        // Load target faculty constraints
+        // Load Constraints
         const unavailDays = constraints.filter(c => c.type === 'FAC_UNAVAIL_DAY' && c.facultyId === act.facultyId).map(c => c.day);
+        const groupUnavailDays = constraints.filter(c => c.type === 'GROUP_UNAVAIL_DAY' && c.groupId === act.groupId).map(c => c.day);
         const maxDailyConst = constraints.find(c => c.type === 'FAC_MAX_DAILY' && c.facultyId === act.facultyId);
         const maxDaily = maxDailyConst ? parseInt(maxDailyConst.maxHours) : 999;
+        const maxContConst = constraints.find(c => c.type === 'MAX_HOURS_CONTINUOUSLY' && c.facultyId === act.facultyId);
+        const maxContinuous = maxContConst ? parseInt(maxContConst.maxHours) : 999;
+        const minDaysConst = constraints.find(c => c.type === 'MIN_DAYS_BETWEEN_ACTIVITIES' && c.groupId === act.groupId && c.subjectId === act.subjectId);
+        const minDaysBetween = minDaysConst ? parseInt(minDaysConst.minDays) : 0;
+        const preferredRoomConst = constraints.find(c => c.type === 'PREFERRED_ROOM' && c.subjectId === act.subjectId);
+
+        // Check SAME_STARTING_TIME
+        const sameTimeConst = constraints.find(c => c.type === 'SAME_STARTING_TIME' && (c.activityId1 === act.id || c.activityId2 === act.id));
+        let forceDay = null;
+        let forceHourIndex = null;
+
+        if (sameTimeConst) {
+            const linkedActId = sameTimeConst.activityId1 === act.id ? sameTimeConst.activityId2 : sameTimeConst.activityId1;
+            const linkedSchedule = newSchedule.find(s => s.parentActId === linkedActId && s.part === 1);
+            if (linkedSchedule) {
+                forceDay = linkedSchedule.day;
+                forceHourIndex = groupHours.indexOf(linkedSchedule.hour);
+            }
+        }
+
+        // Helper for Min Days Between
+        const scheduledDaysForSubject = new Set(newSchedule.filter(s => s.groupId === act.groupId && s.subjectId === act.subjectId).map(s => s.day));
+        
+        let roomsToTry = [...rooms];
+        if (preferredRoomConst) {
+           const pRoom = rooms.find(r => r.id === preferredRoomConst.roomId);
+           if (pRoom) roomsToTry = [pRoom, ...rooms.filter(r => r.id !== pRoom.id)];
+        }
 
         for (let d of groupDays) {
           if (placed) break;
-          if (unavailDays.includes(d)) continue; // Faculty Unavailable Constraint
+          if (forceDay && forceDay !== d) continue; // SAME_STARTING_TIME lock
+          if (unavailDays.includes(d) || groupUnavailDays.includes(d)) continue; 
 
-          // Faculty Max Daily Hours Constraint
+          // Verify MIN_DAYS_BETWEEN_ACTIVITIES
+          if (minDaysBetween > 1 && act.subjectId) {
+             const dayIndex = allGlobalDays.indexOf(d);
+             let tooClose = false;
+             for (let sDay of scheduledDaysForSubject) {
+                 const sIndex = allGlobalDays.indexOf(sDay);
+                 if (Math.abs(dayIndex - sIndex) < minDaysBetween) tooClose = true;
+             }
+             if (tooClose) continue;
+          }
+
+          // Faculty Max Daily Hours
           const currentHoursToday = newSchedule.filter(s => s.day === d && s.facultyId === act.facultyId).length;
           if (currentHoursToday + duration > maxDaily) continue;
 
-          // Try to find continuous blocks of time for the required duration within the Group's allowed hours
           for (let hIndex = 0; hIndex <= groupHours.length - duration; hIndex++) {
             if (placed) break;
+            if (forceHourIndex !== null && forceHourIndex !== hIndex) continue; // SAME_STARTING_TIME lock
 
-            for (let r of rooms) {
+            // Verify MAX_HOURS_CONTINUOUSLY
+            if (maxContinuous < 999) {
+                // Approximate check: are there already contiguous hours touching this block?
+                let preCount = 0;
+                while(hIndex - 1 - preCount >= 0 && newSchedule.some(s => s.day === d && s.hour === groupHours[hIndex - 1 - preCount] && s.facultyId === act.facultyId)) preCount++;
+                let postCount = 0;
+                while(hIndex + duration + postCount < groupHours.length && newSchedule.some(s => s.day === d && s.hour === groupHours[hIndex + duration + postCount] && s.facultyId === act.facultyId)) postCount++;
+                if (preCount + duration + postCount > maxContinuous) continue;
+            }
+
+            for (let r of roomsToTry) {
               if (placed) break;
-
-              // Space Capacity Constraint
               if (parseInt(r.capacity || 0) < groupSize) continue;
-
-              // Explicit room request
               if (act.roomId && act.roomId !== r.id) continue;
 
-              // Check all required consecutive slots
+              // Check Conflicts
               let slotsAreFree = true;
               for (let offset = 0; offset < duration; offset++) {
                 const checkHour = groupHours[hIndex + offset];
@@ -347,7 +405,6 @@ export default function App() {
               }
 
               if (slotsAreFree) {
-                // Assign all slots
                 for (let offset = 0; offset < duration; offset++) {
                   newSchedule.push({
                     id: `${act.id}-part${offset}`,
@@ -357,6 +414,8 @@ export default function App() {
                     roomId: r.id,
                     facultyId: act.facultyId,
                     courseId: act.courseId,
+                    subjectId: act.subjectId,
+                    tagId: act.tagId,
                     groupId: act.groupId,
                     part: offset + 1,
                     totalParts: duration
@@ -392,8 +451,10 @@ export default function App() {
         {[
           { label: 'Faculty', count: faculty.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
           { label: 'Courses', count: courses.length, icon: BookOpen, color: 'text-purple-600', bg: 'bg-purple-100' },
+          { label: 'Subjects', count: subjects.length, icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+          { label: 'Tags', count: activityTags.length, icon: Clock, color: 'text-pink-600', bg: 'bg-pink-100' },
           { label: 'Groups', count: groups.length, icon: Users, color: 'text-green-600', bg: 'bg-green-100' },
-          { label: 'Time Profiles', count: timeProfiles.length, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100' },
+          { label: 'Profiles', count: timeProfiles.length, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100' },
         ].map((stat, i) => (
           <div key={i} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
             <div className={`p-4 rounded-full ${stat.bg} ${stat.color}`}>
@@ -581,6 +642,8 @@ export default function App() {
           <SidebarItem id="time" icon={Clock} label="Time Profiles" activeTab={activeTab} setActiveTab={setActiveTab} />
           <SidebarItem id="faculty" icon={Users} label="Faculty" activeTab={activeTab} setActiveTab={setActiveTab} />
           <SidebarItem id="courses" icon={BookOpen} label="Courses" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem id="subjects" icon={BookOpen} label="Subjects" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem id="tags" icon={Clock} label="Activity Tags" activeTab={activeTab} setActiveTab={setActiveTab} />
           <SidebarItem id="groups" icon={GraduationCap} label="Student Groups" activeTab={activeTab} setActiveTab={setActiveTab} />
           <SidebarItem id="rooms" icon={MapPin} label="Rooms" activeTab={activeTab} setActiveTab={setActiveTab} />
 
@@ -608,6 +671,16 @@ export default function App() {
               <ObjectListManager title="Courses" items={courses} setItems={setCourses} fields={[{ key: 'code', label: 'Course Code' }, { key: 'name', label: 'Course Name' }, { key: 'program', label: 'Program' }, { key: 'year', label: 'Year' }]} />
             </div>
           )}
+          {activeTab === 'subjects' && (
+            <div className="max-w-3xl mx-auto">
+              <ObjectListManager title="Subjects" items={subjects} setItems={setSubjects} fields={[{ key: 'name', label: 'Subject Name' }]} />
+            </div>
+          )}
+          {activeTab === 'tags' && (
+            <div className="max-w-3xl mx-auto">
+              <ObjectListManager title="Activity Tags" items={activityTags} setItems={setActivityTags} fields={[{ key: 'name', label: 'Tag Name (e.g. Lecture, Lab)' }]} />
+            </div>
+          )}
           {activeTab === 'groups' && (
             <div className="max-w-3xl mx-auto">
               <ObjectListManager title="Student Groups" items={groups} setItems={setGroups} fields={[{ key: 'name', label: 'Group Name' }, { key: 'size', label: 'Number of Students (Size)', type: 'number' }, { key: 'timeProfileId', label: 'Time Profile', type: 'select', options: timeProfiles.map(tp => ({ value: tp.id, label: tp.name })) }]} />
@@ -619,7 +692,7 @@ export default function App() {
             </div>
           )}
           {activeTab === 'constraints' && (
-            <ConstraintsManager constraints={constraints} setConstraints={setConstraints} faculty={faculty} days={allGlobalDays} />
+            <ConstraintsManager constraints={constraints} setConstraints={setConstraints} faculty={faculty} days={allGlobalDays} groups={groups} subjects={subjects} rooms={rooms} activities={activities} />
           )}
           {activeTab === 'activities' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -628,31 +701,39 @@ export default function App() {
                 <h3 className="text-xl font-bold text-slate-800 mb-4">Add New Activity</h3>
                 <form onSubmit={(e) => {
                   e.preventDefault();
-                  if (!newAct.facultyId || !newAct.courseId || !newAct.groupId) return;
+                  if (!newAct.facultyId || !newAct.courseId || !newAct.subjectId || !newAct.tagId || !newAct.groupId) return;
                   setActivities([...activities, { id: Date.now().toString(), ...newAct }]);
-                  setNewAct({ facultyId: '', courseId: '', groupId: '', roomId: '', duration: 1 });
-                }} className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                  <select required value={newAct.facultyId} onChange={e => setNewAct({ ...newAct, facultyId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white col-span-2">
+                  setNewAct({ facultyId: '', courseId: '', subjectId: '', tagId: '', groupId: '', roomId: '', duration: 1 });
+                }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <select required value={newAct.facultyId} onChange={e => setNewAct({ ...newAct, facultyId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
                     <option value="">Select Faculty</option>
                     {faculty.map(f => <option key={f.id} value={f.id}>{f.title ? f.title + ' ' : ''}{f.name}</option>)}
                   </select>
-                  <select required value={newAct.courseId} onChange={e => setNewAct({ ...newAct, courseId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white col-span-2">
+                  <select required value={newAct.courseId} onChange={e => setNewAct({ ...newAct, courseId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
                     <option value="">Select Course</option>
                     {courses.map(c => <option key={c.id} value={c.id}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
                   </select>
-                  <select required value={newAct.groupId} onChange={e => setNewAct({ ...newAct, groupId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white col-span-2">
+                  <select required value={newAct.subjectId} onChange={e => setNewAct({ ...newAct, subjectId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
+                    <option value="">Select Subject</option>
+                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  <select required value={newAct.tagId} onChange={e => setNewAct({ ...newAct, tagId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
+                    <option value="">Select Tag</option>
+                    {activityTags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <select required value={newAct.groupId} onChange={e => setNewAct({ ...newAct, groupId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
                     <option value="">Select Group</option>
                     {groups.map(g => <option key={g.id} value={g.id}>{g.name} (Size: {g.size || 0})</option>)}
                   </select>
-                  <select value={newAct.roomId} onChange={e => setNewAct({ ...newAct, roomId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white col-span-2">
+                  <select value={newAct.roomId} onChange={e => setNewAct({ ...newAct, roomId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
                     <option value="">Room Pref (Optional)</option>
                     {rooms.map(r => <option key={r.id} value={r.id}>{r.name} {r.capacity ? `(Cap: ${r.capacity})` : ''}</option>)}
                   </select>
-                  <div className="col-span-2 flex items-center space-x-2">
+                  <div className="flex items-center space-x-2">
                     <label className="text-sm font-medium text-slate-600 whitespace-nowrap">Duration (Hrs):</label>
                     <input type="number" min="1" max="4" required value={newAct.duration} onChange={e => setNewAct({ ...newAct, duration: parseInt(e.target.value) || 1 })} className="w-full px-4 py-2 border rounded-lg bg-white outline-none" />
                   </div>
-                  <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium col-span-2">
+                  <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium md:col-span-4">
                     Add Activity
                   </button>
                 </form>
@@ -664,6 +745,8 @@ export default function App() {
                     <tr className="bg-white border-b border-slate-200 text-slate-600 font-medium text-sm">
                       <th className="p-4">Faculty</th>
                       <th className="p-4">Course</th>
+                      <th className="p-4">Subject</th>
+                      <th className="p-4">Tag</th>
                       <th className="p-4">Group</th>
                       <th className="p-4">Room Pref.</th>
                       <th className="p-4">Duration</th>
@@ -674,6 +757,8 @@ export default function App() {
                     {activities.map((act) => {
                       const fac = faculty.find(f => f.id === act.facultyId);
                       const cou = courses.find(c => c.id === act.courseId);
+                      const sub = subjects.find(s => s.id === act.subjectId);
+                      const tag = activityTags.find(t => t.id === act.tagId);
                       const grp = groups.find(g => g.id === act.groupId);
                       const rm = rooms.find(r => r.id === act.roomId);
 
@@ -681,6 +766,8 @@ export default function App() {
                         <tr key={act.id} className="hover:bg-slate-50">
                           <td className="p-4">{fac ? `${fac.title || ''} ${fac.name}` : 'Unknown'}</td>
                           <td className="p-4">{cou ? `${cou.code ? cou.code + ' - ' : ''}${cou.name}` : 'Unknown'}</td>
+                          <td className="p-4">{sub?.name || 'Unknown'}</td>
+                          <td className="p-4">{tag?.name || 'None'}</td>
                           <td className="p-4">{grp?.name || 'Unknown'}</td>
                           <td className="p-4">{rm?.name || 'Any'}</td>
                           <td className="p-4"><span className="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs font-bold">{act.duration || 1} hrs</span></td>
