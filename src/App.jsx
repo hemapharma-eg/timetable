@@ -1,0 +1,723 @@
+import React, { useState, useRef } from 'react';
+import {
+  Calendar, Clock, Users, BookOpen, MapPin,
+  Play, LayoutGrid, Plus, Trash2, AlertCircle, CheckCircle2, Pencil, GraduationCap, ShieldAlert,
+  Download, Upload, FileSpreadsheet
+} from 'lucide-react';
+import ConstraintsManager from './ConstraintsManager';
+
+// --- Default Mock Data ---
+const defaultTimeProfiles = [
+  {
+    id: 'tp1',
+    name: 'Standard (Mon-Fri)',
+    days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+    hours: ['08:00 - 09:00', '09:00 - 10:00', '10:00 - 11:00', '11:00 - 12:00', '12:00 - 13:00']
+  },
+  {
+    id: 'tp2',
+    name: 'Weekend / Evening',
+    days: ['Friday', 'Saturday'],
+    hours: ['14:00 - 15:00', '15:00 - 16:00', '16:00 - 17:00']
+  }
+];
+
+const defaultFaculty = [
+  { id: 'f1', name: 'John Smith', title: 'Dr.', college: 'Engineering' },
+  { id: 'f2', name: 'Sarah Connor', title: 'Prof.', college: 'Science' },
+  { id: 'f3', name: 'Alan Turing', title: 'Prof.', college: 'Computer Science' }
+];
+
+const defaultCourses = [
+  { id: 'c1', code: 'MATH101', name: 'Calculus I', program: 'Engineering BSc', year: '1' },
+  { id: 'c2', code: 'PHYS201', name: 'Quantum Mechanics', program: 'Physics BSc', year: '2' },
+  { id: 'c3', code: 'CS301', name: 'Data Structures', program: 'Computer Science BSc', year: '3' }
+];
+
+const defaultGroups = [
+  { id: 'g1', name: 'Year 10A', size: 25, timeProfileId: 'tp1' },
+  { id: 'g2', name: 'Year 10B', size: 15, timeProfileId: 'tp2' } // This group uses the weekend profile
+];
+
+const defaultRooms = [
+  { id: 'r1', name: 'Room 101', capacity: 30 },
+  { id: 'r2', name: 'Lab A', capacity: 20 }
+];
+
+const defaultActivities = [
+  { id: 'a1', facultyId: 'f1', courseId: 'c1', groupId: 'g1', roomId: 'r1', duration: 2 },
+  { id: 'a2', facultyId: 'f1', courseId: 'c1', groupId: 'g2', roomId: '', duration: 1 },
+  { id: 'a3', facultyId: 'f2', courseId: 'c2', groupId: 'g1', roomId: 'r2', duration: 1 },
+  { id: 'a4', facultyId: 'f3', courseId: 'c3', groupId: 'g2', roomId: '', duration: 2 },
+];
+
+const defaultConstraints = [
+  { id: 'cons1', type: 'FAC_UNAVAIL_DAY', facultyId: 'f1', day: 'Friday' },
+  { id: 'cons2', type: 'FAC_MAX_DAILY', facultyId: 'f3', maxHours: 2 }
+];
+
+// --- Helper Components ---
+const SidebarItem = ({ icon: Icon, label, id, activeTab, setActiveTab }) => (
+  <button
+    onClick={() => setActiveTab(id)}
+    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${activeTab === id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+      }`}
+  >
+    <Icon size={20} />
+    <span className="font-medium">{label}</span>
+  </button>
+);
+
+// Manages simple arrays of strings (Used for Days and Hours within a Profile)
+const StringListManager = ({ title, items, setItems, placeholder }) => {
+  const [val, setVal] = useState('');
+  const [editIndex, setEditIndex] = useState(-1);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!val.trim()) return;
+    if (editIndex >= 0) {
+      const newItems = [...items];
+      newItems[editIndex] = val.trim();
+      setItems(newItems);
+      setEditIndex(-1);
+    } else {
+      setItems([...items, val.trim()]);
+    }
+    setVal('');
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <h3 className="text-lg font-semibold text-slate-800 mb-4">{title}</h3>
+      <form onSubmit={handleSubmit} className="flex gap-2 mb-4">
+        <input
+          type="text"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+        />
+        <button type="submit" className={`text-white px-4 py-2 rounded-lg transition-colors ${editIndex >= 0 ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+          {editIndex >= 0 ? <CheckCircle2 size={18} /> : <Plus size={18} />}
+        </button>
+      </form>
+      <ul className="space-y-2 max-h-72 overflow-y-auto">
+        {items.map((item, index) => (
+          <li key={`${item}-${index}`} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <span className="text-slate-700">{item}</span>
+            <div className="flex gap-1">
+              <button onClick={() => { setVal(items[index]); setEditIndex(index); }} className="text-blue-400 hover:text-blue-600 p-1"><Pencil size={16} /></button>
+              <button onClick={() => { setItems(items.filter((_, i) => i !== index)); if (editIndex === index) { setVal(''); setEditIndex(-1); } }} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16} /></button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+// Manages complex Objects, now with CSV Import/Export capability
+const ObjectListManager = ({ title, items, setItems, fields }) => {
+  const initialForm = fields.reduce((acc, f) => ({ ...acc, [f.key]: '' }), {});
+  const [form, setForm] = useState(initialForm);
+  const [editId, setEditId] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form[fields[0].key].toString().trim()) return;
+    if (editId) {
+      setItems(items.map(item => item.id === editId ? { ...item, ...form } : item));
+      setEditId(null);
+    } else {
+      setItems([...items, { id: Date.now().toString(), ...form }]);
+    }
+    setForm(initialForm);
+  };
+
+  const handleDownloadTemplate = () => {
+    const header = fields.map(f => f.key).join(',');
+    const blob = new Blob([header + '\n'], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.toLowerCase().replace(' ', '_')}_template.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target.result;
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+      if (lines.length < 2) {
+        alert('File is empty or missing data rows.');
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim());
+      const newItems = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        // Simple comma split (Assumes data doesn't contain commas within quotes)
+        const values = lines[i].split(',').map(v => v.trim());
+        let item = { id: Date.now().toString() + i };
+        fields.forEach((f) => {
+          const hIdx = headers.indexOf(f.key);
+          if (hIdx >= 0 && values[hIdx]) {
+            item[f.key] = values[hIdx];
+          }
+        });
+        if (item[fields[0].key]) { // Only add if the primary field is present
+          newItems.push(item);
+        }
+      }
+      setItems(prev => [...prev, ...newItems]);
+      e.target.value = ''; // Reset input
+    };
+    reader.readAsText(file);
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
+        <div className="flex space-x-2">
+          <button onClick={handleDownloadTemplate} title="Download CSV Template" className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center">
+            <Download size={16} className="mr-1" /> <span className="text-xs font-medium">Template</span>
+          </button>
+          <label title="Upload CSV" className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center cursor-pointer">
+            <Upload size={16} className="mr-1" /> <span className="text-xs font-medium">Import</span>
+            <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+          </label>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3 mb-4">
+        {fields.map(field => {
+          if (field.type === 'select') {
+            return (
+              <select
+                key={field.key} value={form[field.key] || ''} onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+              >
+                <option value="" disabled>{field.label}</option>
+                {field.options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+            );
+          }
+          return (
+            <input
+              key={field.key} type={field.type || 'text'} value={form[field.key] || ''}
+              onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+              placeholder={field.label}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+            />
+          );
+        })}
+        <button type="submit" className={`text-white px-4 py-2 rounded-lg font-medium ${editId ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+          {editId ? 'Update Entry' : 'Add Entry'}
+        </button>
+      </form>
+
+      <ul className="space-y-2 max-h-96 overflow-y-auto">
+        {items.map((item) => (
+          <li key={item.id} className="flex justify-between items-start p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <div className="flex flex-col text-sm">
+              <span className="font-semibold text-slate-800">{item[fields[0].key]}</span>
+              {fields.slice(1).map(f => {
+                let displayVal = item[f.key];
+                if (f.type === 'select') {
+                  const opt = f.options.find(o => o.value === displayVal);
+                  if (opt) displayVal = opt.label;
+                }
+                return displayVal ? <span key={f.key} className="text-slate-500 text-xs">{f.label}: {displayVal}</span> : null;
+              })}
+            </div>
+            <div className="flex gap-1 ml-2 flex-shrink-0">
+              <button type="button" onClick={() => { setForm({ ...item }); setEditId(item.id); }} className="text-blue-400 hover:text-blue-600 p-1"><Pencil size={16} /></button>
+              <button type="button" onClick={() => { setItems(items.filter(i => i.id !== item.id)); if (editId === item.id) { setForm(initialForm); setEditId(null); } }} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16} /></button>
+            </div>
+          </li>
+        ))}
+        {items.length === 0 && <p className="text-sm text-slate-400 text-center py-4">No entries yet.</p>}
+      </ul>
+    </div>
+  );
+};
+
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Data State
+  const [timeProfiles, setTimeProfiles] = useState(defaultTimeProfiles);
+  const [faculty, setFaculty] = useState(defaultFaculty);
+  const [courses, setCourses] = useState(defaultCourses);
+  const [groups, setGroups] = useState(defaultGroups);
+  const [rooms, setRooms] = useState(defaultRooms);
+  const [activities, setActivities] = useState(defaultActivities);
+  const [constraints, setConstraints] = useState(defaultConstraints);
+
+  // Forms State
+  const [newAct, setNewAct] = useState({ facultyId: '', courseId: '', groupId: '', roomId: '', duration: 1 });
+  const [activeProfileId, setActiveProfileId] = useState(timeProfiles[0]?.id);
+
+  // Generation State
+  const [schedule, setSchedule] = useState([]);
+  const [unassigned, setUnassigned] = useState([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [viewFilter, setViewFilter] = useState('all');
+
+  // Helpers for extracting unique master sets of days/hours for grid rendering
+  const allGlobalDays = [...new Set(timeProfiles.flatMap(tp => tp.days))];
+  const allGlobalHours = [...new Set(timeProfiles.flatMap(tp => tp.hours))].sort();
+
+  // --- Core Algorithm (FET-Lite Scheduler) ---
+  const generateTimetable = () => {
+    setIsGenerating(true);
+
+    setTimeout(() => {
+      let newSchedule = [];
+      let newUnassigned = [];
+
+      // Sort activities: Place those with longer durations or strict rooms first
+      const sortedActivities = [...activities].sort((a, b) => {
+        if (b.duration !== a.duration) return b.duration - a.duration;
+        if (b.roomId && !a.roomId) return 1;
+        return Math.random() - 0.5;
+      });
+
+      sortedActivities.forEach(act => {
+        let placed = false;
+        const duration = parseInt(act.duration) || 1;
+
+        // Find Group & its Time Profile
+        const group = groups.find(g => g.id === act.groupId);
+        const groupSize = parseInt(group?.size) || 0;
+        const profile = timeProfiles.find(tp => tp.id === group?.timeProfileId) || timeProfiles[0];
+
+        // Use group-specific days and hours
+        const groupDays = profile ? profile.days : [];
+        const groupHours = profile ? profile.hours : [];
+
+        // Load target faculty constraints
+        const unavailDays = constraints.filter(c => c.type === 'FAC_UNAVAIL_DAY' && c.facultyId === act.facultyId).map(c => c.day);
+        const maxDailyConst = constraints.find(c => c.type === 'FAC_MAX_DAILY' && c.facultyId === act.facultyId);
+        const maxDaily = maxDailyConst ? parseInt(maxDailyConst.maxHours) : 999;
+
+        for (let d of groupDays) {
+          if (placed) break;
+          if (unavailDays.includes(d)) continue; // Faculty Unavailable Constraint
+
+          // Faculty Max Daily Hours Constraint
+          const currentHoursToday = newSchedule.filter(s => s.day === d && s.facultyId === act.facultyId).length;
+          if (currentHoursToday + duration > maxDaily) continue;
+
+          // Try to find continuous blocks of time for the required duration within the Group's allowed hours
+          for (let hIndex = 0; hIndex <= groupHours.length - duration; hIndex++) {
+            if (placed) break;
+
+            for (let r of rooms) {
+              if (placed) break;
+
+              // Space Capacity Constraint
+              if (parseInt(r.capacity || 0) < groupSize) continue;
+
+              // Explicit room request
+              if (act.roomId && act.roomId !== r.id) continue;
+
+              // Check all required consecutive slots
+              let slotsAreFree = true;
+              for (let offset = 0; offset < duration; offset++) {
+                const checkHour = groupHours[hIndex + offset];
+                const hasConflict = newSchedule.some(s =>
+                  s.day === d && s.hour === checkHour && (
+                    s.roomId === r.id ||
+                    s.facultyId === act.facultyId ||
+                    s.groupId === act.groupId
+                  )
+                );
+                if (hasConflict) { slotsAreFree = false; break; }
+              }
+
+              if (slotsAreFree) {
+                // Assign all slots
+                for (let offset = 0; offset < duration; offset++) {
+                  newSchedule.push({
+                    id: `${act.id}-part${offset}`,
+                    parentActId: act.id,
+                    day: d,
+                    hour: groupHours[hIndex + offset],
+                    roomId: r.id,
+                    facultyId: act.facultyId,
+                    courseId: act.courseId,
+                    groupId: act.groupId,
+                    part: offset + 1,
+                    totalParts: duration
+                  });
+                }
+                placed = true;
+              }
+            }
+          }
+        }
+
+        if (!placed) newUnassigned.push(act);
+      });
+
+      setSchedule(newSchedule);
+      setUnassigned(newUnassigned);
+      setIsGenerating(false);
+      setActiveTab('timetable');
+    }, 800);
+  };
+
+  // --- Rendering Functions ---
+  const renderDashboard = () => (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-indigo-600 to-blue-500 rounded-2xl p-8 text-white shadow-lg">
+        <h1 className="text-3xl font-bold mb-2">Welcome to DMU Timetable</h1>
+        <p className="text-indigo-100 max-w-2xl">
+          Define multiple Time Profiles, upload your CSV data, apply constraints, and automatically build a conflict-free university schedule.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          { label: 'Faculty', count: faculty.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
+          { label: 'Courses', count: courses.length, icon: BookOpen, color: 'text-purple-600', bg: 'bg-purple-100' },
+          { label: 'Groups', count: groups.length, icon: Users, color: 'text-green-600', bg: 'bg-green-100' },
+          { label: 'Time Profiles', count: timeProfiles.length, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100' },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+            <div className={`p-4 rounded-full ${stat.bg} ${stat.color}`}>
+              <stat.icon size={24} />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-slate-800">{stat.count}</p>
+              <p className="text-sm text-slate-500 font-medium">{stat.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderTimeProfiles = () => {
+    const activeProfile = timeProfiles.find(tp => tp.id === activeProfileId) || timeProfiles[0];
+
+    const setProfileDays = (newDays) => {
+      setTimeProfiles(timeProfiles.map(tp => tp.id === activeProfile.id ? { ...tp, days: newDays } : tp));
+    };
+
+    const setProfileHours = (newHours) => {
+      setTimeProfiles(timeProfiles.map(tp => tp.id === activeProfile.id ? { ...tp, hours: newHours } : tp));
+    };
+
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center">
+            <Clock className="mr-2 text-indigo-600" /> Manage Time Profiles
+          </h3>
+          <p className="text-sm text-slate-500 mb-4">Create different sets of working days and times to assign to different student groups.</p>
+
+          <div className="flex gap-4 mb-4">
+            <select
+              value={activeProfileId}
+              onChange={e => setActiveProfileId(e.target.value)}
+              className="flex-1 px-4 py-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {timeProfiles.map(tp => <option key={tp.id} value={tp.id}>{tp.name}</option>)}
+            </select>
+            <button
+              onClick={() => {
+                const name = prompt('Enter new Profile Name:');
+                if (name) {
+                  const newTp = { id: Date.now().toString(), name, days: [], hours: [] };
+                  setTimeProfiles([...timeProfiles, newTp]);
+                  setActiveProfileId(newTp.id);
+                }
+              }}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center"
+            >
+              <Plus size={18} className="mr-2" /> New Profile
+            </button>
+            <button
+              onClick={() => {
+                if (timeProfiles.length === 1) return alert('Cannot delete the last profile.');
+                setTimeProfiles(timeProfiles.filter(tp => tp.id !== activeProfile.id));
+                setActiveProfileId(timeProfiles[0].id);
+              }}
+              className="bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100 flex items-center"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
+        </div>
+
+        {activeProfile && (
+          <div className="grid md:grid-cols-2 gap-6 items-start">
+            <StringListManager title={`Days for ${activeProfile.name}`} items={activeProfile.days} setItems={setProfileDays} placeholder="e.g. Monday" />
+            <StringListManager title={`Hours for ${activeProfile.name}`} items={activeProfile.hours} setItems={setProfileHours} placeholder="e.g. 08:00 - 09:00" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderTimetable = () => {
+    if (schedule.length === 0 && unassigned.length === 0) {
+      return (
+        <div className="text-center py-20">
+          <AlertCircle size={48} className="mx-auto text-slate-300 mb-4" />
+          <p className="text-slate-500 text-lg">No timetable generated yet. Go to Generate tab.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {unassigned.length > 0 && (
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-start space-x-3">
+            <AlertCircle className="flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-semibold">Generation Incomplete ({unassigned.length} items failed)</h4>
+              <p className="text-sm mt-1">Failed to place activities. Check if Space/Time constraints are too tight, or if the group's Time Profile lacks enough hours for the required duration.</p>
+            </div>
+          </div>
+        )}
+
+        {unassigned.length === 0 && schedule.length > 0 && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-xl flex items-center space-x-3">
+            <CheckCircle2 className="flex-shrink-0" />
+            <span className="font-semibold">Generation Successful! All constraints satisfied.</span>
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex gap-4 items-center">
+          <span className="font-medium text-slate-700">View By:</span>
+          <select value={viewFilter} onChange={e => setViewFilter(e.target.value)} className="border-slate-300 rounded-lg px-3 py-2 text-slate-700 bg-white min-w-[200px]">
+            <option value="all">All Data (Global Master Grid)</option>
+            <optgroup label="Student Groups">
+              {groups.map(g => <option key={`g-${g.id}`} value={`group-${g.id}`}>{g.name}</option>)}
+            </optgroup>
+            <optgroup label="Faculty">
+              {faculty.map(f => <option key={`f-${f.id}`} value={`faculty-${f.id}`}>{f.name}</option>)}
+            </optgroup>
+          </select>
+        </div>
+
+        {/* Timetable Grid */}
+        <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl shadow-sm">
+          <table className="w-full min-w-max border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="p-3 border-r border-slate-200 w-32 bg-slate-100 z-10 font-semibold text-slate-600">Time / Day</th>
+                {allGlobalDays.map((d, idx) => <th key={idx} className="p-3 border-r border-slate-200 text-center font-semibold text-slate-600 min-w-[150px]">{d}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {allGlobalHours.map((hour, hIdx) => (
+                <tr key={hIdx} className="border-b border-slate-100">
+                  <td className="p-3 border-r border-slate-200 bg-slate-50 font-medium text-slate-600 text-sm whitespace-nowrap">{hour}</td>
+                  {allGlobalDays.map((day, dIdx) => {
+                    let cellActivities = schedule.filter(s => s.day === day && s.hour === hour);
+
+                    if (viewFilter.startsWith('group-')) {
+                      cellActivities = cellActivities.filter(s => s.groupId === viewFilter.replace('group-', ''));
+                    } else if (viewFilter.startsWith('faculty-')) {
+                      cellActivities = cellActivities.filter(s => s.facultyId === viewFilter.replace('faculty-', ''));
+                    }
+
+                    return (
+                      <td key={`cell-${dIdx}-${hIdx}`} className="p-2 border-r border-slate-100 align-top min-h-[80px]">
+                        {cellActivities.map(act => (
+                          <div key={act.id} className="bg-indigo-50 border border-indigo-200 p-2 rounded-md mb-1 text-sm shadow-sm">
+                            <div className="font-bold text-indigo-900 flex justify-between">
+                              <span>{courses.find(c => c.id === act.courseId)?.code}</span>
+                              {act.totalParts > 1 && <span className="text-xs bg-indigo-200 px-1 rounded text-indigo-800">Pt {act.part}/{act.totalParts}</span>}
+                            </div>
+                            <div className="text-indigo-800 text-xs truncate mt-0.5">{courses.find(c => c.id === act.courseId)?.name}</div>
+                            <div className="text-indigo-700 text-xs mt-1 border-t border-indigo-100 pt-1">{faculty.find(f => f.id === act.facultyId)?.name}</div>
+                            <div className="flex justify-between text-indigo-500 text-xs mt-1 font-medium">
+                              <span>{groups.find(g => g.id === act.groupId)?.name}</span>
+                              <span>{rooms.find(r => r.id === act.roomId)?.name}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
+      <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
+        <div className="p-6">
+          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center">
+            <Calendar className="mr-2 text-indigo-400" /> DMU <span className="text-indigo-400 font-light">Timetable</span>
+          </h1>
+          <p className="text-xs text-slate-400 mt-1">Web Timetabling Engine</p>
+        </div>
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+          <SidebarItem id="dashboard" icon={LayoutGrid} label="Dashboard" activeTab={activeTab} setActiveTab={setActiveTab} />
+
+          <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Parameters</div>
+          <SidebarItem id="time" icon={Clock} label="Time Profiles" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem id="faculty" icon={Users} label="Faculty" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem id="courses" icon={BookOpen} label="Courses" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem id="groups" icon={GraduationCap} label="Student Groups" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem id="rooms" icon={MapPin} label="Rooms" activeTab={activeTab} setActiveTab={setActiveTab} />
+
+          <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rules & Planning</div>
+          <SidebarItem id="constraints" icon={ShieldAlert} label="Constraints (FET)" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem id="activities" icon={BookOpen} label="Activities" activeTab={activeTab} setActiveTab={setActiveTab} />
+
+          <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Scheduling</div>
+          <SidebarItem id="generate" icon={Play} label="Generate" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem id="timetable" icon={Calendar} label="View Timetable" activeTab={activeTab} setActiveTab={setActiveTab} />
+        </nav>
+      </aside>
+
+      <main className="flex-1 overflow-y-auto p-8">
+        <div className="max-w-6xl mx-auto">
+          {activeTab === 'dashboard' && renderDashboard()}
+          {activeTab === 'time' && renderTimeProfiles()}
+          {activeTab === 'faculty' && (
+            <div className="max-w-3xl mx-auto">
+              <ObjectListManager title="Faculty" items={faculty} setItems={setFaculty} fields={[{ key: 'name', label: 'Name' }, { key: 'title', label: 'Title (e.g. Dr, Prof)' }, { key: 'college', label: 'College / Department' }]} />
+            </div>
+          )}
+          {activeTab === 'courses' && (
+            <div className="max-w-3xl mx-auto">
+              <ObjectListManager title="Courses" items={courses} setItems={setCourses} fields={[{ key: 'code', label: 'Course Code' }, { key: 'name', label: 'Course Name' }, { key: 'program', label: 'Program' }, { key: 'year', label: 'Year' }]} />
+            </div>
+          )}
+          {activeTab === 'groups' && (
+            <div className="max-w-3xl mx-auto">
+              <ObjectListManager title="Student Groups" items={groups} setItems={setGroups} fields={[{ key: 'name', label: 'Group Name' }, { key: 'size', label: 'Number of Students (Size)', type: 'number' }, { key: 'timeProfileId', label: 'Time Profile', type: 'select', options: timeProfiles.map(tp => ({ value: tp.id, label: tp.name })) }]} />
+            </div>
+          )}
+          {activeTab === 'rooms' && (
+            <div className="max-w-3xl mx-auto">
+              <ObjectListManager title="Rooms" items={rooms} setItems={setRooms} fields={[{ key: 'name', label: 'Room Name' }, { key: 'capacity', label: 'Room Capacity', type: 'number' }]} />
+            </div>
+          )}
+          {activeTab === 'constraints' && (
+            <ConstraintsManager constraints={constraints} setConstraints={setConstraints} faculty={faculty} days={allGlobalDays} />
+          )}
+          {activeTab === 'activities' && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              {/* Activity Form mapping logic remains identical */}
+              <div className="p-6 border-b border-slate-200 bg-slate-50">
+                <h3 className="text-xl font-bold text-slate-800 mb-4">Add New Activity</h3>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newAct.facultyId || !newAct.courseId || !newAct.groupId) return;
+                  setActivities([...activities, { id: Date.now().toString(), ...newAct }]);
+                  setNewAct({ facultyId: '', courseId: '', groupId: '', roomId: '', duration: 1 });
+                }} className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                  <select required value={newAct.facultyId} onChange={e => setNewAct({ ...newAct, facultyId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white col-span-2">
+                    <option value="">Select Faculty</option>
+                    {faculty.map(f => <option key={f.id} value={f.id}>{f.title ? f.title + ' ' : ''}{f.name}</option>)}
+                  </select>
+                  <select required value={newAct.courseId} onChange={e => setNewAct({ ...newAct, courseId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white col-span-2">
+                    <option value="">Select Course</option>
+                    {courses.map(c => <option key={c.id} value={c.id}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
+                  </select>
+                  <select required value={newAct.groupId} onChange={e => setNewAct({ ...newAct, groupId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white col-span-2">
+                    <option value="">Select Group</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name} (Size: {g.size || 0})</option>)}
+                  </select>
+                  <select value={newAct.roomId} onChange={e => setNewAct({ ...newAct, roomId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white col-span-2">
+                    <option value="">Room Pref (Optional)</option>
+                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name} {r.capacity ? `(Cap: ${r.capacity})` : ''}</option>)}
+                  </select>
+                  <div className="col-span-2 flex items-center space-x-2">
+                    <label className="text-sm font-medium text-slate-600 whitespace-nowrap">Duration (Hrs):</label>
+                    <input type="number" min="1" max="4" required value={newAct.duration} onChange={e => setNewAct({ ...newAct, duration: parseInt(e.target.value) || 1 })} className="w-full px-4 py-2 border rounded-lg bg-white outline-none" />
+                  </div>
+                  <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium col-span-2">
+                    Add Activity
+                  </button>
+                </form>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-white border-b border-slate-200 text-slate-600 font-medium text-sm">
+                      <th className="p-4">Faculty</th>
+                      <th className="p-4">Course</th>
+                      <th className="p-4">Group</th>
+                      <th className="p-4">Room Pref.</th>
+                      <th className="p-4">Duration</th>
+                      <th className="p-4 w-16">Act</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {activities.map((act) => {
+                      const fac = faculty.find(f => f.id === act.facultyId);
+                      const cou = courses.find(c => c.id === act.courseId);
+                      const grp = groups.find(g => g.id === act.groupId);
+                      const rm = rooms.find(r => r.id === act.roomId);
+
+                      return (
+                        <tr key={act.id} className="hover:bg-slate-50">
+                          <td className="p-4">{fac ? `${fac.title || ''} ${fac.name}` : 'Unknown'}</td>
+                          <td className="p-4">{cou ? `${cou.code ? cou.code + ' - ' : ''}${cou.name}` : 'Unknown'}</td>
+                          <td className="p-4">{grp?.name || 'Unknown'}</td>
+                          <td className="p-4">{rm?.name || 'Any'}</td>
+                          <td className="p-4"><span className="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs font-bold">{act.duration || 1} hrs</span></td>
+                          <td className="p-4">
+                            <button onClick={() => setActivities(activities.filter(a => a.id !== act.id))} className="text-red-400 hover:text-red-600">
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {activeTab === 'generate' && (
+            <div className="max-w-2xl mx-auto text-center mt-12 space-y-8">
+              <div className="bg-indigo-50 text-indigo-800 p-6 rounded-2xl border border-indigo-100">
+                <Play size={48} className="mx-auto mb-4 text-indigo-500" />
+                <h2 className="text-2xl font-bold mb-2">Ready to Generate</h2>
+                <p className="text-indigo-600/80 mb-6">
+                  The engine will schedule {activities.length} activities. Space capacity, specific Time Profiles for each group, and Constraints will be strictly enforced.
+                </p>
+                <button
+                  onClick={generateTimetable}
+                  disabled={isGenerating || activities.length === 0}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-lg font-semibold px-8 py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center w-full max-w-xs mx-auto"
+                >
+                  {isGenerating ? 'Computing...' : 'Start Generation'}
+                </button>
+              </div>
+            </div>
+          )}
+          {activeTab === 'timetable' && renderTimetable()}
+        </div>
+      </main>
+    </div>
+  );
+}
