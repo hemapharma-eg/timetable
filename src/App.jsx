@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Calendar, Clock, Users, BookOpen, MapPin,
   Play, LayoutGrid, Plus, Trash2, AlertCircle, CheckCircle2, Pencil, GraduationCap, ShieldAlert,
-  Download, Upload, FileSpreadsheet
+  Download, Upload, FileSpreadsheet, LogOut, LogIn
 } from 'lucide-react';
 import ConstraintsManager from './ConstraintsManager';
+import { supabase } from './supabase';
 
 // --- Default Mock Data ---
 const defaultTimeProfiles = [
@@ -265,18 +266,83 @@ const ObjectListManager = ({ title, items, setItems, fields }) => {
 
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [appRole, setAppRole] = useState(null);
+  const [appUserMeta, setAppUserMeta] = useState(null);
+
   const [activeTab, setActiveTab] = useState('dashboard');
 
   // Data State
-  const [timeProfiles, setTimeProfiles] = useState(defaultTimeProfiles);
-  const [faculty, setFaculty] = useState(defaultFaculty);
-  const [courses, setCourses] = useState(defaultCourses);
-  const [subjects, setSubjects] = useState(defaultSubjects);
-  const [activityTags, setActivityTags] = useState(defaultTags);
-  const [groups, setGroups] = useState(defaultGroups);
-  const [rooms, setRooms] = useState(defaultRooms);
-  const [activities, setActivities] = useState(defaultActivities);
-  const [constraints, setConstraints] = useState(defaultConstraints);
+  const [timeProfiles, setTimeProfiles] = useState([]);
+  const [faculty, setFaculty] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [activityTags, setActivityTags] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [constraints, setConstraints] = useState([]);
+
+  // Fetch Session & Data
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchRoleAndData(session.user.id);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        fetchRoleAndData(session.user.id);
+      } else {
+        setAppRole(null);
+        setAppUserMeta(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchRoleAndData = async (userId) => {
+    // 1. Fetch User Role
+    const { data: userData } = await supabase.from('app_users').select('*').eq('id', userId).single();
+    if (userData) {
+      setAppRole(userData.role);
+      setAppUserMeta(userData);
+    } else {
+      // Default fallback
+      setAppRole('student'); 
+    }
+
+    // 2. Fetch App Data
+    try {
+      const [tp, fac, crs, sub, tags, grp, rm, act, cons, sch] = await Promise.all([
+        supabase.from('time_profiles').select('*'),
+        supabase.from('faculty').select('*'),
+        supabase.from('courses').select('*'),
+        supabase.from('subjects').select('*'),
+        supabase.from('activity_tags').select('*'),
+        supabase.from('student_groups').select('*'),
+        supabase.from('rooms').select('*'),
+        supabase.from('activities').select('*'),
+        supabase.from('constraints').select('*'),
+        supabase.from('schedules').select('*')
+      ]);
+      
+      if(tp.data) setTimeProfiles(tp.data);
+      if(fac.data) setFaculty(fac.data);
+      if(crs.data) setCourses(crs.data);
+      if(sub.data) setSubjects(sub.data);
+      if(tags.data) setActivityTags(tags.data);
+      if(grp.data) setGroups(grp.data);
+      if(rm.data) setRooms(rm.data);
+      if(act.data) setActivities(act.data);
+      if(cons.data) setConstraints(cons.data);
+      if(sch.data) setSchedule(sch.data);
+    } catch (err) {
+      console.error("Error fetching data", err);
+    }
+  };
 
   // Forms State
   const [newAct, setNewAct] = useState({ facultyId: '', courseId: '', subjectId: '', tagId: '', groupId: '', roomId: '', duration: 1 });
@@ -296,7 +362,7 @@ export default function App() {
   const generateTimetable = () => {
     setIsGenerating(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       let newSchedule = [];
       let newUnassigned = [];
 
@@ -432,6 +498,23 @@ export default function App() {
 
       setSchedule(newSchedule);
       setUnassigned(newUnassigned);
+
+      // Push to Supabase optionally
+      try {
+        await supabase.from('schedules').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        if (newSchedule.length > 0) {
+          const dbReadySchedule = newSchedule.map(({ ...s }) => {
+            // Ensure no invalid dummy ID goes to uuid column
+            // We strip 'id' from local so DB generates valid UIUD
+            const { id, ...clean } = s; 
+            return clean;
+          });
+          await supabase.from('schedules').insert(dbReadySchedule);
+        }
+      } catch (err) {
+        console.error("Failed to sync generated schedule to Supabase", err);
+      }
+
       setIsGenerating(false);
       setActiveTab('timetable');
     }, 800);
@@ -562,19 +645,20 @@ export default function App() {
           </div>
         )}
 
-        {/* Filters */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex gap-4 items-center">
-          <span className="font-medium text-slate-700">View By:</span>
-          <select value={viewFilter} onChange={e => setViewFilter(e.target.value)} className="border-slate-300 rounded-lg px-3 py-2 text-slate-700 bg-white min-w-[200px]">
-            <option value="all">All Data (Global Master Grid)</option>
-            <optgroup label="Student Groups">
-              {groups.map(g => <option key={`g-${g.id}`} value={`group-${g.id}`}>{g.name}</option>)}
-            </optgroup>
-            <optgroup label="Faculty">
-              {faculty.map(f => <option key={`f-${f.id}`} value={`faculty-${f.id}`}>{f.name}</option>)}
-            </optgroup>
-          </select>
-        </div>
+        {['technical_admin', 'academic_admin'].includes(appRole) && (
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex gap-4 items-center">
+            <span className="font-medium text-slate-700">View By:</span>
+            <select value={viewFilter} onChange={e => setViewFilter(e.target.value)} className="border-slate-300 rounded-lg px-3 py-2 text-slate-700 bg-white min-w-[200px]">
+              <option value="all">All Data (Global Master Grid)</option>
+              <optgroup label="Student Groups">
+                {groups.map(g => <option key={`g-${g.id}`} value={`group-${g.id}`}>{g.name}</option>)}
+              </optgroup>
+              <optgroup label="Faculty">
+                {faculty.map(f => <option key={`f-${f.id}`} value={`faculty-${f.id}`}>{f.name}</option>)}
+              </optgroup>
+            </select>
+          </div>
+        )}
 
         {/* Timetable Grid */}
         <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl shadow-sm">
@@ -596,6 +680,13 @@ export default function App() {
                       cellActivities = cellActivities.filter(s => s.groupId === viewFilter.replace('group-', ''));
                     } else if (viewFilter.startsWith('faculty-')) {
                       cellActivities = cellActivities.filter(s => s.facultyId === viewFilter.replace('faculty-', ''));
+                    }
+
+                    // Strict RBAC Enforcement
+                    if (appRole === 'faculty') {
+                      cellActivities = cellActivities.filter(s => s.facultyId === appUserMeta?.faculty_id);
+                    } else if (appRole === 'student') {
+                      cellActivities = cellActivities.filter(s => s.groupId === appUserMeta?.group_id);
                     }
 
                     return (
@@ -626,6 +717,41 @@ export default function App() {
     );
   };
 
+  if (!session) {
+    return (
+      <div className="flex h-screen bg-slate-900 font-sans text-white items-center justify-center">
+        <div className="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-700">
+          <div className="flex justify-center mb-6 text-indigo-400">
+            <Calendar size={48} />
+          </div>
+          <h2 className="text-2xl font-bold text-center mb-2">DMU Timetable</h2>
+          <p className="text-slate-400 text-center text-sm mb-8">Sign in to access your portal</p>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const email = e.target.email.value;
+            const password = e.target.password.value;
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) alert(error.message);
+          }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+              <input name="email" type="email" required className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
+              <input name="password" type="password" required className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+            </div>
+            <button type="submit" className="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 flex items-center justify-center">
+              <LogIn size={18} className="mr-2" /> Sign In
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  const isTechAdmin = appRole === 'technical_admin';
+
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
       <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
@@ -637,23 +763,37 @@ export default function App() {
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <SidebarItem id="dashboard" icon={LayoutGrid} label="Dashboard" activeTab={activeTab} setActiveTab={setActiveTab} />
-
-          <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Parameters</div>
-          <SidebarItem id="time" icon={Clock} label="Time Profiles" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem id="faculty" icon={Users} label="Faculty" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem id="courses" icon={BookOpen} label="Courses" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem id="subjects" icon={BookOpen} label="Subjects" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem id="tags" icon={Clock} label="Activity Tags" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem id="groups" icon={GraduationCap} label="Student Groups" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem id="rooms" icon={MapPin} label="Rooms" activeTab={activeTab} setActiveTab={setActiveTab} />
-
-          <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rules & Planning</div>
-          <SidebarItem id="constraints" icon={ShieldAlert} label="Constraints (FET)" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem id="activities" icon={BookOpen} label="Activities" activeTab={activeTab} setActiveTab={setActiveTab} />
-
-          <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Scheduling</div>
-          <SidebarItem id="generate" icon={Play} label="Generate" activeTab={activeTab} setActiveTab={setActiveTab} />
           <SidebarItem id="timetable" icon={Calendar} label="View Timetable" activeTab={activeTab} setActiveTab={setActiveTab} />
+
+          {isTechAdmin && (
+            <>
+              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Parameters</div>
+              <SidebarItem id="time" icon={Clock} label="Time Profiles" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="faculty" icon={Users} label="Faculty" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="courses" icon={BookOpen} label="Courses" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="subjects" icon={BookOpen} label="Subjects" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="tags" icon={Clock} label="Activity Tags" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="groups" icon={GraduationCap} label="Student Groups" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="rooms" icon={MapPin} label="Rooms" activeTab={activeTab} setActiveTab={setActiveTab} />
+
+              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rules & Planning</div>
+              <SidebarItem id="constraints" icon={ShieldAlert} label="Constraints (FET)" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="activities" icon={BookOpen} label="Activities" activeTab={activeTab} setActiveTab={setActiveTab} />
+
+              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Scheduling</div>
+              <SidebarItem id="generate" icon={Play} label="Generate" activeTab={activeTab} setActiveTab={setActiveTab} />
+            </>
+          )}
+
+          <div className="pt-4">
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors mt-auto"
+            >
+              <LogOut size={20} />
+              <span className="font-medium">Sign Out</span>
+            </button>
+          </div>
         </nav>
       </aside>
 
