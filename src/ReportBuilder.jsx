@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileSpreadsheet, Plus, Pencil, Trash2, X, Search, Eye, Download,
   ChevronDown, ChevronUp, Filter, ArrowUpDown, Copy, Save, Share2, CheckCircle2,
@@ -292,7 +292,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
   };
 
   // ─── Data computation ──────────────────────────────────────────────────
-  const computeRows = () => {
+  const computedRows = useMemo(() => {
     let data = [...liveData];
 
     // 1. Apply Creator-defined Hardcoded Filters
@@ -344,11 +344,11 @@ export const ReportBuilder = ({ deepLinkId }) => {
       });
     }
     return data;
-  };
+  }, [liveData, filters, searchApplied, appliedSearchValues, reportSearchFields, sortKey, sortDir]);
 
   const handleExportExcel = () => {
     if (typeof XLSX === 'undefined') { alert('Excel engine is still loading.'); return; }
-    const rows = computeRows();
+    const rows = computedRows;
     const exportData = rows.map(r => {
       const obj = {};
       selectedColumns.forEach(k => { obj[prettyCol(k)] = r[k] ?? ''; });
@@ -366,7 +366,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
     c.column_name.toLowerCase().includes(columnSearch.toLowerCase())
   );
 
-  const ShareToast = () => shareToast ? (
+  const renderShareToast = () => shareToast ? (
     <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
       <CheckCircle2 size={16} /> Link copied to clipboard!
     </div>
@@ -533,7 +533,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
     );
   };
 
-  const SearchSection = () => {
+  const renderSearchSection = () => {
     if (!reportMode.includes('search') || reportSearchFields.length === 0) return null;
     return (
       <div className="mx-5 my-4 p-5 bg-gradient-to-r from-slate-50 to-violet-50 border border-slate-200 rounded-xl">
@@ -554,7 +554,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
     );
   };
 
-  const DetailSection = ({ row }) => {
+  const renderDetailSection = (row) => {
     if (!row) return null;
     const detailCols = reportDetailColumns.length > 0 ? reportDetailColumns : selectedColumns;
     return (
@@ -581,7 +581,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
   if (view === 'list') {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col max-h-[85vh]">
-        <ShareToast />
+        {renderShareToast()}
         <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 flex items-center">
@@ -652,7 +652,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
   // RENDER: Report Preview
   // ═══════════════════════════════════════════════════════════════════════
   if (view === 'preview') {
-    const rows = computeRows();
+    const rows = computedRows;
     const grouped = groupByKey ? {} : null;
     if (grouped !== null) {
       rows.forEach(r => {
@@ -722,7 +722,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
 
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col max-h-[85vh]">
-        <ShareToast />
+        {renderShareToast()}
         <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
           <div>
             <h2 className="text-xl font-bold text-slate-800">{reportName || 'Untitled Report'}</h2>
@@ -748,7 +748,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
           </div>
         </div>
 
-        <SearchSection />
+        {renderSearchSection()}
 
         <div className={`flex-1 overflow-hidden flex ${reportMode.includes('details') && selectedRow ? 'flex-row' : 'flex-col'}`}>
           <div className={`overflow-auto bg-slate-50 p-4 ${reportMode.includes('details') && selectedRow ? 'w-1/2' : 'flex-1'}`}>
@@ -770,7 +770,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
           </div>
           {reportMode.includes('details') && selectedRow && (
             <div className="w-1/2 min-w-[320px] overflow-y-auto">
-              <DetailSection row={selectedRow} />
+              {renderDetailSection(selectedRow)}
             </div>
           )}
         </div>
@@ -956,7 +956,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
             <div className="px-4 pb-4">
               {dataSource && (
                 <div className="p-3 bg-violet-50 rounded-lg border border-violet-200 text-sm text-violet-700">
-                  <strong>{computeRows().length}</strong> records match your filters from{' '}
+                  <strong>{computedRows.length}</strong> records match your filters from{' '}
                   <strong>{liveData.length}</strong> total <span className="font-mono">{dataSource}</span> records
                   {dataLoading && <span className="text-violet-400 ml-2">(loading...)</span>}
                 </div>
