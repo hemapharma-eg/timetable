@@ -5,6 +5,7 @@ import {
   Download, Upload, FileSpreadsheet, LogOut, LogIn
 } from 'lucide-react';
 import ConstraintsManager from './ConstraintsManager';
+import { FacultyManager } from './FacultyManager';
 import { supabase } from './supabase';
 
 // --- Default Mock Data ---
@@ -1019,9 +1020,7 @@ export default function App() {
           {activeTab === 'users' && renderUsersManager()}
           {activeTab === 'time' && renderTimeProfiles()}
           {activeTab === 'faculty' && (
-            <div className="max-w-3xl mx-auto">
-              <ObjectListManager title="Faculty" items={faculty} setItems={setFaculty} fields={[{ key: 'name', label: 'Name' }, { key: 'email', label: 'Email Address' }, { key: 'college', label: 'College / Department' }]} />
-            </div>
+            <FacultyManager faculty={faculty} setFaculty={setFaculty} />
           )}
           {activeTab === 'courses' && (
             <div className="max-w-3xl mx-auto">

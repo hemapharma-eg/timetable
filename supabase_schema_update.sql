@@ -32,3 +32,42 @@ CREATE TABLE IF NOT EXISTS public.students (
 
 -- Note: The id column is set to text because the user requested to "import the student id", 
 -- meaning IDs might be custom strings rather than auto-generated UUIDs.
+
+-- 5. CMS Upgrade: Add Comprehensive Faculty Fields
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS employee_id text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS dept text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS active text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS designation text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS administrative_role text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_employment_status text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_hire_date text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS end_of_service_date text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS nationality text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS scopus_id text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_position_1 text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_position_2 text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_emirates_id text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS eid_valid text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_missing_docs text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_gender text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_payroll text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_national_id text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_dob text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_campus text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_phone_mobile text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_last_promotion text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_qualification_1 text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_qualification_2 text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_qualification_3 text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_qualification_4 text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_qualification_5 text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_qualification_6 text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_equivalency_1 text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_equivalency_2 text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_orc_id text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS emp_years_of_experience text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS certificate_submitted text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS hospital text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS hospital_department text;
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS specialty text;
