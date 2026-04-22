@@ -336,17 +336,16 @@ ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow full access on app_users" ON public.app_users;
 CREATE POLICY "Allow full access on app_users" ON public.app_users FOR ALL USING (true) WITH CHECK (true);
 
--- Ensure all core data tables have open policies for authenticated users
+-- Ensure ALL public tables have open RLS policies for authenticated users
+-- This covers any new tables added dynamically (e.g. CHEDS_Academic_Programs)
 DO $$
 DECLARE
   tbl text;
 BEGIN
-  FOR tbl IN SELECT unnest(ARRAY[
-    'faculty', 'students', 'courses', 'student_groups', 'rooms',
-    'activities', 'activity_tags', 'time_profiles', 'constraints', 'schedules'
-  ])
+  FOR tbl IN
+    SELECT tablename FROM pg_tables WHERE schemaname = 'public'
   LOOP
-    EXECUTE format('ALTER TABLE IF EXISTS public.%I ENABLE ROW LEVEL SECURITY', tbl);
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
     EXECUTE format('DROP POLICY IF EXISTS "Full access on %I" ON public.%I', tbl, tbl);
     EXECUTE format('CREATE POLICY "Full access on %I" ON public.%I FOR ALL USING (true) WITH CHECK (true)', tbl, tbl);
   END LOOP;

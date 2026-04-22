@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Plus, Pencil, Trash2, X, Search, Eye, Save, Copy,
   ChevronDown, ChevronRight, ChevronLeft, Layers, Settings, Download,
@@ -51,6 +51,8 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   const [liveData, setLiveData] = useState([]);
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveSearch, setLiveSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debounceRef = useRef(null);
   const [editRow, setEditRow] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [isCreating, setIsCreating] = useState(false);
@@ -67,6 +69,13 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
 
   // Toast
   const [shareToast, setShareToast] = useState(false);
+
+  // Debounce search input
+  const handleSearchChange = (val) => {
+    setLiveSearch(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 250);
+  };
 
   // ─── Fetch ────────────────────────────────────────────────────────────
   useEffect(() => { fetchSchema(); fetchApps(); }, []);
@@ -186,7 +195,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   const handleExport = () => {
     if (typeof XLSX === 'undefined') return alert('Excel engine loading...');
     const c = liveConfig?.config || {};
-    const exportData = getFilteredData().map(r => { const obj = {}; (c.columns || []).forEach(col => { obj[prettyCol(col)] = r[col] ?? ''; }); return obj; });
+    const exportData = filteredData.map(r => { const obj = {}; (c.columns || []).forEach(col => { obj[prettyCol(col)] = r[col] ?? ''; }); return obj; });
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, c.table || 'Data');
@@ -196,7 +205,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   const toggleAppColumn = (col) => setAppColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
 
   // ─── Filtering ─────────────────────────────────────────────────────────
-  const getFilteredData = () => {
+  const filteredData = useMemo(() => {
     const c = liveConfig?.config || {};
     let data = [...liveData];
     const mode = c.mode || 'search_results_details';
@@ -222,15 +231,15 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
     }
 
     // Quick-search on top
-    if (liveSearch) {
+    if (debouncedSearch) {
       const searchCol = c.searchCol;
       data = data.filter(row => {
-        if (searchCol) return (row[searchCol] || '').toString().toLowerCase().includes(liveSearch.toLowerCase());
-        return Object.values(row).some(v => (v || '').toString().toLowerCase().includes(liveSearch.toLowerCase()));
+        if (searchCol) return (row[searchCol] || '').toString().toLowerCase().includes(debouncedSearch.toLowerCase());
+        return Object.values(row).some(v => (v || '').toString().toLowerCase().includes(debouncedSearch.toLowerCase()));
       });
     }
     return data;
-  };
+  }, [liveConfig, liveData, searchApplied, searchFormValues, urlFilters, debouncedSearch]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // RENDER: App View (Live)
@@ -245,7 +254,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
     const searchFields = c.searchFields || [];
     const detailCols = c.detailColumns?.length ? c.detailColumns : cols;
     const tableCols = getTableColumns(c.table);
-    const filteredData = getFilteredData();
+    // Replace local let/const with the global filteredData we defined above
 
     // For details_only mode with URL param
     const detailsOnlyRow = mode === 'details_only' && urlFilters?.record
@@ -355,7 +364,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
             {!hasSearch && (
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                <input type="text" placeholder="Quick search..." value={liveSearch} onChange={e => setLiveSearch(e.target.value)}
+                <input type="text" placeholder="Quick search..." value={liveSearch} onChange={e => handleSearchChange(e.target.value)}
                   className="pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400 w-48" />
               </div>
             )}
