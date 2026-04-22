@@ -269,6 +269,8 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [appRole, setAppRole] = useState(null);
   const [appUserMeta, setAppUserMeta] = useState(null);
+  const [authMode, setAuthMode] = useState('signIn'); // 'signIn' | 'signUp'
+  const [signupGroups, setSignupGroups] = useState([]);
 
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -302,6 +304,14 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!session && authMode === 'signUp') {
+      supabase.from('student_groups').select('id, name').then(({data, error}) => {
+        if (data && !error) setSignupGroups(data);
+      });
+    }
+  }, [authMode, session]);
 
   const fetchRoleAndData = async (userId) => {
     // 1. Fetch User Role
@@ -725,13 +735,43 @@ export default function App() {
             <Calendar size={48} />
           </div>
           <h2 className="text-2xl font-bold text-center mb-2">DMU Timetable</h2>
-          <p className="text-slate-400 text-center text-sm mb-8">Sign in to access your portal</p>
+          <p className="text-slate-400 text-center text-sm mb-8">
+            {authMode === 'signIn' ? 'Sign in to access your portal' : 'Create an account'}
+          </p>
           <form onSubmit={async (e) => {
             e.preventDefault();
             const email = e.target.email.value;
             const password = e.target.password.value;
-            const { error } = await supabase.auth.signInWithPassword({ email, password });
-            if (error) alert(error.message);
+            
+            if (authMode === 'signIn') {
+              const { error } = await supabase.auth.signInWithPassword({ email, password });
+              if (error) alert(error.message);
+            } else {
+              const groupId = e.target.groupId?.value;
+              const { data, error } = await supabase.auth.signUp({ email, password });
+              if (error) {
+                alert(error.message);
+              } else if (data.user) {
+                // By default make them a student (viewer) of their own timetable by mapping them to this group
+                if (groupId) {
+                  await supabase.from('app_users').insert([{ 
+                    id: data.user.id, 
+                    role: 'student',
+                    group_id: groupId 
+                  }]);
+                } else {
+                  // Fallback without group
+                  await supabase.from('app_users').insert([{ 
+                    id: data.user.id, 
+                    role: 'student' 
+                  }]);
+                }
+                alert('Account created! You are now a viewer by default.');
+                if (!data.session) {
+                    setAuthMode('signIn');
+                }
+              }
+            }
           }} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
@@ -741,10 +781,29 @@ export default function App() {
               <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
               <input name="password" type="password" required className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
             </div>
+            {authMode === 'signUp' && signupGroups.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Your Student Group</label>
+                <select name="groupId" className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                  <option value="">None / Will be assigned later</option>
+                  {signupGroups.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <button type="submit" className="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 flex items-center justify-center">
-              <LogIn size={18} className="mr-2" /> Sign In
+              {authMode === 'signIn' ? <><LogIn size={18} className="mr-2" /> Sign In</> : <><Plus size={18} className="mr-2" /> Create Account</>}
             </button>
           </form>
+          
+          <div className="mt-6 text-center text-sm text-slate-400">
+            {authMode === 'signIn' ? (
+              <p>Don't have an account? <button type="button" onClick={() => setAuthMode('signUp')} className="text-indigo-400 hover:text-indigo-300 font-medium">Sign Up</button></p>
+            ) : (
+              <p>Already have an account? <button type="button" onClick={() => setAuthMode('signIn')} className="text-indigo-400 hover:text-indigo-300 font-medium">Sign In</button></p>
+            )}
+          </div>
         </div>
       </div>
     );
