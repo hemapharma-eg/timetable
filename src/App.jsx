@@ -150,50 +150,66 @@ const ObjectListManager = ({ title, items, setItems, fields }) => {
   };
 
   const handleDownloadTemplate = () => {
-    const header = fields.map(f => f.key).join(',');
-    const blob = new Blob([header + '\n'], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title.toLowerCase().replace(' ', '_')}_template.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (typeof XLSX === 'undefined') {
+      alert('Excel engine is still loading. Please try again in a moment.');
+      return;
+    }
+    const ws = XLSX.utils.json_to_sheet([], { header: fields.map(f => f.key) });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, `${title.toLowerCase().replace(' ', '_')}_template.xlsx`);
   };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    if (typeof XLSX === 'undefined') {
+      alert('Excel engine is still loading. Please try again in a moment.');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const text = evt.target.result;
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-      if (lines.length < 2) {
-        alert('File is empty or missing data rows.');
-        return;
-      }
-
-      const headers = lines[0].split(',').map(h => h.trim());
-      const newItems = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        // Simple comma split (Assumes data doesn't contain commas within quotes)
-        const values = lines[i].split(',').map(v => v.trim());
-        let item = { id: Date.now().toString() + i };
-        fields.forEach((f) => {
-          const hIdx = headers.indexOf(f.key);
-          if (hIdx >= 0 && values[hIdx]) {
-            item[f.key] = values[hIdx];
-          }
-        });
-        if (item[fields[0].key]) { // Only add if the primary field is present
-          newItems.push(item);
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        
+        if (data.length < 2) {
+          alert('File is empty or missing data rows.');
+          return;
         }
+
+        const headers = data[0].map(h => h ? h.toString().trim() : '');
+        const newItems = [];
+
+        for (let i = 1; i < data.length; i++) {
+          const row = data[i];
+          if (!row || row.length === 0) continue;
+          
+          let item = { id: Date.now().toString() + i };
+          fields.forEach((f) => {
+            const hIdx = headers.indexOf(f.key);
+            if (hIdx >= 0 && row[hIdx] !== undefined) {
+              item[f.key] = row[hIdx].toString().trim();
+            }
+          });
+          
+          if (item[fields[0].key]) { // Only add if the primary field is present
+            newItems.push(item);
+          }
+        }
+        setItems(prev => [...prev, ...newItems]);
+        e.target.value = ''; // Reset input
+      } catch (err) {
+        console.error(err);
+        alert('Failed to parse Excel file.');
       }
-      setItems(prev => [...prev, ...newItems]);
-      e.target.value = ''; // Reset input
     };
-    reader.readAsText(file);
+    reader.readAsBinaryString(file);
   };
 
   return (
@@ -201,12 +217,12 @@ const ObjectListManager = ({ title, items, setItems, fields }) => {
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
         <div className="flex space-x-2">
-          <button onClick={handleDownloadTemplate} title="Download CSV Template" className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center">
+          <button onClick={handleDownloadTemplate} title="Download Excel Template" className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center">
             <Download size={16} className="mr-1" /> <span className="text-xs font-medium">Template</span>
           </button>
-          <label title="Upload CSV" className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center cursor-pointer">
+          <label title="Upload Excel" className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center cursor-pointer">
             <Upload size={16} className="mr-1" /> <span className="text-xs font-medium">Import</span>
-            <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+            <input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
           </label>
         </div>
       </div>
@@ -279,7 +295,7 @@ export default function App() {
   const [timeProfiles, setTimeProfiles] = useState([]);
   const [faculty, setFaculty] = useState([]);
   const [courses, setCourses] = useState([]);
-  const [subjects, setSubjects] = useState([]);
+  const [students, setStudents] = useState([]);
   const [activityTags, setActivityTags] = useState([]);
   const [groups, setGroups] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -320,15 +336,38 @@ export default function App() {
     // 1. Fetch User Role
     const { data: userData } = await supabase.from('app_users').select('*').eq('id', userId).single();
     
+    let matchedFaculty = null;
+    let matchedStudent = null;
+
+    if (userEmail && userEmail !== 'dribrahimpharmaceutics@gmail.com') {
+      const { data: facData } = await supabase.from('faculty').select('*').eq('email', userEmail).maybeSingle();
+      if (facData) matchedFaculty = facData;
+      else {
+        const { data: stuData } = await supabase.from('students').select('*').eq('email', userEmail).maybeSingle();
+        if (stuData) matchedStudent = stuData;
+      }
+    }
+
     let roleToSet = 'student';
     if (userEmail === 'dribrahimpharmaceutics@gmail.com') {
       roleToSet = 'technical_admin';
+    } else if (matchedFaculty) {
+      roleToSet = 'faculty';
+    } else if (matchedStudent) {
+      roleToSet = 'student';
     } else if (userData && userData.role) {
       roleToSet = userData.role;
     }
 
     setAppRole(roleToSet);
-    if (userData) setAppUserMeta(userData);
+    
+    let meta = userData || {};
+    if (matchedFaculty) {
+       meta = { ...meta, role: 'faculty', faculty_id: matchedFaculty.id };
+    } else if (matchedStudent) {
+       meta = { ...meta, role: 'student', group_id: matchedStudent.group_id };
+    }
+    setAppUserMeta(meta);
 
     if (roleToSet === 'technical_admin') {
       supabase.from('app_users').select('*').then(({data}) => {
@@ -338,11 +377,11 @@ export default function App() {
 
     // 2. Fetch App Data
     try {
-      const [tp, fac, crs, sub, tags, grp, rm, act, cons, sch] = await Promise.all([
+      const [tp, fac, crs, stu, tags, grp, rm, act, cons, sch] = await Promise.all([
         supabase.from('time_profiles').select('*'),
         supabase.from('faculty').select('*'),
         supabase.from('courses').select('*'),
-        supabase.from('subjects').select('*'),
+        supabase.from('students').select('*'),
         supabase.from('activity_tags').select('*'),
         supabase.from('student_groups').select('*'),
         supabase.from('rooms').select('*'),
@@ -354,7 +393,7 @@ export default function App() {
       if(tp.data) setTimeProfiles(tp.data);
       if(fac.data) setFaculty(fac.data);
       if(crs.data) setCourses(crs.data);
-      if(sub.data) setSubjects(sub.data);
+      if(stu.data) setStudents(stu.data);
       if(tags.data) setActivityTags(tags.data);
       if(grp.data) setGroups(grp.data);
       if(rm.data) setRooms(rm.data);
@@ -367,7 +406,7 @@ export default function App() {
   };
 
   // Forms State
-  const [newAct, setNewAct] = useState({ facultyId: '', courseId: '', subjectId: '', tagId: '', groupId: '', roomId: '', duration: 1 });
+  const [newAct, setNewAct] = useState({ facultyId: '', courseId: '', tagId: '', groupId: '', roomId: '', duration: 1 });
   const [activeProfileId, setActiveProfileId] = useState(timeProfiles[0]?.id);
 
   // Generation State
@@ -375,6 +414,7 @@ export default function App() {
   const [unassigned, setUnassigned] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [viewFilter, setViewFilter] = useState('all');
+  const [lockedGroups, setLockedGroups] = useState([]);
 
   // Helpers for extracting unique master sets of days/hours for grid rendering
   const allGlobalDays = [...new Set(timeProfiles.flatMap(tp => tp.days))];
@@ -385,11 +425,15 @@ export default function App() {
     setIsGenerating(true);
 
     setTimeout(async () => {
-      let newSchedule = [];
+      // 1. Preserve schedules for locked groups
+      let newSchedule = [...schedule.filter(s => lockedGroups.includes(s.groupId))];
       let newUnassigned = [];
 
+      // 2. Filter activities to only schedule unlocked groups
+      const activitiesToSchedule = activities.filter(a => !lockedGroups.includes(a.groupId));
+
       // Sort activities: Place those with longer durations or strict rooms first
-      const sortedActivities = [...activities].sort((a, b) => {
+      const sortedActivities = [...activitiesToSchedule].sort((a, b) => {
         if (b.duration !== a.duration) return b.duration - a.duration;
         if (b.roomId && !a.roomId) return 1;
         return Math.random() - 0.5;
@@ -412,9 +456,15 @@ export default function App() {
         const maxDaily = maxDailyConst ? parseInt(maxDailyConst.maxHours) : 999;
         const maxContConst = constraints.find(c => c.type === 'MAX_HOURS_CONTINUOUSLY' && c.facultyId === act.facultyId);
         const maxContinuous = maxContConst ? parseInt(maxContConst.maxHours) : 999;
-        const minDaysConst = constraints.find(c => c.type === 'MIN_DAYS_BETWEEN_ACTIVITIES' && c.groupId === act.groupId && c.subjectId === act.subjectId);
+        
+        const groupMaxDailyConst = constraints.find(c => c.type === 'GROUP_MAX_DAILY' && c.groupId === act.groupId);
+        const groupMaxDaily = groupMaxDailyConst ? parseInt(groupMaxDailyConst.maxHours) : 999;
+        const groupMaxContConst = constraints.find(c => c.type === 'GROUP_MAX_CONTINUOUS' && c.groupId === act.groupId);
+        const groupMaxContinuous = groupMaxContConst ? parseInt(groupMaxContConst.maxHours) : 999;
+
+        const minDaysConst = constraints.find(c => c.type === 'MIN_DAYS_BETWEEN_ACTIVITIES' && c.groupId === act.groupId && c.courseId === act.courseId);
         const minDaysBetween = minDaysConst ? parseInt(minDaysConst.minDays) : 0;
-        const preferredRoomConst = constraints.find(c => c.type === 'PREFERRED_ROOM' && c.subjectId === act.subjectId);
+        const preferredRoomConst = constraints.find(c => c.type === 'PREFERRED_ROOM' && c.courseId === act.courseId);
 
         // Check SAME_STARTING_TIME
         const sameTimeConst = constraints.find(c => c.type === 'SAME_STARTING_TIME' && (c.activityId1 === act.id || c.activityId2 === act.id));
@@ -431,9 +481,9 @@ export default function App() {
         }
 
         // Helper for Min Days Between
-        const scheduledDaysForSubject = new Set(newSchedule.filter(s => s.groupId === act.groupId && s.subjectId === act.subjectId).map(s => s.day));
+        const scheduledDaysForCourse = new Set(newSchedule.filter(s => s.groupId === act.groupId && s.courseId === act.courseId).map(s => s.day));
         
-        let roomsToTry = [...rooms];
+        let roomsToTry = [...rooms].sort((a, b) => parseInt(a.capacity || 0) - parseInt(b.capacity || 0));
         if (preferredRoomConst) {
            const pRoom = rooms.find(r => r.id === preferredRoomConst.roomId);
            if (pRoom) roomsToTry = [pRoom, ...rooms.filter(r => r.id !== pRoom.id)];
@@ -445,10 +495,10 @@ export default function App() {
           if (unavailDays.includes(d) || groupUnavailDays.includes(d)) continue; 
 
           // Verify MIN_DAYS_BETWEEN_ACTIVITIES
-          if (minDaysBetween > 1 && act.subjectId) {
+          if (minDaysBetween > 1 && act.courseId) {
              const dayIndex = allGlobalDays.indexOf(d);
              let tooClose = false;
-             for (let sDay of scheduledDaysForSubject) {
+             for (let sDay of scheduledDaysForCourse) {
                  const sIndex = allGlobalDays.indexOf(sDay);
                  if (Math.abs(dayIndex - sIndex) < minDaysBetween) tooClose = true;
              }
@@ -459,18 +509,30 @@ export default function App() {
           const currentHoursToday = newSchedule.filter(s => s.day === d && s.facultyId === act.facultyId).length;
           if (currentHoursToday + duration > maxDaily) continue;
 
+          // Group Max Daily Hours
+          const groupHoursToday = newSchedule.filter(s => s.day === d && s.groupId === act.groupId).length;
+          if (groupHoursToday + duration > groupMaxDaily) continue;
+
           for (let hIndex = 0; hIndex <= groupHours.length - duration; hIndex++) {
             if (placed) break;
             if (forceHourIndex !== null && forceHourIndex !== hIndex) continue; // SAME_STARTING_TIME lock
 
-            // Verify MAX_HOURS_CONTINUOUSLY
+            // Verify MAX_HOURS_CONTINUOUSLY (Faculty)
             if (maxContinuous < 999) {
-                // Approximate check: are there already contiguous hours touching this block?
                 let preCount = 0;
                 while(hIndex - 1 - preCount >= 0 && newSchedule.some(s => s.day === d && s.hour === groupHours[hIndex - 1 - preCount] && s.facultyId === act.facultyId)) preCount++;
                 let postCount = 0;
                 while(hIndex + duration + postCount < groupHours.length && newSchedule.some(s => s.day === d && s.hour === groupHours[hIndex + duration + postCount] && s.facultyId === act.facultyId)) postCount++;
                 if (preCount + duration + postCount > maxContinuous) continue;
+            }
+
+            // Verify MAX_HOURS_CONTINUOUSLY (Group)
+            if (groupMaxContinuous < 999) {
+                let preGrpCount = 0;
+                while(hIndex - 1 - preGrpCount >= 0 && newSchedule.some(s => s.day === d && s.hour === groupHours[hIndex - 1 - preGrpCount] && s.groupId === act.groupId)) preGrpCount++;
+                let postGrpCount = 0;
+                while(hIndex + duration + postGrpCount < groupHours.length && newSchedule.some(s => s.day === d && s.hour === groupHours[hIndex + duration + postGrpCount] && s.groupId === act.groupId)) postGrpCount++;
+                if (preGrpCount + duration + postGrpCount > groupMaxContinuous) continue;
             }
 
             for (let r of roomsToTry) {
@@ -502,7 +564,6 @@ export default function App() {
                     roomId: r.id,
                     facultyId: act.facultyId,
                     courseId: act.courseId,
-                    subjectId: act.subjectId,
                     tagId: act.tagId,
                     groupId: act.groupId,
                     part: offset + 1,
@@ -613,9 +674,9 @@ export default function App() {
         {[
           { label: 'Faculty', count: faculty.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
           { label: 'Courses', count: courses.length, icon: BookOpen, color: 'text-purple-600', bg: 'bg-purple-100' },
-          { label: 'Subjects', count: subjects.length, icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+          { label: 'Students', count: students.length, icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-100' },
           { label: 'Tags', count: activityTags.length, icon: Clock, color: 'text-pink-600', bg: 'bg-pink-100' },
-          { label: 'Groups', count: groups.length, icon: Users, color: 'text-green-600', bg: 'bg-green-100' },
+          { label: 'Groups', count: groups.length, icon: GraduationCap, color: 'text-green-600', bg: 'bg-green-100' },
           { label: 'Profiles', count: timeProfiles.length, icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100' },
         ].map((stat, i) => (
           <div key={i} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
@@ -725,17 +786,43 @@ export default function App() {
         )}
 
         {['technical_admin', 'academic_admin'].includes(appRole) && (
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex gap-4 items-center">
-            <span className="font-medium text-slate-700">View By:</span>
-            <select value={viewFilter} onChange={e => setViewFilter(e.target.value)} className="border-slate-300 rounded-lg px-3 py-2 text-slate-700 bg-white min-w-[200px]">
-              <option value="all">All Data (Global Master Grid)</option>
-              <optgroup label="Student Groups">
-                {groups.map(g => <option key={`g-${g.id}`} value={`group-${g.id}`}>{g.name}</option>)}
-              </optgroup>
-              <optgroup label="Faculty">
-                {faculty.map(f => <option key={`f-${f.id}`} value={`faculty-${f.id}`}>{f.name}</option>)}
-              </optgroup>
-            </select>
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="font-medium text-slate-700">View By:</span>
+              <select value={viewFilter} onChange={e => setViewFilter(e.target.value)} className="border-slate-300 rounded-lg px-3 py-2 text-slate-700 bg-white min-w-[200px]">
+                <option value="all">All Data (Global Master Grid)</option>
+                <optgroup label="Student Groups">
+                  {groups.map(g => <option key={`g-${g.id}`} value={`group-${g.id}`}>{g.name}</option>)}
+                </optgroup>
+                <optgroup label="Faculty">
+                  {faculty.map(f => <option key={`f-${f.id}`} value={`faculty-${f.id}`}>{f.name}</option>)}
+                </optgroup>
+              </select>
+            </div>
+            
+            {viewFilter.startsWith('group-') && (
+              <button 
+                onClick={() => {
+                  const gId = viewFilter.replace('group-', '');
+                  if (lockedGroups.includes(gId)) {
+                    setLockedGroups(lockedGroups.filter(id => id !== gId));
+                  } else {
+                    setLockedGroups([...lockedGroups, gId]);
+                  }
+                }}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  lockedGroups.includes(viewFilter.replace('group-', '')) 
+                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-300' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300'
+                }`}
+              >
+                {lockedGroups.includes(viewFilter.replace('group-', '')) ? (
+                  <><span>🔓 Unlock Group Timetable</span></>
+                ) : (
+                  <><span>🔒 Lock Group Timetable</span></>
+                )}
+              </button>
+            )}
           </div>
         )}
 
@@ -900,13 +987,13 @@ export default function App() {
               <SidebarItem id="time" icon={Clock} label="Time Profiles" activeTab={activeTab} setActiveTab={setActiveTab} />
               <SidebarItem id="faculty" icon={Users} label="Faculty" activeTab={activeTab} setActiveTab={setActiveTab} />
               <SidebarItem id="courses" icon={BookOpen} label="Courses" activeTab={activeTab} setActiveTab={setActiveTab} />
-              <SidebarItem id="subjects" icon={BookOpen} label="Subjects" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="students" icon={Users} label="Students" activeTab={activeTab} setActiveTab={setActiveTab} />
               <SidebarItem id="tags" icon={Clock} label="Activity Tags" activeTab={activeTab} setActiveTab={setActiveTab} />
               <SidebarItem id="groups" icon={GraduationCap} label="Student Groups" activeTab={activeTab} setActiveTab={setActiveTab} />
               <SidebarItem id="rooms" icon={MapPin} label="Rooms" activeTab={activeTab} setActiveTab={setActiveTab} />
 
               <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rules & Planning</div>
-              <SidebarItem id="constraints" icon={ShieldAlert} label="Constraints (FET)" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="constraints" icon={ShieldAlert} label="Constraints" activeTab={activeTab} setActiveTab={setActiveTab} />
               <SidebarItem id="activities" icon={BookOpen} label="Activities" activeTab={activeTab} setActiveTab={setActiveTab} />
 
               <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Scheduling</div>
@@ -933,17 +1020,17 @@ export default function App() {
           {activeTab === 'time' && renderTimeProfiles()}
           {activeTab === 'faculty' && (
             <div className="max-w-3xl mx-auto">
-              <ObjectListManager title="Faculty" items={faculty} setItems={setFaculty} fields={[{ key: 'name', label: 'Name' }, { key: 'title', label: 'Title (e.g. Dr, Prof)' }, { key: 'college', label: 'College / Department' }]} />
+              <ObjectListManager title="Faculty" items={faculty} setItems={setFaculty} fields={[{ key: 'name', label: 'Name' }, { key: 'email', label: 'Email Address' }, { key: 'college', label: 'College / Department' }]} />
             </div>
           )}
           {activeTab === 'courses' && (
             <div className="max-w-3xl mx-auto">
-              <ObjectListManager title="Courses" items={courses} setItems={setCourses} fields={[{ key: 'code', label: 'Course Code' }, { key: 'name', label: 'Course Name' }, { key: 'program', label: 'Program' }, { key: 'year', label: 'Year' }]} />
+              <ObjectListManager title="Courses" items={courses} setItems={setCourses} fields={[{ key: 'code', label: 'Course Code' }, { key: 'name', label: 'Course Name' }, { key: 'program', label: 'Program' }]} />
             </div>
           )}
-          {activeTab === 'subjects' && (
+          {activeTab === 'students' && (
             <div className="max-w-3xl mx-auto">
-              <ObjectListManager title="Subjects" items={subjects} setItems={setSubjects} fields={[{ key: 'name', label: 'Subject Name' }]} />
+              <ObjectListManager title="Students" items={students} setItems={setStudents} fields={[{ key: 'id', label: 'Student ID' }, { key: 'name', label: 'Name' }, { key: 'email', label: 'Email Address' }, { key: 'group_id', label: 'Group', type: 'select', options: groups.map(g => ({ value: g.id, label: g.name })) }]} />
             </div>
           )}
           {activeTab === 'tags' && (
@@ -962,18 +1049,18 @@ export default function App() {
             </div>
           )}
           {activeTab === 'constraints' && (
-            <ConstraintsManager constraints={constraints} setConstraints={setConstraints} faculty={faculty} days={allGlobalDays} groups={groups} subjects={subjects} rooms={rooms} activities={activities} />
+            <ConstraintsManager constraints={constraints} setConstraints={setConstraints} faculty={faculty} days={allGlobalDays} groups={groups} courses={courses} rooms={rooms} activities={activities} />
           )}
           {activeTab === 'activities' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              {/* Activity Form mapping logic remains identical */}
+              {/* Activity Form */}
               <div className="p-6 border-b border-slate-200 bg-slate-50">
                 <h3 className="text-xl font-bold text-slate-800 mb-4">Add New Activity</h3>
                 <form onSubmit={(e) => {
                   e.preventDefault();
-                  if (!newAct.facultyId || !newAct.courseId || !newAct.subjectId || !newAct.tagId || !newAct.groupId) return;
+                  if (!newAct.facultyId || !newAct.courseId || !newAct.tagId || !newAct.groupId) return;
                   setActivities([...activities, { id: Date.now().toString(), ...newAct }]);
-                  setNewAct({ facultyId: '', courseId: '', subjectId: '', tagId: '', groupId: '', roomId: '', duration: 1 });
+                  setNewAct({ facultyId: '', courseId: '', tagId: '', groupId: '', roomId: '', duration: 1 });
                 }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <select required value={newAct.facultyId} onChange={e => setNewAct({ ...newAct, facultyId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
                     <option value="">Select Faculty</option>
@@ -982,10 +1069,6 @@ export default function App() {
                   <select required value={newAct.courseId} onChange={e => setNewAct({ ...newAct, courseId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
                     <option value="">Select Course</option>
                     {courses.map(c => <option key={c.id} value={c.id}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
-                  </select>
-                  <select required value={newAct.subjectId} onChange={e => setNewAct({ ...newAct, subjectId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
-                    <option value="">Select Subject</option>
-                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                   <select required value={newAct.tagId} onChange={e => setNewAct({ ...newAct, tagId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
                     <option value="">Select Tag</option>
@@ -1015,7 +1098,6 @@ export default function App() {
                     <tr className="bg-white border-b border-slate-200 text-slate-600 font-medium text-sm">
                       <th className="p-4">Faculty</th>
                       <th className="p-4">Course</th>
-                      <th className="p-4">Subject</th>
                       <th className="p-4">Tag</th>
                       <th className="p-4">Group</th>
                       <th className="p-4">Room Pref.</th>
@@ -1027,16 +1109,14 @@ export default function App() {
                     {activities.map((act) => {
                       const fac = faculty.find(f => f.id === act.facultyId);
                       const cou = courses.find(c => c.id === act.courseId);
-                      const sub = subjects.find(s => s.id === act.subjectId);
                       const tag = activityTags.find(t => t.id === act.tagId);
                       const grp = groups.find(g => g.id === act.groupId);
                       const rm = rooms.find(r => r.id === act.roomId);
 
                       return (
                         <tr key={act.id} className="hover:bg-slate-50">
-                          <td className="p-4">{fac ? `${fac.title || ''} ${fac.name}` : 'Unknown'}</td>
+                          <td className="p-4">{fac ? `${fac.name}` : 'Unknown'}</td>
                           <td className="p-4">{cou ? `${cou.code ? cou.code + ' - ' : ''}${cou.name}` : 'Unknown'}</td>
-                          <td className="p-4">{sub?.name || 'Unknown'}</td>
                           <td className="p-4">{tag?.name || 'None'}</td>
                           <td className="p-4">{grp?.name || 'Unknown'}</td>
                           <td className="p-4">{rm?.name || 'Any'}</td>

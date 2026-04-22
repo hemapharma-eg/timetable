@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 
-export default function ConstraintsManager({ constraints, setConstraints, faculty, days, groups, subjects, rooms, activities }) {
+export default function ConstraintsManager({ constraints, setConstraints, faculty, days, groups, courses, rooms, activities }) {
     const [type, setType] = useState('FAC_UNAVAIL_DAY');
     
     // Form states
     const [facultyId, setFacultyId] = useState('');
     const [groupId, setGroupId] = useState('');
-    const [subjectId, setSubjectId] = useState('');
+    const [courseId, setCourseId] = useState('');
     const [roomId, setRoomId] = useState('');
     const [activityId1, setActivityId1] = useState('');
     const [activityId2, setActivityId2] = useState('');
@@ -32,17 +32,25 @@ export default function ConstraintsManager({ constraints, setConstraints, facult
                 if (!groupId || !day) return;
                 newConst = { ...newConst, groupId, day };
                 break;
+            case 'GROUP_MAX_DAILY':
+                if (!groupId || !maxHours) return;
+                newConst = { ...newConst, groupId, maxHours };
+                break;
+            case 'GROUP_MAX_CONTINUOUS':
+                if (!groupId || !maxHours) return;
+                newConst = { ...newConst, groupId, maxHours };
+                break;
             case 'MIN_DAYS_BETWEEN_ACTIVITIES':
-                if (!subjectId || !groupId || !minDays) return;
-                newConst = { ...newConst, subjectId, groupId, minDays };
+                if (!courseId || !groupId || !minDays) return;
+                newConst = { ...newConst, courseId, groupId, minDays };
                 break;
             case 'MAX_HOURS_CONTINUOUSLY':
                 if (!facultyId || !maxHours) return;
                 newConst = { ...newConst, facultyId, maxHours };
                 break;
             case 'PREFERRED_ROOM':
-                if (!subjectId || !roomId) return;
-                newConst = { ...newConst, subjectId, roomId };
+                if (!courseId || !roomId) return;
+                newConst = { ...newConst, courseId, roomId };
                 break;
             case 'SAME_STARTING_TIME':
                 if (!activityId1 || !activityId2 || activityId1 === activityId2) return;
@@ -58,35 +66,39 @@ export default function ConstraintsManager({ constraints, setConstraints, facult
     const renderConstraintString = (c) => {
         const fac = faculty?.find(f => f.id === c.facultyId)?.name || 'Unknown Faculty';
         const grp = groups?.find(g => g.id === c.groupId)?.name || 'Unknown Group';
-        const sub = subjects?.find(s => s.id === c.subjectId)?.name || 'Unknown Subject';
+        const crs = courses?.find(s => s.id === c.courseId)?.name || 'Unknown Course';
         const rm = rooms?.find(r => r.id === c.roomId)?.name || 'Unknown Room';
 
         if (c.type === 'FAC_UNAVAIL_DAY') return <><span className="font-bold">{fac}</span> is unavailable on {c.day}</>;
         if (c.type === 'FAC_MAX_DAILY') return <><span className="font-bold">{fac}</span> max {c.maxHours} hours/day</>;
         if (c.type === 'GROUP_UNAVAIL_DAY') return <><span className="font-bold">{grp}</span> is unavailable on {c.day}</>;
-        if (c.type === 'MIN_DAYS_BETWEEN_ACTIVITIES') return <><span className="font-bold">{sub}</span> for <span className="font-bold">{grp}</span> min {c.minDays} days apart</>;
+        if (c.type === 'GROUP_MAX_DAILY') return <><span className="font-bold">{grp}</span> max {c.maxHours} hours/day</>;
+        if (c.type === 'GROUP_MAX_CONTINUOUS') return <><span className="font-bold">{grp}</span> max {c.maxHours} continuous hours</>;
+        if (c.type === 'MIN_DAYS_BETWEEN_ACTIVITIES') return <><span className="font-bold">{crs}</span> for <span className="font-bold">{grp}</span> min {c.minDays} days apart</>;
         if (c.type === 'MAX_HOURS_CONTINUOUSLY') return <><span className="font-bold">{fac}</span> max {c.maxHours} continuous hours</>;
-        if (c.type === 'PREFERRED_ROOM') return <><span className="font-bold">{sub}</span> highly prefers <span className="font-bold">{rm}</span></>;
+        if (c.type === 'PREFERRED_ROOM') return <><span className="font-bold">{crs}</span> highly prefers <span className="font-bold">{rm}</span></>;
         if (c.type === 'SAME_STARTING_TIME') return <>Activities <span className="font-bold text-xs">{c.activityId1.substring(0,6)}</span> & <span className="font-bold text-xs">{c.activityId2.substring(0,6)}</span> start same time</>;
         return 'Unknown Constraint';
     };
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <h3 className="text-xl font-bold text-slate-800 mb-4">Constraints Framework (Phase 1)</h3>
+            <h3 className="text-xl font-bold text-slate-800 mb-4">Constraints Framework</h3>
             <form onSubmit={handleAdd} className="flex gap-4 mb-6 flex-wrap items-end bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <div>
                     <label className="block text-sm font-medium text-slate-600 mb-1">Type</label>
                     <select value={type} onChange={e => {
                         setType(e.target.value);
-                        setFacultyId(''); setGroupId(''); setSubjectId(''); setRoomId(''); setActivityId1(''); setActivityId2(''); setDay('');
+                        setFacultyId(''); setGroupId(''); setCourseId(''); setRoomId(''); setActivityId1(''); setActivityId2(''); setDay('');
                     }} className="px-4 py-2 border border-slate-300 rounded-lg bg-white">
                         <option value="FAC_UNAVAIL_DAY">Faculty Unavailable Day</option>
                         <option value="FAC_MAX_DAILY">Faculty Max Daily Hours</option>
-                        <option value="GROUP_UNAVAIL_DAY">Group Unavailable Day</option>
-                        <option value="MIN_DAYS_BETWEEN_ACTIVITIES">Min Days Between Activities</option>
-                        <option value="MAX_HOURS_CONTINUOUSLY">Max Hours Continuously</option>
-                        <option value="PREFERRED_ROOM">Preferred Room</option>
+                        <option value="MAX_HOURS_CONTINUOUSLY">Faculty Max Hours Continuously</option>
+                        <option value="GROUP_UNAVAIL_DAY">Student Group Unavailable Day</option>
+                        <option value="GROUP_MAX_DAILY">Student Group Max Daily Hours</option>
+                        <option value="GROUP_MAX_CONTINUOUS">Student Group Max Hours Continuously</option>
+                        <option value="MIN_DAYS_BETWEEN_ACTIVITIES">Min Days Between Activities (Course)</option>
+                        <option value="PREFERRED_ROOM">Preferred Room (Course)</option>
                         <option value="SAME_STARTING_TIME">Same Starting Time</option>
                     </select>
                 </div>
@@ -101,7 +113,7 @@ export default function ConstraintsManager({ constraints, setConstraints, facult
                     </div>
                 )}
 
-                {['GROUP_UNAVAIL_DAY', 'MIN_DAYS_BETWEEN_ACTIVITIES'].includes(type) && (
+                {['GROUP_UNAVAIL_DAY', 'MIN_DAYS_BETWEEN_ACTIVITIES', 'GROUP_MAX_DAILY', 'GROUP_MAX_CONTINUOUS'].includes(type) && (
                     <div>
                         <label className="block text-sm font-medium text-slate-600 mb-1">Group</label>
                         <select required value={groupId} onChange={e => setGroupId(e.target.value)} className="px-4 py-2 border rounded-lg bg-white">
@@ -113,10 +125,10 @@ export default function ConstraintsManager({ constraints, setConstraints, facult
 
                 {['MIN_DAYS_BETWEEN_ACTIVITIES', 'PREFERRED_ROOM'].includes(type) && (
                     <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">Subject</label>
-                        <select required value={subjectId} onChange={e => setSubjectId(e.target.value)} className="px-4 py-2 border rounded-lg bg-white">
-                            <option value="">Select Subject</option>
-                            {subjects?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        <label className="block text-sm font-medium text-slate-600 mb-1">Course</label>
+                        <select required value={courseId} onChange={e => setCourseId(e.target.value)} className="px-4 py-2 border rounded-lg bg-white">
+                            <option value="">Select Course</option>
+                            {courses?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>
                 )}
@@ -141,7 +153,7 @@ export default function ConstraintsManager({ constraints, setConstraints, facult
                     </div>
                 )}
 
-                {['FAC_MAX_DAILY', 'MAX_HOURS_CONTINUOUSLY'].includes(type) && (
+                {['FAC_MAX_DAILY', 'MAX_HOURS_CONTINUOUSLY', 'GROUP_MAX_DAILY', 'GROUP_MAX_CONTINUOUS'].includes(type) && (
                     <div>
                         <label className="block text-sm font-medium text-slate-600 mb-1">Max Hours</label>
                         <input type="number" min="1" max="10" required value={maxHours} onChange={e => setMaxHours(parseInt(e.target.value) || 2)} className="px-4 py-2 border rounded-lg w-24" />
