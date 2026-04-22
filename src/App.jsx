@@ -8,6 +8,7 @@ import ConstraintsManager from './ConstraintsManager';
 import { FacultyManager } from './FacultyManager';
 import { StudentManager } from './StudentManager';
 import { CourseManager } from './CourseManager';
+import { ReportBuilder } from './ReportBuilder';
 import { supabase } from './supabase';
 
 // --- Default Mock Data ---
@@ -1001,6 +1002,9 @@ export default function App() {
 
               <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Scheduling</div>
               <SidebarItem id="generate" icon={Play} label="Generate" activeTab={activeTab} setActiveTab={setActiveTab} />
+
+              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Reports</div>
+              <SidebarItem id="reports" icon={FileSpreadsheet} label="Report Builder" activeTab={activeTab} setActiveTab={setActiveTab} />
             </>
           )}
 
@@ -1148,6 +1152,9 @@ export default function App() {
                 </button>
               </div>
             </div>
+          )}
+          {activeTab === 'reports' && (
+            <ReportBuilder faculty={faculty} students={students} courses={courses} />
           )}
           {activeTab === 'timetable' && renderTimetable()}
         </div>
