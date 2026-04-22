@@ -775,9 +775,7 @@ export default function App() {
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-600 to-blue-500 rounded-2xl p-8 text-white shadow-lg">
         <h1 className="text-3xl font-bold mb-2">Welcome to TooLabX SIS</h1>
-        <p className="text-indigo-100 max-w-2xl">
-          Define multiple Time Profiles, upload your CSV data, apply constraints, and automatically build a conflict-free university schedule.
-        </p>
+
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
