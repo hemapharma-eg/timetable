@@ -73,6 +73,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   const [liveData, setLiveData] = useState([]);
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveSearch, setLiveSearch] = useState('');
+  const [quickSearchInput, setQuickSearchInput] = useState('');
   const [editRow, setEditRow] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [isCreating, setIsCreating] = useState(false);
@@ -97,9 +98,13 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 50;
 
-  // Handlers for instant search
-  const handleSearchChange = (val) => {
-    setLiveSearch(val);
+  // Handlers for manual explicit search
+  const triggerQuickSearch = () => {
+    setLiveSearch(quickSearchInput);
+  };
+  
+  const handleQuickSearchKeyDown = (e) => {
+    if (e.key === 'Enter') triggerQuickSearch();
   };
 
   // ─── Fetch ────────────────────────────────────────────────────────────
@@ -182,7 +187,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   // ─── App View ──────────────────────────────────────────────────────────
   const openAppView = async (app) => {
     const c = app.config || {};
-    setLiveConfig(app); setLiveSearch(''); setEditRow(null); setIsCreating(false); setLiveError(null);
+    setLiveConfig(app); setLiveSearch(''); setQuickSearchInput(''); setEditRow(null); setIsCreating(false); setLiveError(null);
     setSelectedRow(null); setSearchFormValues({}); setSearchApplied(false);
     setView('appview');
     await fetchLiveData(c.table);
@@ -570,9 +575,10 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
           <div className="flex items-center gap-2">
             {!hasSearch && (
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                <input type="text" placeholder="Quick search..." value={liveSearch} onChange={e => handleSearchChange(e.target.value)}
-                  className="pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400 w-48" />
+                <button onClick={triggerQuickSearch} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-violet-600 z-10"><Search size={14} /></button>
+                <input type="text" placeholder="Quick search... (Press Enter)" value={quickSearchInput} 
+                  onChange={e => setQuickSearchInput(e.target.value)} onKeyDown={handleQuickSearchKeyDown}
+                  className="pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400 w-56" />
               </div>
             )}
             <button onClick={() => fetchLiveData(c.table)} className="p-2 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-lg"><RefreshCw size={16} /></button>
