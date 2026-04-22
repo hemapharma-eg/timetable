@@ -44,6 +44,26 @@ const SEARCH_TYPES = [
   { value: 'less_than', label: 'Less Than' }
 ];
 
+const DebouncedInput = ({ value, onChange, delay = 250, ...props }) => {
+  const [localVal, setLocalVal] = useState(value || '');
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    setLocalVal(value || '');
+  }, [value]);
+
+  const handleChange = (e) => {
+    const v = e.target.value;
+    setLocalVal(v);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      onChange(v);
+    }, delay);
+  };
+
+  return <input value={localVal} onChange={handleChange} {...props} />;
+};
+
 export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   // Schema
   const [schema, setSchema] = useState([]);
@@ -94,11 +114,10 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   // Toast
   const [shareToast, setShareToast] = useState(false);
 
-  // Debounce search input
+  // Debounce search input (Debouncing is now handled perfectly by DebouncedInput UI)
   const handleSearchChange = (val) => {
     setLiveSearch(val);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 250);
+    setDebouncedSearch(val);
   };
 
   // ─── Fetch ────────────────────────────────────────────────────────────
@@ -476,7 +495,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
       // Handle Default Dates / Numbers / Text
       const inputType = sf.fieldType === 'date' ? 'date' : sf.fieldType === 'number' || sf.fieldType === 'currency' ? 'number' : 'text';
       return (
-        <input type={inputType} value={val || ''} onChange={e => setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }))}
+        <DebouncedInput type={inputType} value={val || ''} onChange={v => setSearchFormValues(prev => ({ ...prev, [sf.column]: v }))}
           placeholder={`${sf.searchType === 'exact' ? 'Exact match' : sf.searchType === 'starts_with' ? 'Starts with' : sf.searchType === 'greater_than' ? '> greater than' : sf.searchType === 'less_than' ? '< less than' : 'Contains'}...`}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400" />
       );
@@ -570,7 +589,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
             {!hasSearch && (
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                <input type="text" placeholder="Quick search..." value={liveSearch} onChange={e => handleSearchChange(e.target.value)}
+                <DebouncedInput type="text" placeholder="Quick search..." value={liveSearch} onChange={v => handleSearchChange(v)}
                   className="pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400 w-48" />
               </div>
             )}
