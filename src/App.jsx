@@ -7,6 +7,7 @@ import {
 import ConstraintsManager from './ConstraintsManager';
 import { FacultyManager } from './FacultyManager';
 import { StudentManager } from './StudentManager';
+import { CourseManager } from './CourseManager';
 import { supabase } from './supabase';
 
 // --- Default Mock Data ---
@@ -1024,9 +1025,7 @@ export default function App() {
             <FacultyManager faculty={faculty} setFaculty={setFaculty} />
           )}
           {activeTab === 'courses' && (
-            <div className="max-w-3xl mx-auto">
-              <ObjectListManager title="Courses" items={courses} setItems={setCourses} fields={[{ key: 'code', label: 'Course Code' }, { key: 'name', label: 'Course Name' }, { key: 'program', label: 'Program' }]} />
-            </div>
+            <CourseManager courses={courses} setCourses={setCourses} />
           )}
           {activeTab === 'students' && (
             <StudentManager students={students} setStudents={setStudents} />
