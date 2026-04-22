@@ -44,24 +44,32 @@ const SEARCH_TYPES = [
   { value: 'less_than', label: 'Less Than' }
 ];
 
-const DebouncedInput = ({ value, onChange, delay = 5000, ...props }) => {
+const DebouncedInput = ({ value, onChange, ...props }) => {
   const [localVal, setLocalVal] = useState(value || '');
-  const timeoutRef = useRef(null);
 
   useEffect(() => {
     setLocalVal(value || '');
   }, [value]);
 
-  const handleChange = (e) => {
-    const v = e.target.value;
-    setLocalVal(v);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      onChange(v);
-    }, delay);
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      onChange(localVal);
+    }
   };
 
-  return <input value={localVal} onChange={handleChange} {...props} />;
+  const handleBlur = () => {
+    onChange(localVal);
+  };
+
+  return (
+    <input 
+      value={localVal} 
+      onChange={(e) => setLocalVal(e.target.value)} 
+      onKeyDown={handleKeyDown}
+      onBlur={handleBlur}
+      {...props} 
+    />
+  );
 };
 
 export const AppBuilder = ({ deepLinkId, urlFilters }) => {
