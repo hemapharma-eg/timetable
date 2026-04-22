@@ -47,7 +47,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
   const [savedReports, setSavedReports] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(true);
 
-  // Current report state
+  // Builder state
   const [reportName, setReportName] = useState('');
   const [dataSource, setDataSource] = useState('');
   const [selectedColumns, setSelectedColumns] = useState([]);
@@ -55,6 +55,10 @@ export const ReportBuilder = ({ deepLinkId }) => {
   const [sortKey, setSortKey] = useState('');
   const [sortDir, setSortDir] = useState('asc');
   const [groupByKey, setGroupByKey] = useState('');
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 50;
   const [editingReportId, setEditingReportId] = useState(null);
 
   // Live data
@@ -208,12 +212,15 @@ export const ReportBuilder = ({ deepLinkId }) => {
 
   const addFilter = () => {
     setFilters(prev => [...prev, { field: selectedColumns[0] || columnNames[0] || '', op: 'contains', value: '' }]);
+    setCurrentPage(1);
   };
   const updateFilter = (idx, patch) => {
     setFilters(prev => prev.map((f, i) => i === idx ? { ...f, ...patch } : f));
+    setCurrentPage(1);
   };
   const removeFilter = (idx) => {
     setFilters(prev => prev.filter((_, i) => i !== idx));
+    setCurrentPage(1);
   };
 
   // ─── Data computation ──────────────────────────────────────────────────
@@ -346,29 +353,63 @@ export const ReportBuilder = ({ deepLinkId }) => {
       });
     }
 
-    const renderTable = (data) => (
-      <table className="w-full text-left border-collapse whitespace-nowrap text-sm">
-        <thead>
-          <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-medium">
-            <th className="p-2 pl-4 w-12">#</th>
-            {selectedColumns.map(k => <th key={k} className="p-2">{prettyCol(k)}</th>)}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {data.map((row, idx) => (
-            <tr key={row.id || idx} className="hover:bg-slate-50 transition-colors">
-              <td className="p-2 pl-4 text-slate-400 font-mono text-xs">{idx + 1}</td>
-              {selectedColumns.map(k => (
-                <td key={k} className="p-2 text-slate-700 max-w-xs truncate">{row[k] !== null && row[k] !== undefined ? String(row[k]) : '-'}</td>
+    const renderTable = (data) => {
+      // When rendering a single large table, apply pagination. If grouped, render all items per group to avoid confusing split UI.
+      const isPaginated = !groupByKey && view === 'preview';
+      const displayData = isPaginated ? data.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE) : data;
+
+      return (
+        <div className="flex flex-col h-full w-full">
+          <table className="w-full text-left border-collapse whitespace-nowrap text-sm">
+            <thead>
+              <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-medium">
+                <th className="p-2 pl-4 w-12">#</th>
+                {selectedColumns.map(k => <th key={k} className="p-2">{prettyCol(k)}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {displayData.map((row, idx) => (
+                <tr key={row.id || idx} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-2 pl-4 text-slate-400 font-mono text-xs">{isPaginated ? (currentPage - 1) * PAGE_SIZE + idx + 1 : idx + 1}</td>
+                  {selectedColumns.map(k => (
+                    <td key={k} className="p-2 text-slate-700 max-w-xs truncate">{row[k] !== null && row[k] !== undefined ? String(row[k]) : '-'}</td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          ))}
-          {data.length === 0 && (
-            <tr><td colSpan={selectedColumns.length + 1} className="p-8 text-center text-slate-400">No records match your filters.</td></tr>
+              {data.length === 0 && (
+                <tr><td colSpan={selectedColumns.length + 1} className="p-8 text-center text-slate-400">No records match your filters.</td></tr>
+              )}
+            </tbody>
+          </table>
+          
+          {isPaginated && data.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between mt-4 p-4 border-t border-slate-200 bg-white rounded-b-lg">
+              <p className="text-xs text-slate-500">
+                Showing <span className="font-medium">{(currentPage - 1) * PAGE_SIZE + 1}</span> to <span className="font-medium">{Math.min(currentPage * PAGE_SIZE, data.length)}</span> of <span className="font-medium">{data.length}</span> results
+              </p>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1}
+                  className="px-2.5 py-1 text-xs border border-slate-200 rounded text-slate-600 hover:bg-slate-50 disabled:opacity-50">Previous</button>
+                {Array.from({ length: Math.min(5, Math.ceil(data.length / PAGE_SIZE)) }, (_, i) => {
+                  let pNum = i + 1;
+                  const totalPages = Math.ceil(data.length / PAGE_SIZE);
+                  if (totalPages > 5 && currentPage > 3) pNum = currentPage - 3 + i + (currentPage > totalPages - 2 ? totalPages - currentPage - 2 : 0);
+                  if (pNum > totalPages) return null;
+                  return (
+                    <button key={pNum} onClick={() => setCurrentPage(pNum)}
+                      className={`px-2.5 py-1 text-xs border rounded ${currentPage === pNum ? 'bg-violet-600 border-violet-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      {pNum}
+                    </button>
+                  );
+                })}
+                <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(data.length / PAGE_SIZE)))} disabled={currentPage * PAGE_SIZE >= data.length}
+                  className="px-2.5 py-1 text-xs border border-slate-200 rounded text-slate-600 hover:bg-slate-50 disabled:opacity-50">Next</button>
+              </div>
+            </div>
           )}
-        </tbody>
-      </table>
-    );
+        </div>
+      );
+    };
 
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col max-h-[85vh]">
