@@ -1177,7 +1177,7 @@ export default function App() {
             </div>
           )}
           {activeTab === 'reports' && (
-            <ReportBuilder faculty={faculty} students={students} courses={courses} deepLinkId={deepLinkId} />
+            <ReportBuilder deepLinkId={deepLinkId} />
           )}
           {activeTab === 'formbuilder' && (
             <FormBuilder deepLinkId={deepLinkId} />
