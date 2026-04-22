@@ -123,6 +123,12 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   // Toast
   const [shareToast, setShareToast] = useState(false);
 
+  // Pagination & Loading
+  const [isSearching, setIsSearching] = useState(false);
+  const [filteredData, setFilteredData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 50;
+
   // Debounce search input (Debouncing is now handled perfectly by DebouncedInput UI)
   const handleSearchChange = (val) => {
     setLiveSearch(val);
@@ -256,61 +262,69 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
 
   const toggleAppColumn = (col) => setAppColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
 
-  // ─── Filtering ─────────────────────────────────────────────────────────
-  const filteredData = useMemo(() => {
-    const c = liveConfig?.config || {};
-    let data = [...liveData];
-    const mode = c.mode || 'search_results_details';
-    const hasSearch = mode.includes('search');
+  // ─── Filtering (Async to prevent UI freeze) ────────────────────────────
+  useEffect(() => {
+    setIsSearching(true);
+    
+    // Use timeout to allow UI to paint the loading state before heavy array filtering
+    const timer = setTimeout(() => {
+      const c = liveConfig?.config || {};
+      let data = [...liveData];
+      const mode = c.mode || 'search_results_details';
+      const hasSearch = mode.includes('search');
 
-    // Apply search form filters
-    if (searchApplied || urlFilters) {
-      const activeFilters = { ...appliedSearchValues, ...(urlFilters || {}) };
-      Object.entries(activeFilters).forEach(([col, val]) => {
-        if (!val) return;
-        const sf = (c.searchFields || []).find(s => s.column === col);
-        const sType = sf?.searchType || 'contains';
-        data = data.filter(row => {
-          const rvRaw = row[col];
-          const rv = (rvRaw || '').toString().toLowerCase();
+      // Apply search form filters
+      if (searchApplied || urlFilters) {
+        const activeFilters = { ...appliedSearchValues, ...(urlFilters || {}) };
+        Object.entries(activeFilters).forEach(([col, val]) => {
+          if (val === undefined || val === null || val === '') return;
+          const sf = (c.searchFields || []).find(s => s.column === col);
+          const sType = sf?.searchType || 'contains';
+          data = data.filter(row => {
+            const rvRaw = row[col];
+            const rv = (rvRaw || '').toString().toLowerCase();
 
-          // Array filtering (for listbox/multicheck)
-          if (Array.isArray(val)) {
-            if (val.length === 0) return true;
-            // For listbox/multicheck, if the DB value is a string of comma separated items, 
-            // we check if ANY of the selected val array items are included in rv
-            return val.some(v => rv.includes(v.toString().toLowerCase()));
-          }
+            // Array filtering (for listbox/multicheck)
+            if (Array.isArray(val)) {
+              if (val.length === 0) return true;
+              return val.some(v => rv.includes(v.toString().toLowerCase()));
+            }
 
-          const fv = val.toString().toLowerCase();
+            const fv = val.toString().toLowerCase();
 
-          // Number / Date filtering
-          if (sType === 'greater_than') return parseFloat(rvRaw) > parseFloat(val) || new Date(rvRaw) > new Date(val);
-          if (sType === 'less_than') return parseFloat(rvRaw) < parseFloat(val) || new Date(rvRaw) < new Date(val);
+            // Number / Date filtering
+            if (sType === 'greater_than') return parseFloat(rvRaw) > parseFloat(val) || new Date(rvRaw) > new Date(val);
+            if (sType === 'less_than') return parseFloat(rvRaw) < parseFloat(val) || new Date(rvRaw) < new Date(val);
 
-          // Boolean checkbox
-          if (typeof val === 'boolean') {
-            return val ? (rvRaw === true || fv === 'true' || rv === 'true' || rv === '1' || rv === 'yes') : true;
-          }
+            // Boolean checkbox
+            if (typeof val === 'boolean') {
+              return val ? (rvRaw === true || fv === 'true' || rv === 'true' || rv === '1' || rv === 'yes') : true;
+            }
 
-          switch (sType) {
-            case 'exact': case 'dropdown': return rv === fv;
-            case 'starts_with': return rv.startsWith(fv);
-            default: return rv.includes(fv);
-          }
+            switch (sType) {
+              case 'exact': case 'dropdown': return rv === fv;
+              case 'starts_with': return rv.startsWith(fv);
+              default: return rv.includes(fv);
+            }
+          });
         });
-      });
-    }
+      }
 
-    // Quick-search on top
-    if (debouncedSearch) {
-      const searchCol = c.searchCol;
-      data = data.filter(row => {
-        if (searchCol) return (row[searchCol] || '').toString().toLowerCase().includes(debouncedSearch.toLowerCase());
-        return Object.values(row).some(v => (v || '').toString().toLowerCase().includes(debouncedSearch.toLowerCase()));
-      });
-    }
-    return data;
+      // Quick-search on top
+      if (debouncedSearch) {
+        const searchCol = c.searchCol;
+        data = data.filter(row => {
+          if (searchCol) return (row[searchCol] || '').toString().toLowerCase().includes(debouncedSearch.toLowerCase());
+          return Object.values(row).some(v => (v || '').toString().toLowerCase().includes(debouncedSearch.toLowerCase()));
+        });
+      }
+      
+      setFilteredData(data);
+      setCurrentPage(1); // Reset pagination on new search
+      setIsSearching(false);
+    }, 10);
+
+    return () => clearTimeout(timer);
   }, [liveConfig, liveData, searchApplied, appliedSearchValues, urlFilters, debouncedSearch]);
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -652,26 +666,65 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredData.map((row, idx) => (
-                        <tr key={row.id || idx}
-                          className={`transition-colors cursor-pointer ${selectedRow?.id === row.id ? 'bg-violet-50' : 'hover:bg-slate-50'}`}
-                          onClick={() => hasDetails && setSelectedRow(row)}>
-                          <td className="p-2 pl-4 text-slate-400 font-mono text-xs">{idx + 1}</td>
-                          {cols.map(col => <td key={col} className="p-2 text-slate-700 max-w-xs truncate">{row[col] !== null && row[col] !== undefined ? String(row[col]) : '-'}</td>)}
-                          {(c.enableEdit || c.enableDelete || hasDetails) && (
-                            <td className="p-2 text-right pr-4">
-                              <div className="flex items-center justify-end gap-1">
-                                {hasDetails && <button onClick={e => { e.stopPropagation(); setSelectedRow(row); }} className="p-1 text-violet-600 hover:bg-violet-50 rounded"><Maximize2 size={14} /></button>}
-                                {c.enableEdit && <button onClick={e => { e.stopPropagation(); startEdit(row); }} className="p-1 text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14} /></button>}
-                                {c.enableDelete && <button onClick={e => { e.stopPropagation(); handleDeleteRow(row.id); }} className="p-1 text-red-600 hover:bg-red-50 rounded"><Trash2 size={14} /></button>}
-                              </div>
-                            </td>
-                          )}
+                      {isSearching ? (
+                        <tr>
+                          <td colSpan={cols.length + 2} className="py-12 text-center text-slate-400">
+                            <div className="flex flex-col items-center justify-center">
+                              <RefreshCw size={24} className="animate-spin text-violet-500 mb-3" />
+                              <span>Searching records...</span>
+                            </div>
+                          </td>
                         </tr>
-                      ))}
-                      {filteredData.length === 0 && <tr><td colSpan={cols.length + 2} className="p-8 text-center text-slate-400">No records found.</td></tr>}
+                      ) : filteredData.length === 0 ? (
+                        <tr><td colSpan={cols.length + 2} className="p-8 text-center text-slate-400">No records found.</td></tr>
+                      ) : (
+                        filteredData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((row, idx) => (
+                          <tr key={row.id || idx}
+                            className={`transition-colors cursor-pointer ${selectedRow?.id === row.id ? 'bg-violet-50' : 'hover:bg-slate-50'}`}
+                            onClick={() => hasDetails && setSelectedRow(row)}>
+                            <td className="p-2 pl-4 text-slate-400 font-mono text-xs">{(currentPage - 1) * PAGE_SIZE + idx + 1}</td>
+                            {cols.map(col => <td key={col} className="p-2 text-slate-700 max-w-xs truncate">{row[col] !== null && row[col] !== undefined ? String(row[col]) : '-'}</td>)}
+                            {(c.enableEdit || c.enableDelete || hasDetails) && (
+                              <td className="p-2 text-right pr-4">
+                                <div className="flex items-center justify-end gap-1">
+                                  {hasDetails && <button onClick={e => { e.stopPropagation(); setSelectedRow(row); }} className="p-1 text-violet-600 hover:bg-violet-50 rounded"><Maximize2 size={14} /></button>}
+                                  {c.enableEdit && <button onClick={e => { e.stopPropagation(); startEdit(row); }} className="p-1 text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14} /></button>}
+                                  {c.enableDelete && <button onClick={e => { e.stopPropagation(); handleDeleteRow(row.id); }} className="p-1 text-red-600 hover:bg-red-50 rounded"><Trash2 size={14} /></button>}
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
+                </div>
+              )}
+              
+              {/* Pagination Controls */}
+              {!isSearching && filteredData.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between mt-4 px-2">
+                  <p className="text-xs text-slate-500">
+                    Showing <span className="font-medium">{(currentPage - 1) * PAGE_SIZE + 1}</span> to <span className="font-medium">{Math.min(currentPage * PAGE_SIZE, filteredData.length)}</span> of <span className="font-medium">{filteredData.length}</span> results
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1}
+                      className="px-2.5 py-1 text-xs border border-slate-200 rounded text-slate-600 hover:bg-slate-50 disabled:opacity-50">Previous</button>
+                    {Array.from({ length: Math.min(5, Math.ceil(filteredData.length / PAGE_SIZE)) }, (_, i) => {
+                      let pNum = i + 1;
+                      const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+                      if (totalPages > 5 && currentPage > 3) pNum = currentPage - 3 + i + (currentPage > totalPages - 2 ? totalPages - currentPage - 2 : 0);
+                      if (pNum > totalPages) return null;
+                      return (
+                        <button key={pNum} onClick={() => setCurrentPage(pNum)}
+                          className={`px-2.5 py-1 text-xs border rounded ${currentPage === pNum ? 'bg-violet-600 border-violet-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                          {pNum}
+                        </button>
+                      );
+                    })}
+                    <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(filteredData.length / PAGE_SIZE)))} disabled={currentPage * PAGE_SIZE >= filteredData.length}
+                      className="px-2.5 py-1 text-xs border border-slate-200 rounded text-slate-600 hover:bg-slate-50 disabled:opacity-50">Next</button>
+                  </div>
                 </div>
               )}
             </div>
