@@ -401,6 +401,15 @@ export default function App() {
     }
     setAppUserMeta(meta);
 
+    // Auto-create app_users row if it doesn't exist (so all users appear in admin panel)
+    if (!userData) {
+      await supabase.from('app_users').upsert({
+        id: userId,
+        email: userEmail,
+        role: roleToSet
+      }, { onConflict: 'id' });
+    }
+
     if (roleToSet === 'technical_admin') {
       supabase.from('app_users').select('*').then(({data}) => {
         if (data) setAppUsers(data);
