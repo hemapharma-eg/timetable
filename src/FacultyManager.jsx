@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Download, Upload, Plus, Pencil, Trash2, X, Search, User } from 'lucide-react';
+import { supabase } from './supabase';
 
 export const FACULTY_FIELDS = [
   { key: 'category', label: 'Category', group: 'Basic Info' },
@@ -87,7 +88,7 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
     }
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
@@ -119,7 +120,12 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
             newItems.push(item);
           }
         }
-        setFaculty(prev => [...prev, ...newItems]);
+        // Insert into Supabase
+        const dbItems = newItems.map(({ id, ...rest }) => rest);
+        const { error } = await supabase.from('faculty').insert(dbItems);
+        if (error) { alert('Import failed: ' + error.message); return; }
+        const { data: refreshed } = await supabase.from('faculty').select('*');
+        if (refreshed) setFaculty(refreshed);
         e.target.value = ''; 
       } catch (err) {
         console.error(err);
@@ -127,6 +133,13 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
       }
     };
     reader.readAsBinaryString(file);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this employee?')) return;
+    const { error } = await supabase.from('faculty').delete().eq('id', id);
+    if (error) { alert('Delete failed: ' + error.message); return; }
+    setFaculty(faculty.filter(x => x.id !== id));
   };
 
   const openForm = (facultyMember = null) => {
@@ -141,14 +154,30 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
     setIsModalOpen(true);
   };
 
-  const saveForm = (e) => {
+  const saveForm = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return alert("Name is required");
 
-    if (editingId) {
-      setFaculty(faculty.map(f => f.id === editingId ? { ...f, ...form } : f));
-    } else {
-      setFaculty([...faculty, { id: Date.now().toString(), ...form }]);
+    // Build the record object (exclude client-side 'id' for new inserts)
+    const record = {};
+    FACULTY_FIELDS.forEach(f => {
+      if (form[f.key] !== undefined && form[f.key] !== '') record[f.key] = form[f.key];
+    });
+
+    try {
+      if (editingId) {
+        const { error } = await supabase.from('faculty').update(record).eq('id', editingId);
+        if (error) { alert('Save failed: ' + error.message); return; }
+      } else {
+        const { error } = await supabase.from('faculty').insert(record);
+        if (error) { alert('Save failed: ' + error.message); return; }
+      }
+      // Refresh from database
+      const { data } = await supabase.from('faculty').select('*');
+      if (data) setFaculty(data);
+    } catch (err) {
+      alert('Error saving: ' + err.message);
+      return;
     }
     setIsModalOpen(false);
   };
@@ -222,7 +251,7 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
                   <td className="p-3 pr-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                        <button onClick={() => openForm(f)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><Pencil size={16} /></button>
-                       <button onClick={() => setFaculty(faculty.filter(x => x.id !== f.id))} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={16} /></button>
+                       <button onClick={() => handleDelete(f.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={16} /></button>
                     </div>
                   </td>
                 </tr>
