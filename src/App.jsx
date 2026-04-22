@@ -9,6 +9,8 @@ import { FacultyManager } from './FacultyManager';
 import { StudentManager } from './StudentManager';
 import { CourseManager } from './CourseManager';
 import { ReportBuilder } from './ReportBuilder';
+import { FormBuilder } from './FormBuilder';
+import { AppBuilder } from './AppBuilder';
 import { supabase } from './supabase';
 
 // --- Default Mock Data ---
@@ -1005,6 +1007,10 @@ export default function App() {
 
               <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Reports</div>
               <SidebarItem id="reports" icon={FileSpreadsheet} label="Report Builder" activeTab={activeTab} setActiveTab={setActiveTab} />
+
+              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Builders</div>
+              <SidebarItem id="formbuilder" icon={FileSpreadsheet} label="Form Builder" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="appbuilder" icon={LayoutGrid} label="App Builder" activeTab={activeTab} setActiveTab={setActiveTab} />
             </>
           )}
 
@@ -1155,6 +1161,12 @@ export default function App() {
           )}
           {activeTab === 'reports' && (
             <ReportBuilder faculty={faculty} students={students} courses={courses} />
+          )}
+          {activeTab === 'formbuilder' && (
+            <FormBuilder />
+          )}
+          {activeTab === 'appbuilder' && (
+            <AppBuilder />
           )}
           {activeTab === 'timetable' && renderTimetable()}
         </div>

@@ -220,3 +220,92 @@ ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS ems_flag text;
 ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS elective text;
 ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS type text;
 ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS q_flag text;
+
+-- 8. Builders Infrastructure: Schema Introspection + Config Tables
+
+-- RPC function to discover all public tables and columns
+CREATE OR REPLACE FUNCTION get_schema_info()
+RETURNS json AS $$
+  SELECT json_agg(row_to_json(t))
+  FROM (
+    SELECT table_name, column_name, data_type, is_nullable,
+           column_default, ordinal_position
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+    ORDER BY table_name, ordinal_position
+  ) t;
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- RPC function to run a dynamic insert (used by form builder)
+CREATE OR REPLACE FUNCTION dynamic_insert(target_table text, row_data jsonb)
+RETURNS jsonb AS $$
+DECLARE
+  result jsonb;
+BEGIN
+  EXECUTE format(
+    'INSERT INTO public.%I SELECT * FROM jsonb_populate_record(null::public.%I, $1) RETURNING to_jsonb(%I.*)',
+    target_table, target_table, target_table
+  ) INTO result USING row_data;
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- RPC function to run a dynamic update
+CREATE OR REPLACE FUNCTION dynamic_update(target_table text, row_id text, row_data jsonb)
+RETURNS jsonb AS $$
+DECLARE
+  result jsonb;
+  col_name text;
+  col_value text;
+  set_clause text := '';
+BEGIN
+  FOR col_name, col_value IN SELECT * FROM jsonb_each_text(row_data)
+  LOOP
+    IF col_name != 'id' THEN
+      IF set_clause != '' THEN set_clause := set_clause || ', '; END IF;
+      set_clause := set_clause || format('%I = %L', col_name, col_value);
+    END IF;
+  END LOOP;
+  IF set_clause = '' THEN RETURN '{}'::jsonb; END IF;
+  EXECUTE format(
+    'UPDATE public.%I SET %s WHERE id = %L RETURNING to_jsonb(%I.*)',
+    target_table, set_clause, row_id, target_table
+  ) INTO result;
+  RETURN COALESCE(result, '{}'::jsonb);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- RPC function to delete a row dynamically
+CREATE OR REPLACE FUNCTION dynamic_delete(target_table text, row_id text)
+RETURNS boolean AS $$
+BEGIN
+  EXECUTE format('DELETE FROM public.%I WHERE id = %L', target_table, row_id);
+  RETURN true;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Form Configurations table
+CREATE TABLE IF NOT EXISTS public.form_configs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL,
+  description text,
+  config jsonb NOT NULL DEFAULT '{}',
+  created_by uuid REFERENCES auth.users(id),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.form_configs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admin full access on form_configs" ON public.form_configs FOR ALL USING (true) WITH CHECK (true);
+
+-- App Configurations table
+CREATE TABLE IF NOT EXISTS public.app_configs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL,
+  description text,
+  config jsonb NOT NULL DEFAULT '{}',
+  created_by uuid REFERENCES auth.users(id),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.app_configs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admin full access on app_configs" ON public.app_configs FOR ALL USING (true) WITH CHECK (true);
