@@ -291,26 +291,14 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        if (session.user.email === 'dribrahimpharmaceutics@gmail.com') {
-          supabase.from('app_users').upsert({ id: session.user.id, role: 'technical_admin' }).then(() => {
-            fetchRoleAndData(session.user.id);
-          });
-        } else {
-          fetchRoleAndData(session.user.id);
-        }
+        fetchRoleAndData(session.user.id, session.user.email);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        if (session.user.email === 'dribrahimpharmaceutics@gmail.com') {
-          supabase.from('app_users').upsert({ id: session.user.id, role: 'technical_admin' }).then(() => {
-            fetchRoleAndData(session.user.id);
-          });
-        } else {
-          fetchRoleAndData(session.user.id);
-        }
+        fetchRoleAndData(session.user.id, session.user.email);
       } else {
         setAppRole(null);
         setAppUserMeta(null);
@@ -328,20 +316,24 @@ export default function App() {
     }
   }, [authMode, session]);
 
-  const fetchRoleAndData = async (userId) => {
+  const fetchRoleAndData = async (userId, userEmail) => {
     // 1. Fetch User Role
     const { data: userData } = await supabase.from('app_users').select('*').eq('id', userId).single();
-    if (userData) {
-      setAppRole(userData.role);
-      setAppUserMeta(userData);
-      if (userData.role === 'technical_admin') {
-        supabase.from('app_users').select('*').then(({data}) => {
-          if (data) setAppUsers(data);
-        });
-      }
-    } else {
-      // Default fallback
-      setAppRole('student'); 
+    
+    let roleToSet = 'student';
+    if (userEmail === 'dribrahimpharmaceutics@gmail.com') {
+      roleToSet = 'technical_admin';
+    } else if (userData && userData.role) {
+      roleToSet = userData.role;
+    }
+
+    setAppRole(roleToSet);
+    if (userData) setAppUserMeta(userData);
+
+    if (roleToSet === 'technical_admin') {
+      supabase.from('app_users').select('*').then(({data}) => {
+        if (data) setAppUsers(data);
+      });
     }
 
     // 2. Fetch App Data
