@@ -295,6 +295,7 @@ CREATE TABLE IF NOT EXISTS public.form_configs (
   updated_at timestamptz DEFAULT now()
 );
 ALTER TABLE public.form_configs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Admin full access on form_configs" ON public.form_configs;
 CREATE POLICY "Admin full access on form_configs" ON public.form_configs FOR ALL USING (true) WITH CHECK (true);
 
 -- App Configurations table
@@ -308,6 +309,7 @@ CREATE TABLE IF NOT EXISTS public.app_configs (
   updated_at timestamptz DEFAULT now()
 );
 ALTER TABLE public.app_configs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Admin full access on app_configs" ON public.app_configs;
 CREATE POLICY "Admin full access on app_configs" ON public.app_configs FOR ALL USING (true) WITH CHECK (true);
 
 -- Report Configurations table
@@ -321,4 +323,5 @@ CREATE TABLE IF NOT EXISTS public.report_configs (
   updated_at timestamptz DEFAULT now()
 );
 ALTER TABLE public.report_configs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Admin full access on report_configs" ON public.report_configs;
 CREATE POLICY "Admin full access on report_configs" ON public.report_configs FOR ALL USING (true) WITH CHECK (true);
