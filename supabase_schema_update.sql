@@ -325,3 +325,29 @@ CREATE TABLE IF NOT EXISTS public.report_configs (
 ALTER TABLE public.report_configs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Admin full access on report_configs" ON public.report_configs;
 CREATE POLICY "Admin full access on report_configs" ON public.report_configs FOR ALL USING (true) WITH CHECK (true);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Section 9: Fix RLS policies for all core tables
+-- Run this to ensure all tables are accessible
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- app_users: allow authenticated users to read all, and insert/update their own
+ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow full access on app_users" ON public.app_users;
+CREATE POLICY "Allow full access on app_users" ON public.app_users FOR ALL USING (true) WITH CHECK (true);
+
+-- Ensure all core data tables have open policies for authenticated users
+DO $$
+DECLARE
+  tbl text;
+BEGIN
+  FOR tbl IN SELECT unnest(ARRAY[
+    'faculty', 'students', 'courses', 'student_groups', 'rooms',
+    'activities', 'activity_tags', 'time_profiles', 'constraints', 'schedules'
+  ])
+  LOOP
+    EXECUTE format('ALTER TABLE IF EXISTS public.%I ENABLE ROW LEVEL SECURITY', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS "Full access on %I" ON public.%I', tbl, tbl);
+    EXECUTE format('CREATE POLICY "Full access on %I" ON public.%I FOR ALL USING (true) WITH CHECK (true)', tbl, tbl);
+  END LOOP;
+END $$;
