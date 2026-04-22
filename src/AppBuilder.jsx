@@ -44,26 +44,6 @@ const SEARCH_TYPES = [
   { value: 'less_than', label: 'Less Than' }
 ];
 
-const DebouncedInput = ({ value, onChange, delay = 500, ...props }) => {
-  const [localVal, setLocalVal] = useState(value || '');
-  const timeoutRef = useRef(null);
-
-  useEffect(() => {
-    setLocalVal(value || '');
-  }, [value]);
-
-  const handleChange = (e) => {
-    const v = e.target.value;
-    setLocalVal(v);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      onChange(v);
-    }, delay);
-  };
-
-  return <input value={localVal} onChange={handleChange} {...props} />;
-};
-
 export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   // Schema
   const [schema, setSchema] = useState([]);
@@ -121,7 +101,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 50;
 
-  // Debounce search input (Debouncing is now handled perfectly by DebouncedInput UI)
+  // Handlers for instant search
   const handleSearchChange = (val) => {
     setLiveSearch(val);
     setDebouncedSearch(val);
@@ -604,7 +584,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
             {!hasSearch && (
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                <DebouncedInput type="text" placeholder="Quick search..." value={liveSearch} onChange={v => handleSearchChange(v)}
+                <input type="text" placeholder="Quick search..." value={liveSearch} onChange={e => handleSearchChange(e.target.value)}
                   className="pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400 w-48" />
               </div>
             )}
