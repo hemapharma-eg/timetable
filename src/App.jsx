@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import ConstraintsManager from './ConstraintsManager';
 import { FacultyManager } from './FacultyManager';
+import { StudentManager } from './StudentManager';
 import { supabase } from './supabase';
 
 // --- Default Mock Data ---
@@ -1028,9 +1029,7 @@ export default function App() {
             </div>
           )}
           {activeTab === 'students' && (
-            <div className="max-w-3xl mx-auto">
-              <ObjectListManager title="Students" items={students} setItems={setStudents} fields={[{ key: 'id', label: 'Student ID' }, { key: 'name', label: 'Name' }, { key: 'email', label: 'Email Address' }, { key: 'group_id', label: 'Group', type: 'select', options: groups.map(g => ({ value: g.id, label: g.name })) }]} />
-            </div>
+            <StudentManager students={students} setStudents={setStudents} />
           )}
           {activeTab === 'tags' && (
             <div className="max-w-3xl mx-auto">
