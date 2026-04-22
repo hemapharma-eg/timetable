@@ -104,6 +104,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
 
   // Search form values
   const [searchFormValues, setSearchFormValues] = useState({});
+  const [appliedSearchValues, setAppliedSearchValues] = useState({});
   const [searchApplied, setSearchApplied] = useState(false);
   const [distinctValues, setDistinctValues] = useState({});
   const [cascadeCache, setCascadeCache] = useState({});
@@ -256,7 +257,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
 
     // Apply search form filters
     if (searchApplied || urlFilters) {
-      const activeFilters = { ...searchFormValues, ...(urlFilters || {}) };
+      const activeFilters = { ...appliedSearchValues, ...(urlFilters || {}) };
       Object.entries(activeFilters).forEach(([col, val]) => {
         if (!val) return;
         const sf = (c.searchFields || []).find(s => s.column === col);
@@ -302,7 +303,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
       });
     }
     return data;
-  }, [liveConfig, liveData, searchApplied, searchFormValues, urlFilters, debouncedSearch]);
+  }, [liveConfig, liveData, searchApplied, appliedSearchValues, urlFilters, debouncedSearch]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // RENDER: App View (Live)
@@ -326,8 +327,8 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
     const startEdit = (row) => { setEditRow(row.id); const fd = {}; cols.forEach(col => { fd[col] = row[col] || ''; }); setEditForm(fd); setIsCreating(false); };
     const startCreate = () => { setIsCreating(true); setEditRow(null); const fd = {}; cols.forEach(col => { fd[col] = ''; }); setEditForm(fd); };
 
-    const resetSearch = () => { setSearchFormValues({}); setSearchApplied(false); };
-    const applySearch = () => { setSearchApplied(true); };
+    const resetSearch = () => { setSearchFormValues({}); setAppliedSearchValues({}); setSearchApplied(false); };
+    const applySearch = () => { setAppliedSearchValues(searchFormValues); setSearchApplied(true); };
 
     // ── Cascade fetching ──
     const fetchCascadeOptions = async (field, parentValue) => {
