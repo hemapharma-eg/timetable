@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus, Pencil, Trash2, X, Search, Eye, Save, Copy, ChevronDown, ChevronRight,
-  FileText, Layers, CheckCircle2, AlertCircle, GripVertical, Settings
+  FileText, Layers, CheckCircle2, AlertCircle, GripVertical, Settings, Share2
 } from 'lucide-react';
 import { supabase } from './supabase';
 
@@ -26,7 +26,7 @@ const mapDbType = (dbType) => {
   return 'text';
 };
 
-export const FormBuilder = () => {
+export const FormBuilder = ({ deepLinkId }) => {
   // Schema state
   const [schema, setSchema] = useState([]);
   const [schemaLoading, setSchemaLoading] = useState(true);
@@ -54,11 +54,22 @@ export const FormBuilder = () => {
   // Field editing
   const [editingFieldIdx, setEditingFieldIdx] = useState(null);
 
+  // Share toast
+  const [shareToast, setShareToast] = useState(false);
+
   // ─── Fetch schema and saved forms ───────────────────────────────────────
   useEffect(() => {
     fetchSchema();
     fetchForms();
   }, []);
+
+  // Handle deep link
+  useEffect(() => {
+    if (deepLinkId && savedForms.length > 0) {
+      const found = savedForms.find(f => f.id === deepLinkId);
+      if (found) openFillMode(found);
+    }
+  }, [deepLinkId, savedForms]);
 
   const fetchSchema = async () => {
     setSchemaLoading(true);
@@ -80,6 +91,19 @@ export const FormBuilder = () => {
     setSavedForms(data || []);
     setFormsLoading(false);
   };
+
+  const copyShareLink = (id) => {
+    const url = `${window.location.origin}${window.location.pathname}?view=form&id=${id}`;
+    navigator.clipboard.writeText(url);
+    setShareToast(true);
+    setTimeout(() => setShareToast(false), 2000);
+  };
+
+  const ShareToast = () => shareToast ? (
+    <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+      <CheckCircle2 size={16} /> Link copied to clipboard!
+    </div>
+  ) : null;
 
   // ─── Schema helpers ────────────────────────────────────────────────────
   const tables = [...new Set(schema.map(c => c.table_name))].filter(t =>
@@ -349,6 +373,7 @@ export const FormBuilder = () => {
   if (view === 'list') {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col max-h-[85vh]">
+        <ShareToast />
         <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 flex items-center">
@@ -387,6 +412,7 @@ export const FormBuilder = () => {
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="font-semibold text-slate-800 truncate pr-2">{form.name}</h3>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => copyShareLink(form.id)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Copy share link"><Share2 size={14} /></button>
                         <button onClick={() => duplicateForm(form)} className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded"><Copy size={14} /></button>
                         <button onClick={() => deleteForm(form.id)} className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
                       </div>

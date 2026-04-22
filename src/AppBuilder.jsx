@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Pencil, Trash2, X, Search, Eye, Save, Copy,
   ChevronDown, ChevronRight, Layers, Settings, Download,
-  LayoutGrid, RefreshCw, AlertCircle, Database
+  LayoutGrid, RefreshCw, AlertCircle, Database, Share2, CheckCircle2
 } from 'lucide-react';
 import { supabase } from './supabase';
 
-export const AppBuilder = () => {
+export const AppBuilder = ({ deepLinkId }) => {
   // Schema
   const [schema, setSchema] = useState([]);
   const [schemaLoading, setSchemaLoading] = useState(true);
@@ -17,7 +17,7 @@ export const AppBuilder = () => {
   const [appsLoading, setAppsLoading] = useState(true);
 
   // Builder state
-  const [view, setView] = useState('list'); // 'list' | 'builder' | 'appview'
+  const [view, setView] = useState('list');
   const [editingAppId, setEditingAppId] = useState(null);
   const [appName, setAppName] = useState('');
   const [appDesc, setAppDesc] = useState('');
@@ -38,11 +38,22 @@ export const AppBuilder = () => {
   const [liveConfig, setLiveConfig] = useState(null);
   const [liveError, setLiveError] = useState(null);
 
+  // Share toast
+  const [shareToast, setShareToast] = useState(false);
+
   // ─── Fetch schema and saved apps ────────────────────────────────────
   useEffect(() => {
     fetchSchema();
     fetchApps();
   }, []);
+
+  // Handle deep link
+  useEffect(() => {
+    if (deepLinkId && savedApps.length > 0) {
+      const found = savedApps.find(a => a.id === deepLinkId);
+      if (found) openAppView(found);
+    }
+  }, [deepLinkId, savedApps]);
 
   const fetchSchema = async () => {
     setSchemaLoading(true);
@@ -63,6 +74,19 @@ export const AppBuilder = () => {
     setSavedApps(data || []);
     setAppsLoading(false);
   };
+
+  const copyShareLink = (id) => {
+    const url = `${window.location.origin}${window.location.pathname}?view=app&id=${id}`;
+    navigator.clipboard.writeText(url);
+    setShareToast(true);
+    setTimeout(() => setShareToast(false), 2000);
+  };
+
+  const ShareToast = () => shareToast ? (
+    <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+      <CheckCircle2 size={16} /> Link copied to clipboard!
+    </div>
+  ) : null;
 
   // ─── Schema helpers ────────────────────────────────────────────────
   const tables = [...new Set(schema.map(c => c.table_name))].filter(t =>
@@ -458,6 +482,7 @@ export const AppBuilder = () => {
   // ═════════════════════════════════════════════════════════════════════
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col max-h-[85vh]">
+      <ShareToast />
       <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 flex items-center">
@@ -495,6 +520,7 @@ export const AppBuilder = () => {
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="font-semibold text-slate-800 truncate pr-2">{app.name}</h3>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => copyShareLink(app.id)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Copy share link"><Share2 size={14} /></button>
                       <button onClick={() => duplicateApp(app)} className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded"><Copy size={14} /></button>
                       <button onClick={() => deleteApp(app.id)} className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
                     </div>

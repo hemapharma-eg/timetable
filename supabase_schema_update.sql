@@ -309,3 +309,16 @@ CREATE TABLE IF NOT EXISTS public.app_configs (
 );
 ALTER TABLE public.app_configs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Admin full access on app_configs" ON public.app_configs FOR ALL USING (true) WITH CHECK (true);
+
+-- Report Configurations table
+CREATE TABLE IF NOT EXISTS public.report_configs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL,
+  description text,
+  config jsonb NOT NULL DEFAULT '{}',
+  created_by uuid REFERENCES auth.users(id),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.report_configs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admin full access on report_configs" ON public.report_configs FOR ALL USING (true) WITH CHECK (true);

@@ -296,6 +296,23 @@ export default function App() {
   const [signupGroups, setSignupGroups] = useState([]);
 
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [deepLinkId, setDeepLinkId] = useState(null);
+
+  // URL deep linking for shared forms/apps/reports
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view');
+    const idParam = params.get('id');
+    if (viewParam && idParam) {
+      const viewMap = { form: 'formbuilder', app: 'appbuilder', report: 'reports' };
+      if (viewMap[viewParam]) {
+        setActiveTab(viewMap[viewParam]);
+        setDeepLinkId(idParam);
+        // Clean URL without reloading
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, []);
 
   // Data State
   const [timeProfiles, setTimeProfiles] = useState([]);
@@ -1160,13 +1177,13 @@ export default function App() {
             </div>
           )}
           {activeTab === 'reports' && (
-            <ReportBuilder faculty={faculty} students={students} courses={courses} />
+            <ReportBuilder faculty={faculty} students={students} courses={courses} deepLinkId={deepLinkId} />
           )}
           {activeTab === 'formbuilder' && (
-            <FormBuilder />
+            <FormBuilder deepLinkId={deepLinkId} />
           )}
           {activeTab === 'appbuilder' && (
-            <AppBuilder />
+            <AppBuilder deepLinkId={deepLinkId} />
           )}
           {activeTab === 'timetable' && renderTimetable()}
         </div>
