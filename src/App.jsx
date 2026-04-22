@@ -297,6 +297,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [deepLinkId, setDeepLinkId] = useState(null);
+  const [urlFilters, setUrlFilters] = useState(null);
 
   // URL deep linking for shared forms/apps/reports
   useEffect(() => {
@@ -308,7 +309,15 @@ export default function App() {
       if (viewMap[viewParam]) {
         setActiveTab(viewMap[viewParam]);
         setDeepLinkId(idParam);
-        // Clean URL without reloading
+        // Parse filter_* params for app builder
+        if (viewParam === 'app') {
+          const filters = {};
+          params.forEach((val, key) => {
+            if (key.startsWith('filter_')) filters[key.replace('filter_', '')] = val;
+          });
+          if (params.get('record')) filters.record = params.get('record');
+          if (Object.keys(filters).length > 0) setUrlFilters(filters);
+        }
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
@@ -1183,7 +1192,7 @@ export default function App() {
             <FormBuilder deepLinkId={deepLinkId} />
           )}
           {activeTab === 'appbuilder' && (
-            <AppBuilder deepLinkId={deepLinkId} />
+            <AppBuilder deepLinkId={deepLinkId} urlFilters={urlFilters} />
           )}
           {activeTab === 'timetable' && renderTimetable()}
         </div>

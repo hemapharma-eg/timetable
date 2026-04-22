@@ -1,12 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus, Pencil, Trash2, X, Search, Eye, Save, Copy,
-  ChevronDown, ChevronRight, Layers, Settings, Download,
-  LayoutGrid, RefreshCw, AlertCircle, Database, Share2, CheckCircle2
+  ChevronDown, ChevronRight, ChevronLeft, Layers, Settings, Download,
+  LayoutGrid, RefreshCw, AlertCircle, Database, Share2, CheckCircle2,
+  Filter, ArrowLeft, Maximize2
 } from 'lucide-react';
 import { supabase } from './supabase';
 
-export const AppBuilder = ({ deepLinkId }) => {
+const PAGE_MODES = [
+  { value: 'search_results_details', label: 'Search + Results + Details', desc: 'Full app with search form, results grid, and detail view' },
+  { value: 'search_results', label: 'Search + Results', desc: 'Search form with results grid, no detail expand' },
+  { value: 'results_details', label: 'Results + Details', desc: 'Results grid with click-to-expand detail view' },
+  { value: 'results_only', label: 'Results Only', desc: 'Filtered results grid (can be filtered via URL parameters)' },
+  { value: 'details_only', label: 'Details Only', desc: 'Single record view (requires URL parameter for record ID)' }
+];
+
+const SEARCH_TYPES = [
+  { value: 'contains', label: 'Contains' },
+  { value: 'exact', label: 'Exact Match' },
+  { value: 'starts_with', label: 'Starts With' },
+  { value: 'dropdown', label: 'Dropdown (distinct values)' }
+];
+
+export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   // Schema
   const [schema, setSchema] = useState([]);
   const [schemaLoading, setSchemaLoading] = useState(true);
@@ -27,6 +43,9 @@ export const AppBuilder = ({ deepLinkId }) => {
   const [appEnableCreate, setAppEnableCreate] = useState(true);
   const [appEnableEdit, setAppEnableEdit] = useState(true);
   const [appEnableDelete, setAppEnableDelete] = useState(true);
+  const [appMode, setAppMode] = useState('search_results_details');
+  const [appSearchFields, setAppSearchFields] = useState([]); // [{column, searchType}]
+  const [appDetailColumns, setAppDetailColumns] = useState([]);
 
   // App View state
   const [liveData, setLiveData] = useState([]);
@@ -38,16 +57,20 @@ export const AppBuilder = ({ deepLinkId }) => {
   const [liveConfig, setLiveConfig] = useState(null);
   const [liveError, setLiveError] = useState(null);
 
-  // Share toast
+  // Search form values
+  const [searchFormValues, setSearchFormValues] = useState({});
+  const [searchApplied, setSearchApplied] = useState(false);
+  const [distinctValues, setDistinctValues] = useState({});
+
+  // Detail view
+  const [selectedRow, setSelectedRow] = useState(null);
+
+  // Toast
   const [shareToast, setShareToast] = useState(false);
 
-  // ─── Fetch schema and saved apps ────────────────────────────────────
-  useEffect(() => {
-    fetchSchema();
-    fetchApps();
-  }, []);
+  // ─── Fetch ────────────────────────────────────────────────────────────
+  useEffect(() => { fetchSchema(); fetchApps(); }, []);
 
-  // Handle deep link
   useEffect(() => {
     if (deepLinkId && savedApps.length > 0) {
       const found = savedApps.find(a => a.id === deepLinkId);
@@ -56,260 +79,308 @@ export const AppBuilder = ({ deepLinkId }) => {
   }, [deepLinkId, savedApps]);
 
   const fetchSchema = async () => {
-    setSchemaLoading(true);
-    setSchemaError(null);
+    setSchemaLoading(true); setSchemaError(null);
     try {
       const { data, error } = await supabase.rpc('get_schema_info');
-      if (error) throw error;
-      setSchema(data || []);
-    } catch (err) {
-      setSchemaError(err.message || 'Run Section 8 of the SQL migration first.');
-    }
+      if (error) throw error; setSchema(data || []);
+    } catch (err) { setSchemaError(err.message); }
     setSchemaLoading(false);
   };
 
   const fetchApps = async () => {
     setAppsLoading(true);
     const { data } = await supabase.from('app_configs').select('*').order('updated_at', { ascending: false });
-    setSavedApps(data || []);
-    setAppsLoading(false);
+    setSavedApps(data || []); setAppsLoading(false);
   };
 
-  const copyShareLink = (id) => {
-    const url = `${window.location.origin}${window.location.pathname}?view=app&id=${id}`;
+  const copyShareLink = (id, extraParams = '') => {
+    const url = `${window.location.origin}${window.location.pathname}?view=app&id=${id}${extraParams}`;
     navigator.clipboard.writeText(url);
-    setShareToast(true);
-    setTimeout(() => setShareToast(false), 2000);
+    setShareToast(true); setTimeout(() => setShareToast(false), 2000);
   };
 
   const ShareToast = () => shareToast ? (
-    <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
-      <CheckCircle2 size={16} /> Link copied to clipboard!
-    </div>
+    <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2"><CheckCircle2 size={16} /> Link copied!</div>
   ) : null;
 
-  // ─── Schema helpers ────────────────────────────────────────────────
-  const tables = [...new Set(schema.map(c => c.table_name))].filter(t =>
-    !['form_configs', 'app_configs'].includes(t)
-  ).sort();
+  // ─── Schema helpers ────────────────────────────────────────────────────
+  const HIDDEN_TABLES = ['form_configs', 'app_configs', 'report_configs'];
+  const tables = [...new Set(schema.map(c => c.table_name))].filter(t => !HIDDEN_TABLES.includes(t)).sort();
+  const getTableColumns = (tableName) => schema.filter(c => c.table_name === tableName).sort((a, b) => a.ordinal_position - b.ordinal_position);
+  const prettyCol = (col) => col.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-  const getTableColumns = (tableName) =>
-    schema.filter(c => c.table_name === tableName).sort((a, b) => a.ordinal_position - b.ordinal_position);
-
-  // ─── Builder actions ───────────────────────────────────────────────
-  const newApp = () => {
-    setAppName('');
-    setAppDesc('');
-    setAppTable('');
-    setAppColumns([]);
-    setAppSearchCol('');
-    setAppEnableCreate(true);
-    setAppEnableEdit(true);
-    setAppEnableDelete(true);
-    setEditingAppId(null);
-    setView('builder');
-  };
+  // ─── Builder actions ───────────────────────────────────────────────────
+  const newApp = () => { setAppName(''); setAppDesc(''); setAppTable(''); setAppColumns([]); setAppSearchCol(''); setAppEnableCreate(true); setAppEnableEdit(true); setAppEnableDelete(true); setAppMode('search_results_details'); setAppSearchFields([]); setAppDetailColumns([]); setEditingAppId(null); setView('builder'); };
 
   const loadApp = (app) => {
     const c = app.config || {};
-    setAppName(app.name);
-    setAppDesc(app.description || '');
-    setAppTable(c.table || '');
-    setAppColumns(c.columns || []);
+    setAppName(app.name); setAppDesc(app.description || '');
+    setAppTable(c.table || ''); setAppColumns(c.columns || []);
     setAppSearchCol(c.searchCol || '');
-    setAppEnableCreate(c.enableCreate !== false);
-    setAppEnableEdit(c.enableEdit !== false);
-    setAppEnableDelete(c.enableDelete !== false);
-    setEditingAppId(app.id);
-    setView('builder');
+    setAppEnableCreate(c.enableCreate !== false); setAppEnableEdit(c.enableEdit !== false); setAppEnableDelete(c.enableDelete !== false);
+    setAppMode(c.mode || 'search_results_details');
+    setAppSearchFields(c.searchFields || []);
+    setAppDetailColumns(c.detailColumns || []);
+    setEditingAppId(app.id); setView('builder');
   };
 
   const saveApp = async () => {
-    if (!appName.trim()) return alert('Please name your app.');
+    if (!appName.trim()) return alert('Name your app.');
     if (!appTable) return alert('Select a table.');
-    if (appColumns.length === 0) return alert('Select at least one column.');
-
+    if (appColumns.length === 0) return alert('Select columns.');
     const config = {
-      table: appTable,
-      columns: appColumns,
-      searchCol: appSearchCol,
-      enableCreate: appEnableCreate,
-      enableEdit: appEnableEdit,
-      enableDelete: appEnableDelete
+      table: appTable, columns: appColumns, searchCol: appSearchCol,
+      enableCreate: appEnableCreate, enableEdit: appEnableEdit, enableDelete: appEnableDelete,
+      mode: appMode, searchFields: appSearchFields, detailColumns: appDetailColumns
     };
-
     if (editingAppId) {
-      await supabase.from('app_configs').update({
-        name: appName, description: appDesc, config, updated_at: new Date().toISOString()
-      }).eq('id', editingAppId);
+      await supabase.from('app_configs').update({ name: appName, description: appDesc, config, updated_at: new Date().toISOString() }).eq('id', editingAppId);
     } else {
-      const { data } = await supabase.from('app_configs').insert({
-        name: appName, description: appDesc, config
-      }).select().single();
+      const { data } = await supabase.from('app_configs').insert({ name: appName, description: appDesc, config }).select().single();
       if (data) setEditingAppId(data.id);
     }
     fetchApps();
   };
 
-  const duplicateApp = async (app) => {
-    await supabase.from('app_configs').insert({
-      name: app.name + ' (Copy)', description: app.description, config: app.config
-    });
-    fetchApps();
-  };
+  const duplicateApp = async (app) => { await supabase.from('app_configs').insert({ name: app.name + ' (Copy)', description: app.description, config: app.config }); fetchApps(); };
+  const deleteApp = async (id) => { if (!confirm('Delete?')) return; await supabase.from('app_configs').delete().eq('id', id); setSavedApps(prev => prev.filter(a => a.id !== id)); if (editingAppId === id) setView('list'); };
 
-  const deleteApp = async (id) => {
-    if (!confirm('Delete this app permanently?')) return;
-    await supabase.from('app_configs').delete().eq('id', id);
-    setSavedApps(prev => prev.filter(a => a.id !== id));
-    if (editingAppId === id) setView('list');
-  };
-
-  // ─── App View (live CRUD) ──────────────────────────────────────────
+  // ─── App View ──────────────────────────────────────────────────────────
   const openAppView = async (app) => {
     const c = app.config || {};
-    setLiveConfig(app);
-    setLiveSearch('');
-    setEditRow(null);
-    setIsCreating(false);
-    setLiveError(null);
+    setLiveConfig(app); setLiveSearch(''); setEditRow(null); setIsCreating(false); setLiveError(null);
+    setSelectedRow(null); setSearchFormValues({}); setSearchApplied(false);
     setView('appview');
     await fetchLiveData(c.table);
+    // Fetch distinct values for dropdown search fields
+    const sFields = c.searchFields || [];
+    const dropdownFields = sFields.filter(sf => sf.searchType === 'dropdown');
+    if (dropdownFields.length > 0) {
+      const dvs = {};
+      for (const sf of dropdownFields) {
+        const { data } = await supabase.from(c.table).select(sf.column);
+        if (data) dvs[sf.column] = [...new Set(data.map(r => r[sf.column]).filter(Boolean))].sort();
+      }
+      setDistinctValues(dvs);
+    }
+    // Apply URL filters
+    if (urlFilters && Object.keys(urlFilters).length > 0) {
+      setSearchFormValues(urlFilters);
+      setSearchApplied(true);
+    }
   };
 
   const fetchLiveData = async (table) => {
     if (!table) return;
     setLiveLoading(true);
     const { data, error } = await supabase.from(table).select('*');
-    if (error) {
-      setLiveError(error.message);
-      setLiveData([]);
-    } else {
-      setLiveData(data || []);
-    }
+    if (error) { setLiveError(error.message); setLiveData([]); }
+    else setLiveData(data || []);
     setLiveLoading(false);
   };
 
-  const handleCreateRow = async () => {
-    const c = liveConfig?.config || {};
-    setLiveError(null);
-    const { error } = await supabase.from(c.table).insert(editForm);
-    if (error) { setLiveError(error.message); return; }
-    setIsCreating(false);
-    setEditForm({});
-    await fetchLiveData(c.table);
-  };
-
-  const handleUpdateRow = async () => {
-    const c = liveConfig?.config || {};
-    setLiveError(null);
-    const { error } = await supabase.from(c.table).update(editForm).eq('id', editRow);
-    if (error) { setLiveError(error.message); return; }
-    setEditRow(null);
-    setEditForm({});
-    await fetchLiveData(c.table);
-  };
-
-  const handleDeleteRow = async (id) => {
-    if (!confirm('Delete this record?')) return;
-    const c = liveConfig?.config || {};
-    setLiveError(null);
-    const { error } = await supabase.from(c.table).delete().eq('id', id);
-    if (error) { setLiveError(error.message); return; }
-    await fetchLiveData(c.table);
-  };
+  const handleCreateRow = async () => { const c = liveConfig?.config || {}; setLiveError(null); const { error } = await supabase.from(c.table).insert(editForm); if (error) { setLiveError(error.message); return; } setIsCreating(false); setEditForm({}); await fetchLiveData(c.table); };
+  const handleUpdateRow = async () => { const c = liveConfig?.config || {}; setLiveError(null); const { error } = await supabase.from(c.table).update(editForm).eq('id', editRow); if (error) { setLiveError(error.message); return; } setEditRow(null); setEditForm({}); await fetchLiveData(c.table); };
+  const handleDeleteRow = async (id) => { if (!confirm('Delete?')) return; const c = liveConfig?.config || {}; const { error } = await supabase.from(c.table).delete().eq('id', id); if (error) { setLiveError(error.message); return; } await fetchLiveData(c.table); if (selectedRow?.id === id) setSelectedRow(null); };
 
   const handleExport = () => {
     if (typeof XLSX === 'undefined') return alert('Excel engine loading...');
     const c = liveConfig?.config || {};
-    const exportData = filteredLiveData.map(r => {
-      const obj = {};
-      (c.columns || []).forEach(col => { obj[col] = r[col] || ''; });
-      return obj;
-    });
+    const exportData = getFilteredData().map(r => { const obj = {}; (c.columns || []).forEach(col => { obj[prettyCol(col)] = r[col] ?? ''; }); return obj; });
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, c.table || 'Data');
     XLSX.writeFile(wb, `${(c.table || 'export')}.xlsx`);
   };
 
-  const c = liveConfig?.config || {};
-  const filteredLiveData = liveData.filter(row => {
-    if (!liveSearch) return true;
-    const searchCol = c.searchCol;
-    if (searchCol) return (row[searchCol] || '').toString().toLowerCase().includes(liveSearch.toLowerCase());
-    return Object.values(row).some(v => (v || '').toString().toLowerCase().includes(liveSearch.toLowerCase()));
-  });
+  const toggleAppColumn = (col) => setAppColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
 
-  const toggleAppColumn = (col) => {
-    setAppColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
+  // ─── Filtering ─────────────────────────────────────────────────────────
+  const getFilteredData = () => {
+    const c = liveConfig?.config || {};
+    let data = [...liveData];
+    const mode = c.mode || 'search_results_details';
+    const hasSearch = mode.includes('search');
+
+    // Apply search form filters
+    if (searchApplied || urlFilters) {
+      const activeFilters = { ...searchFormValues, ...(urlFilters || {}) };
+      Object.entries(activeFilters).forEach(([col, val]) => {
+        if (!val) return;
+        const sf = (c.searchFields || []).find(s => s.column === col);
+        const sType = sf?.searchType || 'contains';
+        data = data.filter(row => {
+          const rv = (row[col] || '').toString().toLowerCase();
+          const fv = val.toString().toLowerCase();
+          switch (sType) {
+            case 'exact': case 'dropdown': return rv === fv;
+            case 'starts_with': return rv.startsWith(fv);
+            default: return rv.includes(fv);
+          }
+        });
+      });
+    }
+
+    // Quick-search on top
+    if (liveSearch) {
+      const searchCol = c.searchCol;
+      data = data.filter(row => {
+        if (searchCol) return (row[searchCol] || '').toString().toLowerCase().includes(liveSearch.toLowerCase());
+        return Object.values(row).some(v => (v || '').toString().toLowerCase().includes(liveSearch.toLowerCase()));
+      });
+    }
+    return data;
   };
 
-  // ═════════════════════════════════════════════════════════════════════
-  // RENDER: App View (live CRUD)
-  // ═════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════
+  // RENDER: App View (Live)
+  // ═══════════════════════════════════════════════════════════════════════
   if (view === 'appview') {
+    const c = liveConfig?.config || {};
     const cols = c.columns || [];
+    const mode = c.mode || 'search_results_details';
+    const hasSearch = mode.includes('search');
+    const hasResults = mode.includes('results');
+    const hasDetails = mode.includes('details');
+    const searchFields = c.searchFields || [];
+    const detailCols = c.detailColumns?.length ? c.detailColumns : cols;
     const tableCols = getTableColumns(c.table);
+    const filteredData = getFilteredData();
 
-    const startEdit = (row) => {
-      setEditRow(row.id);
-      const formData = {};
-      cols.forEach(col => { formData[col] = row[col] || ''; });
-      setEditForm(formData);
-      setIsCreating(false);
+    // For details_only mode with URL param
+    const detailsOnlyRow = mode === 'details_only' && urlFilters?.record
+      ? liveData.find(r => r.id?.toString() === urlFilters.record) : null;
+
+    const startEdit = (row) => { setEditRow(row.id); const fd = {}; cols.forEach(col => { fd[col] = row[col] || ''; }); setEditForm(fd); setIsCreating(false); };
+    const startCreate = () => { setIsCreating(true); setEditRow(null); const fd = {}; cols.forEach(col => { fd[col] = ''; }); setEditForm(fd); };
+
+    const resetSearch = () => { setSearchFormValues({}); setSearchApplied(false); };
+    const applySearch = () => { setSearchApplied(true); };
+
+    // ── Search Section ──
+    const SearchSection = () => {
+      if (!hasSearch || searchFields.length === 0) return null;
+      return (
+        <div className="mx-5 mt-4 p-5 bg-gradient-to-r from-slate-50 to-violet-50 border border-slate-200 rounded-xl">
+          <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center"><Search size={14} className="mr-1.5 text-violet-500" /> Search</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {searchFields.map(sf => (
+              <div key={sf.column}>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{prettyCol(sf.column)}</label>
+                {sf.searchType === 'dropdown' ? (
+                  <select value={searchFormValues[sf.column] || ''} onChange={e => setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-violet-400">
+                    <option value="">All</option>
+                    {(distinctValues[sf.column] || []).map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                ) : (
+                  <input type="text" value={searchFormValues[sf.column] || ''} onChange={e => setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }))}
+                    placeholder={`${sf.searchType === 'exact' ? 'Exact match' : sf.searchType === 'starts_with' ? 'Starts with' : 'Contains'}...`}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400" />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button onClick={applySearch} className="px-4 py-2 text-white bg-violet-600 hover:bg-violet-700 rounded-lg text-sm font-medium flex items-center"><Search size={14} className="mr-1" /> Search</button>
+            <button onClick={resetSearch} className="px-4 py-2 text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg text-sm font-medium">Reset</button>
+          </div>
+        </div>
+      );
     };
 
-    const startCreate = () => {
-      setIsCreating(true);
-      setEditRow(null);
-      const formData = {};
-      cols.forEach(col => { formData[col] = ''; });
-      setEditForm(formData);
+    // ── Detail Section ──
+    const DetailSection = ({ row }) => {
+      if (!row) return null;
+      return (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white flex justify-between items-center">
+            <h3 className="font-bold text-sm">Record Details</h3>
+            <div className="flex gap-1">
+              {c.enableEdit && <button onClick={() => startEdit(row)} className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-xs"><Pencil size={12} className="inline mr-1" />Edit</button>}
+              {mode !== 'details_only' && <button onClick={() => setSelectedRow(null)} className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-xs"><X size={12} /></button>}
+            </div>
+          </div>
+          <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {detailCols.map(col => (
+              <div key={col} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">{prettyCol(col)}</p>
+                <p className="text-sm text-slate-800 font-medium break-words">{row[col] !== null && row[col] !== undefined ? String(row[col]) : <span className="text-slate-300 italic">empty</span>}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
     };
 
+    // ── Details Only Mode ──
+    if (mode === 'details_only') {
+      return (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col max-h-[85vh]">
+          <ShareToast />
+          <div className="p-5 border-b border-slate-200 flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">{liveConfig?.name}</h2>
+              <p className="text-sm text-slate-500">Details view · <span className="font-mono text-violet-600">{c.table}</span></p>
+            </div>
+            <button onClick={() => setView('list')} className="px-3 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium">← Back</button>
+          </div>
+          <div className="flex-1 overflow-auto p-5">
+            {liveLoading ? <p className="text-center text-slate-400 py-8">Loading...</p>
+            : detailsOnlyRow ? <DetailSection row={detailsOnlyRow} />
+            : (
+              <div className="text-center py-12 text-slate-400">
+                <p className="text-lg font-medium mb-2">No record specified</p>
+                <p className="text-sm">Share this app with <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">?record=ID</code> parameter</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Main App View ──
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col max-h-[85vh]">
+        <ShareToast />
         <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
           <div>
             <h2 className="text-xl font-bold text-slate-800">{liveConfig?.name || 'App'}</h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Table: <span className="font-mono text-violet-600">{c.table}</span> · {filteredLiveData.length} records
+              <span className="font-mono text-violet-600">{c.table}</span> · {filteredData.length} records
+              <span className="text-xs ml-2 px-2 py-0.5 bg-violet-50 text-violet-600 rounded-full">{PAGE_MODES.find(m => m.value === mode)?.label}</span>
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <input type="text" placeholder="Search..." value={liveSearch} onChange={e => setLiveSearch(e.target.value)}
-                className="pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400 w-48" />
-            </div>
-            <button onClick={() => fetchLiveData(c.table)} className="p-2 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"><RefreshCw size={16} /></button>
-            <button onClick={handleExport} className="px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-sm font-medium flex items-center">
-              <Download size={14} className="mr-1" /> Export
-            </button>
-            {c.enableCreate && (
-              <button onClick={startCreate} className="px-3 py-2 text-white bg-violet-600 hover:bg-violet-700 rounded-lg text-sm font-medium flex items-center">
-                <Plus size={14} className="mr-1" /> New
-              </button>
+            {!hasSearch && (
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <input type="text" placeholder="Quick search..." value={liveSearch} onChange={e => setLiveSearch(e.target.value)}
+                  className="pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400 w-48" />
+              </div>
             )}
+            <button onClick={() => fetchLiveData(c.table)} className="p-2 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-lg"><RefreshCw size={16} /></button>
+            <button onClick={handleExport} className="px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-sm font-medium flex items-center"><Download size={14} className="mr-1" /> Export</button>
+            {c.enableCreate && <button onClick={startCreate} className="px-3 py-2 text-white bg-violet-600 hover:bg-violet-700 rounded-lg text-sm font-medium flex items-center"><Plus size={14} className="mr-1" /> New</button>}
             <button onClick={() => setView('list')} className="px-3 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium">← Back</button>
           </div>
         </div>
 
         {liveError && (
-          <div className="mx-5 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
-            <AlertCircle size={14} /> {liveError}
-          </div>
+          <div className="mx-5 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2"><AlertCircle size={14} /> {liveError}</div>
         )}
 
-        {/* Create / Edit Modal */}
+        {/* Search section */}
+        <SearchSection />
+
+        {/* Create/Edit Modal */}
         {(isCreating || editRow) && (
           <div className="mx-5 mt-3 p-5 bg-violet-50 border border-violet-200 rounded-xl">
             <h3 className="text-sm font-bold text-violet-800 mb-3">{isCreating ? 'Create New Record' : 'Edit Record'}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {cols.filter(col => col !== 'id' && col !== 'created_at' && col !== 'updated_at').map(col => (
+              {cols.filter(col => !['id', 'created_at', 'updated_at'].includes(col)).map(col => (
                 <div key={col}>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">{col.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">{prettyCol(col)}</label>
                   <input type="text" value={editForm[col] || ''} onChange={e => setEditForm(prev => ({ ...prev, [col]: e.target.value }))}
                     className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none focus:ring-1 focus:ring-violet-400" />
                 </div>
@@ -317,51 +388,56 @@ export const AppBuilder = ({ deepLinkId }) => {
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => { setIsCreating(false); setEditRow(null); setEditForm({}); }} className="px-3 py-1.5 text-sm text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50">Cancel</button>
-              <button onClick={isCreating ? handleCreateRow : handleUpdateRow} className="px-4 py-1.5 text-sm text-white bg-violet-600 hover:bg-violet-700 rounded-lg font-medium">
-                {isCreating ? 'Create' : 'Save Changes'}
-              </button>
+              <button onClick={isCreating ? handleCreateRow : handleUpdateRow} className="px-4 py-1.5 text-sm text-white bg-violet-600 hover:bg-violet-700 rounded-lg font-medium">{isCreating ? 'Create' : 'Save'}</button>
             </div>
           </div>
         )}
 
-        {/* Data Grid */}
-        <div className="flex-1 overflow-auto p-5">
-          {liveLoading ? (
-            <p className="text-center text-slate-400 py-8">Loading data...</p>
-          ) : (
-            <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto shadow-sm">
-              <table className="w-full text-left border-collapse whitespace-nowrap text-sm">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-medium">
-                    <th className="p-2 pl-4 w-12">#</th>
-                    {cols.map(col => (
-                      <th key={col} className="p-2">{col.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</th>
-                    ))}
-                    {(c.enableEdit || c.enableDelete) && <th className="p-2 text-right pr-4">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredLiveData.map((row, idx) => (
-                    <tr key={row.id || idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-2 pl-4 text-slate-400 font-mono text-xs">{idx + 1}</td>
-                      {cols.map(col => (
-                        <td key={col} className="p-2 text-slate-700 max-w-xs truncate">{row[col] !== null && row[col] !== undefined ? String(row[col]) : '-'}</td>
+        {/* splitview: results + detail or just results */}
+        <div className={`flex-1 overflow-auto ${hasDetails && selectedRow ? 'flex gap-0' : 'p-5'}`}>
+          {/* Results grid */}
+          {hasResults && (
+            <div className={`${hasDetails && selectedRow ? 'w-1/2 overflow-auto border-r border-slate-200 p-5' : 'w-full'}`}>
+              {liveLoading ? <p className="text-center text-slate-400 py-8">Loading...</p> : (
+                <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto shadow-sm">
+                  <table className="w-full text-left border-collapse whitespace-nowrap text-sm">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-medium">
+                        <th className="p-2 pl-4 w-12">#</th>
+                        {cols.map(col => <th key={col} className="p-2">{prettyCol(col)}</th>)}
+                        {(c.enableEdit || c.enableDelete || hasDetails) && <th className="p-2 text-right pr-4">Actions</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredData.map((row, idx) => (
+                        <tr key={row.id || idx}
+                          className={`transition-colors cursor-pointer ${selectedRow?.id === row.id ? 'bg-violet-50' : 'hover:bg-slate-50'}`}
+                          onClick={() => hasDetails && setSelectedRow(row)}>
+                          <td className="p-2 pl-4 text-slate-400 font-mono text-xs">{idx + 1}</td>
+                          {cols.map(col => <td key={col} className="p-2 text-slate-700 max-w-xs truncate">{row[col] !== null && row[col] !== undefined ? String(row[col]) : '-'}</td>)}
+                          {(c.enableEdit || c.enableDelete || hasDetails) && (
+                            <td className="p-2 text-right pr-4">
+                              <div className="flex items-center justify-end gap-1">
+                                {hasDetails && <button onClick={e => { e.stopPropagation(); setSelectedRow(row); }} className="p-1 text-violet-600 hover:bg-violet-50 rounded"><Maximize2 size={14} /></button>}
+                                {c.enableEdit && <button onClick={e => { e.stopPropagation(); startEdit(row); }} className="p-1 text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14} /></button>}
+                                {c.enableDelete && <button onClick={e => { e.stopPropagation(); handleDeleteRow(row.id); }} className="p-1 text-red-600 hover:bg-red-50 rounded"><Trash2 size={14} /></button>}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
                       ))}
-                      {(c.enableEdit || c.enableDelete) && (
-                        <td className="p-2 text-right pr-4">
-                          <div className="flex items-center justify-end gap-1">
-                            {c.enableEdit && <button onClick={() => startEdit(row)} className="p-1 text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14} /></button>}
-                            {c.enableDelete && <button onClick={() => handleDeleteRow(row.id)} className="p-1 text-red-600 hover:bg-red-50 rounded"><Trash2 size={14} /></button>}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                  {filteredLiveData.length === 0 && (
-                    <tr><td colSpan={cols.length + 2} className="p-8 text-center text-slate-400">No records found.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                      {filteredData.length === 0 && <tr><td colSpan={cols.length + 2} className="p-8 text-center text-slate-400">No records found.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Detail panel */}
+          {hasDetails && selectedRow && hasResults && (
+            <div className="w-1/2 overflow-auto p-5">
+              <DetailSection row={selectedRow} />
             </div>
           )}
         </div>
@@ -369,9 +445,9 @@ export const AppBuilder = ({ deepLinkId }) => {
     );
   }
 
-  // ═════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════
   // RENDER: App Builder / Designer
-  // ═════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════
   if (view === 'builder') {
     const currentTableCols = appTable ? getTableColumns(appTable) : [];
 
@@ -386,46 +462,106 @@ export const AppBuilder = ({ deepLinkId }) => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => { saveApp().then(() => { const cfg = { name: appName, description: appDesc, config: { table: appTable, columns: appColumns, searchCol: appSearchCol, enableCreate: appEnableCreate, enableEdit: appEnableEdit, enableDelete: appEnableDelete } }; openAppView(cfg); }); }}
-              disabled={!appTable || appColumns.length === 0}
-              className="px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-sm font-medium disabled:opacity-40 flex items-center">
-              <Eye size={16} className="mr-1" /> Launch
-            </button>
-            <button onClick={saveApp} className="px-4 py-2 text-white bg-violet-600 hover:bg-violet-700 rounded-lg text-sm font-medium shadow-sm flex items-center">
-              <Save size={16} className="mr-1" /> Save
-            </button>
+            <button onClick={() => { saveApp().then(() => openAppView({ name: appName, description: appDesc, config: { table: appTable, columns: appColumns, searchCol: appSearchCol, enableCreate: appEnableCreate, enableEdit: appEnableEdit, enableDelete: appEnableDelete, mode: appMode, searchFields: appSearchFields, detailColumns: appDetailColumns } })); }}
+              disabled={!appTable || appColumns.length === 0} className="px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-sm font-medium disabled:opacity-40 flex items-center"><Eye size={16} className="mr-1" /> Launch</button>
+            <button onClick={saveApp} className="px-4 py-2 text-white bg-violet-600 hover:bg-violet-700 rounded-lg text-sm font-medium shadow-sm flex items-center"><Save size={16} className="mr-1" /> Save</button>
           </div>
         </div>
 
         <div className="flex-1 overflow-auto p-6">
-          <div className="max-w-3xl mx-auto space-y-6">
-            {/* Table Selection */}
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Page Mode */}
+            <div className="bg-gradient-to-r from-violet-50 to-indigo-50 rounded-xl p-5 border border-violet-200">
+              <h3 className="text-sm font-bold text-violet-800 mb-3 flex items-center"><LayoutGrid size={16} className="mr-1.5" /> Page Mode</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {PAGE_MODES.map(m => (
+                  <button key={m.value} onClick={() => setAppMode(m.value)}
+                    className={`text-left p-3 rounded-lg border-2 transition-all ${appMode === m.value ? 'border-violet-500 bg-white shadow-sm' : 'border-transparent bg-white/60 hover:bg-white hover:border-violet-200'}`}>
+                    <p className={`text-sm font-semibold ${appMode === m.value ? 'text-violet-700' : 'text-slate-700'}`}>{m.label}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">{m.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Table */}
             <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
               <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center"><Database size={16} className="mr-1.5 text-violet-500" /> Data Source</h3>
-              <select value={appTable} onChange={e => { setAppTable(e.target.value); setAppColumns([]); setAppSearchCol(''); }}
+              <select value={appTable} onChange={e => { setAppTable(e.target.value); setAppColumns([]); setAppSearchCol(''); setAppSearchFields([]); setAppDetailColumns([]); }}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-violet-500">
                 <option value="">Select a Supabase table...</option>
                 {tables.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
 
-            {/* Column Selection */}
+            {/* Columns */}
             {appTable && (
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-sm font-bold text-slate-700 flex items-center"><Layers size={16} className="mr-1.5 text-violet-500" /> Columns ({appColumns.length} selected)</h3>
-                  <button onClick={() => setAppColumns(appColumns.length === currentTableCols.length ? [] : currentTableCols.map(c => c.column_name))}
-                    className="text-xs text-violet-600 hover:text-violet-800 font-medium">
+                  <h3 className="text-sm font-bold text-slate-700 flex items-center"><Layers size={16} className="mr-1.5 text-violet-500" /> Result Columns ({appColumns.length})</h3>
+                  <button onClick={() => setAppColumns(appColumns.length === currentTableCols.length ? [] : currentTableCols.map(c => c.column_name))} className="text-xs text-violet-600 hover:text-violet-800 font-medium">
                     {appColumns.length === currentTableCols.length ? 'Deselect All' : 'Select All'}
                   </button>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
                   {currentTableCols.map(col => (
-                    <label key={col.column_name} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-white cursor-pointer transition-colors">
-                      <input type="checkbox" checked={appColumns.includes(col.column_name)} onChange={() => toggleAppColumn(col.column_name)}
-                        className="rounded border-slate-300 text-violet-600" />
+                    <label key={col.column_name} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-white cursor-pointer">
+                      <input type="checkbox" checked={appColumns.includes(col.column_name)} onChange={() => toggleAppColumn(col.column_name)} className="rounded border-slate-300 text-violet-600" />
                       <span className="text-sm text-slate-700 truncate">{col.column_name}</span>
                       <span className="text-[10px] text-slate-400 ml-auto">{col.data_type.slice(0, 8)}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Search Fields — only if mode includes search */}
+            {appTable && appMode.includes('search') && (
+              <div className="bg-blue-50 rounded-xl p-5 border border-blue-200">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-sm font-bold text-blue-700 flex items-center"><Search size={16} className="mr-1.5" /> Search Fields</h3>
+                  <button onClick={() => setAppSearchFields(prev => [...prev, { column: currentTableCols[0]?.column_name || '', searchType: 'contains' }])}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center"><Plus size={12} className="mr-0.5" /> Add</button>
+                </div>
+                {appSearchFields.length === 0 ? (
+                  <p className="text-xs text-blue-400 italic">No search fields configured. Add columns to create the search form.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {appSearchFields.map((sf, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-white rounded-lg p-2 border border-blue-200">
+                        <select value={sf.column} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, column: e.target.value }; setAppSearchFields(arr); }}
+                          className="flex-1 px-2 py-1.5 border border-slate-300 rounded text-sm bg-white outline-none">
+                          {currentTableCols.map(c => <option key={c.column_name} value={c.column_name}>{c.column_name}</option>)}
+                        </select>
+                        <select value={sf.searchType} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, searchType: e.target.value }; setAppSearchFields(arr); }}
+                          className="w-36 px-2 py-1.5 border border-slate-300 rounded text-sm bg-white outline-none">
+                          {SEARCH_TYPES.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                        </select>
+                        <button onClick={() => setAppSearchFields(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-red-400 hover:text-red-600 rounded"><X size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Detail Columns — only if mode includes details */}
+            {appTable && appMode.includes('details') && (
+              <div className="bg-emerald-50 rounded-xl p-5 border border-emerald-200">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-sm font-bold text-emerald-700 flex items-center"><Maximize2 size={16} className="mr-1.5" /> Detail View Columns</h3>
+                  <button onClick={() => setAppDetailColumns(appDetailColumns.length === currentTableCols.length ? [] : currentTableCols.map(c => c.column_name))}
+                    className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">
+                    {appDetailColumns.length === currentTableCols.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <p className="text-xs text-emerald-500 mb-2">Select which columns appear when viewing a record's details. Empty = show all result columns.</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                  {currentTableCols.map(col => (
+                    <label key={col.column_name} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-white cursor-pointer">
+                      <input type="checkbox" checked={appDetailColumns.includes(col.column_name)} onChange={() => setAppDetailColumns(prev => prev.includes(col.column_name) ? prev.filter(c => c !== col.column_name) : [...prev, col.column_name])}
+                        className="rounded border-slate-300 text-emerald-600" />
+                      <span className="text-sm text-slate-700 truncate">{col.column_name}</span>
                     </label>
                   ))}
                 </div>
@@ -435,40 +571,21 @@ export const AppBuilder = ({ deepLinkId }) => {
             {/* Settings */}
             {appTable && appColumns.length > 0 && (
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center"><Settings size={16} className="mr-1.5 text-violet-500" /> Settings</h3>
+                <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center"><Settings size={16} className="mr-1.5 text-violet-500" /> Permissions & Settings</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Search Column</label>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Quick Search Column</label>
                     <select value={appSearchCol} onChange={e => setAppSearchCol(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none">
-                      <option value="">All columns (general search)</option>
+                      <option value="">All columns</option>
                       {appColumns.map(col => <option key={col} value={col}>{col}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2 pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={appEnableCreate} onChange={e => setAppEnableCreate(e.target.checked)} className="rounded border-slate-300 text-violet-600" />
-                      <span className="text-sm text-slate-700">Allow Create</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={appEnableEdit} onChange={e => setAppEnableEdit(e.target.checked)} className="rounded border-slate-300 text-violet-600" />
-                      <span className="text-sm text-slate-700">Allow Edit</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={appEnableDelete} onChange={e => setAppEnableDelete(e.target.checked)} className="rounded border-slate-300 text-violet-600" />
-                      <span className="text-sm text-slate-700">Allow Delete</span>
-                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={appEnableCreate} onChange={e => setAppEnableCreate(e.target.checked)} className="rounded border-slate-300 text-violet-600" /><span className="text-sm text-slate-700">Allow Create</span></label>
+                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={appEnableEdit} onChange={e => setAppEnableEdit(e.target.checked)} className="rounded border-slate-300 text-violet-600" /><span className="text-sm text-slate-700">Allow Edit</span></label>
+                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={appEnableDelete} onChange={e => setAppEnableDelete(e.target.checked)} className="rounded border-slate-300 text-violet-600" /><span className="text-sm text-slate-700">Allow Delete</span></label>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Preview Card */}
-            {appTable && appColumns.length > 0 && (
-              <div className="bg-violet-50 rounded-xl p-5 border border-violet-200 text-sm text-violet-700">
-                <strong>Ready to launch!</strong> This app will show a live data grid for{' '}
-                <span className="font-mono">{appTable}</span> with {appColumns.length} columns,{' '}
-                {appEnableCreate ? 'create, ' : ''}{appEnableEdit ? 'edit, ' : ''}{appEnableDelete ? 'delete, ' : ''}
-                and Excel export capabilities.
               </div>
             )}
           </div>
@@ -477,66 +594,54 @@ export const AppBuilder = ({ deepLinkId }) => {
     );
   }
 
-  // ═════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════
   // RENDER: Saved Apps List
-  // ═════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col max-h-[85vh]">
       <ShareToast />
       <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 flex items-center">
-            <LayoutGrid className="mr-2 text-violet-600" /> App Builder
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">Create live CRUD mini-apps for any Supabase table</p>
+          <h2 className="text-2xl font-bold text-slate-800 flex items-center"><LayoutGrid className="mr-2 text-violet-600" /> App Builder</h2>
+          <p className="text-sm text-slate-500 mt-1">Create live CRUD apps with search, results and details sections</p>
         </div>
-        <button onClick={newApp} className="px-4 py-2 text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors flex items-center text-sm font-medium shadow-sm">
-          <Plus size={16} className="mr-1.5" /> New App
-        </button>
+        <button onClick={newApp} className="px-4 py-2 text-white bg-violet-600 hover:bg-violet-700 rounded-lg flex items-center text-sm font-medium shadow-sm"><Plus size={16} className="mr-1.5" /> New App</button>
       </div>
-
       {schemaError && (
         <div className="mx-6 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2">
-          <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-          <div><strong>Schema not available:</strong> {schemaError}<br />Please run Section 8 of <code>supabase_schema_update.sql</code>.</div>
+          <AlertCircle size={16} className="mt-0.5" /><div><strong>Schema not available:</strong> {schemaError}</div>
         </div>
       )}
-
       <div className="flex-1 overflow-auto p-6">
-        {appsLoading ? (
-          <p className="text-center text-slate-400 py-8">Loading apps...</p>
-        ) : savedApps.length === 0 ? (
+        {appsLoading ? <p className="text-center text-slate-400 py-8">Loading...</p>
+        : savedApps.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <LayoutGrid size={48} className="mb-4 opacity-40" />
-            <p className="text-lg font-medium text-slate-500">No apps yet</p>
-            <p className="text-sm mt-1">Click "New App" to build your first CRUD interface</p>
+            <LayoutGrid size={48} className="mb-4 opacity-40" /><p className="text-lg font-medium text-slate-500">No apps yet</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {savedApps.map(app => {
               const ac = app.config || {};
+              const modeLabel = PAGE_MODES.find(m => m.value === ac.mode)?.label || 'Standard';
               return (
                 <div key={app.id} className="group border border-slate-200 rounded-xl p-5 hover:border-violet-300 hover:shadow-md transition-all bg-white">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="font-semibold text-slate-800 truncate pr-2">{app.name}</h3>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => copyShareLink(app.id)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Copy share link"><Share2 size={14} /></button>
+                      <button onClick={() => copyShareLink(app.id)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Share2 size={14} /></button>
                       <button onClick={() => duplicateApp(app)} className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded"><Copy size={14} /></button>
                       <button onClick={() => deleteApp(app.id)} className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
                     </div>
                   </div>
                   {app.description && <p className="text-xs text-slate-400 mb-2 truncate">{app.description}</p>}
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
                     <span className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded-full text-xs font-mono">{ac.table || '?'}</span>
                     <span className="text-xs text-slate-400">{(ac.columns || []).length} cols</span>
+                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-medium">{modeLabel}</span>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => loadApp(app)} className="flex-1 px-3 py-2 text-sm font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-lg flex items-center justify-center">
-                      <Pencil size={14} className="mr-1" /> Edit
-                    </button>
-                    <button onClick={() => openAppView(app)} className="flex-1 px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg flex items-center justify-center">
-                      <Eye size={14} className="mr-1" /> Open
-                    </button>
+                    <button onClick={() => loadApp(app)} className="flex-1 px-3 py-2 text-sm font-medium text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-lg flex items-center justify-center"><Pencil size={14} className="mr-1" /> Edit</button>
+                    <button onClick={() => openAppView(app)} className="flex-1 px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg flex items-center justify-center"><Eye size={14} className="mr-1" /> Open</button>
                   </div>
                 </div>
               );
