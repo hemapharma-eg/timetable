@@ -44,32 +44,24 @@ const SEARCH_TYPES = [
   { value: 'less_than', label: 'Less Than' }
 ];
 
-const DebouncedInput = ({ value, onChange, ...props }) => {
+const DebouncedInput = ({ value, onChange, delay = 500, ...props }) => {
   const [localVal, setLocalVal] = useState(value || '');
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
     setLocalVal(value || '');
   }, [value]);
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      onChange(localVal);
-    }
+  const handleChange = (e) => {
+    const v = e.target.value;
+    setLocalVal(v);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      onChange(v);
+    }, delay);
   };
 
-  const handleBlur = () => {
-    onChange(localVal);
-  };
-
-  return (
-    <input 
-      value={localVal} 
-      onChange={(e) => setLocalVal(e.target.value)} 
-      onKeyDown={handleKeyDown}
-      onBlur={handleBlur}
-      {...props} 
-    />
-  );
+  return <input value={localVal} onChange={handleChange} {...props} />;
 };
 
 export const AppBuilder = ({ deepLinkId, urlFilters }) => {
@@ -518,7 +510,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
       // Handle Default Dates / Numbers / Text
       const inputType = sf.fieldType === 'date' ? 'date' : sf.fieldType === 'number' || sf.fieldType === 'currency' ? 'number' : 'text';
       return (
-        <DebouncedInput type={inputType} value={val || ''} onChange={v => setSearchFormValues(prev => ({ ...prev, [sf.column]: v }))}
+        <input type={inputType} value={val || ''} onChange={e => setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }))}
           placeholder={`${sf.searchType === 'exact' ? 'Exact match' : sf.searchType === 'starts_with' ? 'Starts with' : sf.searchType === 'greater_than' ? '> greater than' : sf.searchType === 'less_than' ? '< less than' : 'Contains'}...`}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400" />
       );
