@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Calendar, Clock, Users, BookOpen, MapPin,
   Play, LayoutGrid, Plus, Trash2, AlertCircle, CheckCircle2, Pencil, GraduationCap, ShieldAlert,
-  Download, Upload, FileSpreadsheet, LogOut, LogIn
+  Download, Upload, FileSpreadsheet, LogOut, LogIn, Database, Wrench
 } from 'lucide-react';
 import ConstraintsManager from './ConstraintsManager';
 import { FacultyManager } from './FacultyManager';
@@ -286,6 +286,28 @@ const ObjectListManager = ({ title, items, setItems, fields }) => {
   );
 };
 
+const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab, children }) => (
+  <div className="flex h-full flex-col animate-in fade-in duration-300">
+    <div className="mb-6 border-b border-slate-200 pb-0">
+      <h2 className="text-2xl font-bold text-slate-800 mb-1">{title}</h2>
+      {description && <p className="text-sm text-slate-500 mb-6">{description}</p>}
+      <div className="flex gap-6 overflow-x-auto">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveSubTab(tab.id)}
+            className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeSubTab === tab.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+    </div>
+    <div className="flex-1 min-h-0 pb-8">
+      {children}
+    </div>
+  </div>
+);
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -295,6 +317,10 @@ export default function App() {
   const [authMode, setAuthMode] = useState('signIn'); // 'signIn' | 'forgotPassword'
 
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [dbSubTab, setDbSubTab] = useState('faculty');
+  const [schedSubTab, setSchedSubTab] = useState('timetable');
+  const [buildSubTab, setBuildSubTab] = useState('formbuilder');
+
   const [deepLinkId, setDeepLinkId] = useState(null);
   const [urlFilters, setUrlFilters] = useState(null);
 
@@ -304,9 +330,14 @@ export default function App() {
     const viewParam = params.get('view');
     const idParam = params.get('id');
     if (viewParam && idParam) {
-      const viewMap = { form: 'formbuilder', app: 'appbuilder', report: 'reports' };
+      const viewMap = { 
+        form: { tab: 'builders', sub: 'formbuilder' }, 
+        app: { tab: 'builders', sub: 'appbuilder' }, 
+        report: { tab: 'builders', sub: 'reports' } 
+      };
       if (viewMap[viewParam]) {
-        setActiveTab(viewMap[viewParam]);
+        setActiveTab(viewMap[viewParam].tab);
+        setBuildSubTab(viewMap[viewParam].sub);
         setDeepLinkId(idParam);
         // Parse filter_* params for app builder
         if (viewParam === 'app') {
@@ -638,6 +669,108 @@ export default function App() {
   };
 
   // --- Rendering Functions ---
+  const renderGenerateTab = () => (
+    <div className="max-w-2xl mx-auto text-center mt-12 space-y-8">
+      <div className="bg-indigo-50 text-indigo-800 p-6 rounded-2xl border border-indigo-100">
+        <Play size={48} className="mx-auto mb-4 text-indigo-500" />
+        <h2 className="text-2xl font-bold mb-2">Ready to Generate</h2>
+        <p className="text-indigo-600/80 mb-6">
+          The engine will schedule {activities.length} activities. Space capacity, specific Time Profiles for each group, and Constraints will be strictly enforced.
+        </p>
+        <button
+          onClick={generateTimetable}
+          disabled={isGenerating || activities.length === 0}
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-lg font-semibold px-8 py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center w-full max-w-xs mx-auto"
+        >
+          {isGenerating ? 'Computing...' : 'Start Generation'}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderActivitiesManager = () => (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="p-6 border-b border-slate-200 bg-slate-50">
+        <h3 className="text-xl font-bold text-slate-800 mb-4">Add New Activity</h3>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (!newAct.facultyId || !newAct.courseId || !newAct.tagId || !newAct.groupId) return;
+          setActivities([...activities, { id: Date.now().toString(), ...newAct }]);
+          setNewAct({ facultyId: '', courseId: '', tagId: '', groupId: '', roomId: '', duration: 1 });
+        }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <select required value={newAct.facultyId} onChange={e => setNewAct({ ...newAct, facultyId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
+            <option value="">Select Faculty</option>
+            {faculty.map(f => <option key={f.id} value={f.id}>{f.title ? f.title + ' ' : ''}{f.name}</option>)}
+          </select>
+          <select required value={newAct.courseId} onChange={e => setNewAct({ ...newAct, courseId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
+            <option value="">Select Course</option>
+            {courses.map(c => <option key={c.id} value={c.id}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
+          </select>
+          <select required value={newAct.tagId} onChange={e => setNewAct({ ...newAct, tagId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
+            <option value="">Select Tag</option>
+            {activityTags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <select required value={newAct.groupId} onChange={e => setNewAct({ ...newAct, groupId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
+            <option value="">Select Group</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name} (Size: {g.size || 0})</option>)}
+          </select>
+          <select value={newAct.roomId} onChange={e => setNewAct({ ...newAct, roomId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
+            <option value="">Room Pref (Optional)</option>
+            {rooms.map(r => <option key={r.id} value={r.id}>{r.name} {r.capacity ? `(Cap: ${r.capacity})` : ''}</option>)}
+          </select>
+          <div className="flex items-center space-x-2">
+            <label className="text-sm font-medium text-slate-600 whitespace-nowrap">Duration (Hrs):</label>
+            <input type="number" min="1" max="4" required value={newAct.duration} onChange={e => setNewAct({ ...newAct, duration: parseInt(e.target.value) || 1 })} className="w-full px-4 py-2 border rounded-lg bg-white outline-none" />
+          </div>
+          <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium md:col-span-4">
+            Add Activity
+          </button>
+        </form>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-white border-b border-slate-200 text-slate-600 font-medium text-sm">
+              <th className="p-4">Faculty</th>
+              <th className="p-4">Course</th>
+              <th className="p-4">Tag</th>
+              <th className="p-4">Group</th>
+              <th className="p-4">Room Pref.</th>
+              <th className="p-4">Duration</th>
+              <th className="p-4 w-16">Act</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {activities.map((act) => {
+              const fac = faculty.find(f => f.id === act.facultyId);
+              const cou = courses.find(c => c.id === act.courseId);
+              const tag = activityTags.find(t => t.id === act.tagId);
+              const grp = groups.find(g => g.id === act.groupId);
+              const rm = rooms.find(r => r.id === act.roomId);
+
+              return (
+                <tr key={act.id} className="hover:bg-slate-50">
+                  <td className="p-4">{fac ? `${fac.name}` : 'Unknown'}</td>
+                  <td className="p-4">{cou ? `${cou.code ? cou.code + ' - ' : ''}${cou.name}` : 'Unknown'}</td>
+                  <td className="p-4">{tag?.name || 'None'}</td>
+                  <td className="p-4">{grp?.name || 'Unknown'}</td>
+                  <td className="p-4">{rm?.name || 'Any'}</td>
+                  <td className="p-4"><span className="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs font-bold">{act.duration || 1} hrs</span></td>
+                  <td className="p-4">
+                    <button onClick={() => setActivities(activities.filter(a => a.id !== act.id))} className="text-red-400 hover:text-red-600">
+                      <Trash2 size={18} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   const renderDashboard = () => (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-600 to-blue-500 rounded-2xl p-8 text-white shadow-lg">
@@ -942,32 +1075,12 @@ export default function App() {
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <SidebarItem id="dashboard" icon={LayoutGrid} label="Dashboard" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem id="timetable" icon={Calendar} label="View Timetable" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem id="scheduling" icon={Calendar} label="Scheduling" activeTab={activeTab} setActiveTab={setActiveTab} />
 
           {isTechAdmin && (
             <>
-              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Parameters</div>
-              <SidebarItem id="time" icon={Clock} label="Time Profiles" activeTab={activeTab} setActiveTab={setActiveTab} />
-              <SidebarItem id="faculty" icon={Users} label="Faculty" activeTab={activeTab} setActiveTab={setActiveTab} />
-              <SidebarItem id="courses" icon={BookOpen} label="Courses" activeTab={activeTab} setActiveTab={setActiveTab} />
-              <SidebarItem id="students" icon={Users} label="Students" activeTab={activeTab} setActiveTab={setActiveTab} />
-              <SidebarItem id="tags" icon={Clock} label="Activity Tags" activeTab={activeTab} setActiveTab={setActiveTab} />
-              <SidebarItem id="groups" icon={GraduationCap} label="Student Groups" activeTab={activeTab} setActiveTab={setActiveTab} />
-              <SidebarItem id="rooms" icon={MapPin} label="Rooms" activeTab={activeTab} setActiveTab={setActiveTab} />
-
-              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rules & Planning</div>
-              <SidebarItem id="constraints" icon={ShieldAlert} label="Constraints" activeTab={activeTab} setActiveTab={setActiveTab} />
-              <SidebarItem id="activities" icon={BookOpen} label="Activities" activeTab={activeTab} setActiveTab={setActiveTab} />
-
-              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Scheduling</div>
-              <SidebarItem id="generate" icon={Play} label="Generate" activeTab={activeTab} setActiveTab={setActiveTab} />
-
-              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Reports</div>
-              <SidebarItem id="reports" icon={FileSpreadsheet} label="Report Builder" activeTab={activeTab} setActiveTab={setActiveTab} />
-
-              <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Builders</div>
-              <SidebarItem id="formbuilder" icon={FileSpreadsheet} label="Form Builder" activeTab={activeTab} setActiveTab={setActiveTab} />
-              <SidebarItem id="appbuilder" icon={LayoutGrid} label="App Builder" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="databases" icon={Database} label="Databases" activeTab={activeTab} setActiveTab={setActiveTab} />
+              <SidebarItem id="builders" icon={Wrench} label="Builders" activeTab={activeTab} setActiveTab={setActiveTab} />
             </>
           )}
 
@@ -984,147 +1097,80 @@ export default function App() {
       </aside>
 
       <main className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto h-full flex flex-col">
           {activeTab === 'dashboard' && renderDashboard()}
-          {activeTab === 'time' && renderTimeProfiles()}
-          {activeTab === 'faculty' && (
-            <FacultyManager faculty={faculty} setFaculty={setFaculty} />
+          
+          {activeTab === 'databases' && isTechAdmin && (
+            <PageContainer 
+              title="Databases" 
+              description="Manage core system records and parameters"
+              activeSubTab={dbSubTab} 
+              setActiveSubTab={setDbSubTab}
+              tabs={[
+                { id: 'faculty', label: 'Faculty & Staff' },
+                { id: 'students', label: 'Students' },
+                { id: 'courses', label: 'Courses' }
+              ]}
+            >
+              {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} />}
+              {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} />}
+              {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} />}
+            </PageContainer>
           )}
-          {activeTab === 'courses' && (
-            <CourseManager courses={courses} setCourses={setCourses} />
-          )}
-          {activeTab === 'students' && (
-            <StudentManager students={students} setStudents={setStudents} />
-          )}
-          {activeTab === 'tags' && (
-            <div className="max-w-3xl mx-auto">
-              <ObjectListManager title="Activity Tags" items={activityTags} setItems={setActivityTags} fields={[{ key: 'name', label: 'Tag Name (e.g. Lecture, Lab)' }]} />
-            </div>
-          )}
-          {activeTab === 'groups' && (
-            <div className="max-w-3xl mx-auto">
-              <ObjectListManager title="Student Groups" items={groups} setItems={setGroups} fields={[{ key: 'name', label: 'Group Name' }, { key: 'size', label: 'Number of Students (Size)', type: 'number' }, { key: 'timeProfileId', label: 'Time Profile', type: 'select', options: timeProfiles.map(tp => ({ value: tp.id, label: tp.name })) }]} />
-            </div>
-          )}
-          {activeTab === 'rooms' && (
-            <div className="max-w-3xl mx-auto">
-              <ObjectListManager title="Rooms" items={rooms} setItems={setRooms} fields={[{ key: 'name', label: 'Room Name' }, { key: 'capacity', label: 'Room Capacity', type: 'number' }]} />
-            </div>
-          )}
-          {activeTab === 'constraints' && (
-            <ConstraintsManager constraints={constraints} setConstraints={setConstraints} faculty={faculty} days={allGlobalDays} groups={groups} courses={courses} rooms={rooms} activities={activities} />
-          )}
-          {activeTab === 'activities' && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              {/* Activity Form */}
-              <div className="p-6 border-b border-slate-200 bg-slate-50">
-                <h3 className="text-xl font-bold text-slate-800 mb-4">Add New Activity</h3>
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!newAct.facultyId || !newAct.courseId || !newAct.tagId || !newAct.groupId) return;
-                  setActivities([...activities, { id: Date.now().toString(), ...newAct }]);
-                  setNewAct({ facultyId: '', courseId: '', tagId: '', groupId: '', roomId: '', duration: 1 });
-                }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <select required value={newAct.facultyId} onChange={e => setNewAct({ ...newAct, facultyId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
-                    <option value="">Select Faculty</option>
-                    {faculty.map(f => <option key={f.id} value={f.id}>{f.title ? f.title + ' ' : ''}{f.name}</option>)}
-                  </select>
-                  <select required value={newAct.courseId} onChange={e => setNewAct({ ...newAct, courseId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
-                    <option value="">Select Course</option>
-                    {courses.map(c => <option key={c.id} value={c.id}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
-                  </select>
-                  <select required value={newAct.tagId} onChange={e => setNewAct({ ...newAct, tagId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
-                    <option value="">Select Tag</option>
-                    {activityTags.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                  <select required value={newAct.groupId} onChange={e => setNewAct({ ...newAct, groupId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
-                    <option value="">Select Group</option>
-                    {groups.map(g => <option key={g.id} value={g.id}>{g.name} (Size: {g.size || 0})</option>)}
-                  </select>
-                  <select value={newAct.roomId} onChange={e => setNewAct({ ...newAct, roomId: e.target.value })} className="px-4 py-2 border rounded-lg bg-white">
-                    <option value="">Room Pref (Optional)</option>
-                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name} {r.capacity ? `(Cap: ${r.capacity})` : ''}</option>)}
-                  </select>
-                  <div className="flex items-center space-x-2">
-                    <label className="text-sm font-medium text-slate-600 whitespace-nowrap">Duration (Hrs):</label>
-                    <input type="number" min="1" max="4" required value={newAct.duration} onChange={e => setNewAct({ ...newAct, duration: parseInt(e.target.value) || 1 })} className="w-full px-4 py-2 border rounded-lg bg-white outline-none" />
-                  </div>
-                  <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium md:col-span-4">
-                    Add Activity
-                  </button>
-                </form>
-              </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-white border-b border-slate-200 text-slate-600 font-medium text-sm">
-                      <th className="p-4">Faculty</th>
-                      <th className="p-4">Course</th>
-                      <th className="p-4">Tag</th>
-                      <th className="p-4">Group</th>
-                      <th className="p-4">Room Pref.</th>
-                      <th className="p-4">Duration</th>
-                      <th className="p-4 w-16">Act</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {activities.map((act) => {
-                      const fac = faculty.find(f => f.id === act.facultyId);
-                      const cou = courses.find(c => c.id === act.courseId);
-                      const tag = activityTags.find(t => t.id === act.tagId);
-                      const grp = groups.find(g => g.id === act.groupId);
-                      const rm = rooms.find(r => r.id === act.roomId);
+          {activeTab === 'scheduling' && (
+            <PageContainer 
+              title="Scheduling" 
+              description="Manage timetables, rules, and activity generation"
+              activeSubTab={schedSubTab} 
+              setActiveSubTab={setSchedSubTab}
+              tabs={[
+                { id: 'timetable', label: 'View Timetable' },
+                ...(isTechAdmin ? [
+                  { id: 'tags', label: 'Activity Tags' },
+                  { id: 'groups', label: 'Student Groups' },
+                  { id: 'rooms', label: 'Rooms' },
+                  { id: 'time', label: 'Time Profiles' },
+                  { id: 'constraints', label: 'Constraints' },
+                  { id: 'activities', label: 'Activities' },
+                  { id: 'generate', label: 'Generate' }
+                ] : [])
+              ]}
+            >
+              {schedSubTab === 'timetable' && renderTimetable()}
+              {isTechAdmin && schedSubTab === 'tags' && (
+                <div className="max-w-3xl mx-auto"><ObjectListManager title="Activity Tags" items={activityTags} setItems={setActivityTags} fields={[{ key: 'name', label: 'Tag Name (e.g. Lecture, Lab)' }]} /></div>
+              )}
+              {isTechAdmin && schedSubTab === 'groups' && (
+                <div className="max-w-3xl mx-auto"><ObjectListManager title="Student Groups" items={groups} setItems={setGroups} fields={[{ key: 'name', label: 'Group Name' }, { key: 'size', label: 'Number of Students (Size)', type: 'number' }, { key: 'timeProfileId', label: 'Time Profile', type: 'select', options: timeProfiles.map(tp => ({ value: tp.id, label: tp.name })) }]} /></div>
+              )}
+              {isTechAdmin && schedSubTab === 'rooms' && (
+                <div className="max-w-3xl mx-auto"><ObjectListManager title="Rooms" items={rooms} setItems={setRooms} fields={[{ key: 'name', label: 'Room Name' }, { key: 'capacity', label: 'Room Capacity', type: 'number' }]} /></div>
+              )}
+              {isTechAdmin && schedSubTab === 'time' && renderTimeProfiles()}
+              {isTechAdmin && schedSubTab === 'constraints' && <ConstraintsManager constraints={constraints} setConstraints={setConstraints} faculty={faculty} days={allGlobalDays} groups={groups} courses={courses} rooms={rooms} activities={activities} />}
+              {isTechAdmin && schedSubTab === 'activities' && renderActivitiesManager()}
+              {isTechAdmin && schedSubTab === 'generate' && renderGenerateTab()}
+            </PageContainer>
+          )}
 
-                      return (
-                        <tr key={act.id} className="hover:bg-slate-50">
-                          <td className="p-4">{fac ? `${fac.name}` : 'Unknown'}</td>
-                          <td className="p-4">{cou ? `${cou.code ? cou.code + ' - ' : ''}${cou.name}` : 'Unknown'}</td>
-                          <td className="p-4">{tag?.name || 'None'}</td>
-                          <td className="p-4">{grp?.name || 'Unknown'}</td>
-                          <td className="p-4">{rm?.name || 'Any'}</td>
-                          <td className="p-4"><span className="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs font-bold">{act.duration || 1} hrs</span></td>
-                          <td className="p-4">
-                            <button onClick={() => setActivities(activities.filter(a => a.id !== act.id))} className="text-red-400 hover:text-red-600">
-                              <Trash2 size={18} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {activeTab === 'builders' && isTechAdmin && (
+            <PageContainer 
+              title="Builders" 
+              description="Design custom forms, applications, and dynamic reports"
+              activeSubTab={buildSubTab} 
+              setActiveSubTab={setBuildSubTab}
+              tabs={[
+                { id: 'formbuilder', label: 'Form Builder' },
+                { id: 'appbuilder', label: 'App Builder' },
+                { id: 'reports', label: 'Report Builder' }
+              ]}
+            >
+              {buildSubTab === 'formbuilder' && <FormBuilder deepLinkId={deepLinkId} />}
+              {buildSubTab === 'appbuilder' && <AppBuilder deepLinkId={deepLinkId} urlFilters={urlFilters} />}
+              {buildSubTab === 'reports' && <ReportBuilder deepLinkId={deepLinkId} />}
+            </PageContainer>
           )}
-          {activeTab === 'generate' && (
-            <div className="max-w-2xl mx-auto text-center mt-12 space-y-8">
-              <div className="bg-indigo-50 text-indigo-800 p-6 rounded-2xl border border-indigo-100">
-                <Play size={48} className="mx-auto mb-4 text-indigo-500" />
-                <h2 className="text-2xl font-bold mb-2">Ready to Generate</h2>
-                <p className="text-indigo-600/80 mb-6">
-                  The engine will schedule {activities.length} activities. Space capacity, specific Time Profiles for each group, and Constraints will be strictly enforced.
-                </p>
-                <button
-                  onClick={generateTimetable}
-                  disabled={isGenerating || activities.length === 0}
-                  className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-lg font-semibold px-8 py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center w-full max-w-xs mx-auto"
-                >
-                  {isGenerating ? 'Computing...' : 'Start Generation'}
-                </button>
-              </div>
-            </div>
-          )}
-          {activeTab === 'reports' && (
-            <ReportBuilder deepLinkId={deepLinkId} />
-          )}
-          {activeTab === 'formbuilder' && (
-            <FormBuilder deepLinkId={deepLinkId} />
-          )}
-          {activeTab === 'appbuilder' && (
-            <AppBuilder deepLinkId={deepLinkId} urlFilters={urlFilters} />
-          )}
-          {activeTab === 'timetable' && renderTimetable()}
         </div>
       </main>
     </div>
