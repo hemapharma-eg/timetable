@@ -44,7 +44,7 @@ const SEARCH_TYPES = [
   { value: 'less_than', label: 'Less Than' }
 ];
 
-const DebouncedInput = ({ value, onChange, delay = 250, ...props }) => {
+const DebouncedInput = ({ value, onChange, delay = 5000, ...props }) => {
   const [localVal, setLocalVal] = useState(value || '');
   const timeoutRef = useRef(null);
 
