@@ -290,13 +290,27 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) fetchRoleAndData(session.user.id);
+      if (session) {
+        if (session.user.email === 'dribrahimpharmaceutics@gmail.com') {
+          supabase.from('app_users').upsert({ id: session.user.id, role: 'technical_admin' }).then(() => {
+            fetchRoleAndData(session.user.id);
+          });
+        } else {
+          fetchRoleAndData(session.user.id);
+        }
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        fetchRoleAndData(session.user.id);
+        if (session.user.email === 'dribrahimpharmaceutics@gmail.com') {
+          supabase.from('app_users').upsert({ id: session.user.id, role: 'technical_admin' }).then(() => {
+            fetchRoleAndData(session.user.id);
+          });
+        } else {
+          fetchRoleAndData(session.user.id);
+        }
       } else {
         setAppRole(null);
         setAppUserMeta(null);
