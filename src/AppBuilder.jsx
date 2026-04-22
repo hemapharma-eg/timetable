@@ -15,11 +15,33 @@ const PAGE_MODES = [
   { value: 'details_only', label: 'Details Only', desc: 'Single record view (requires URL parameter for record ID)' }
 ];
 
+const FIELD_TYPES = [
+  { value: 'text', label: 'Text', group: 'Basic' },
+  { value: 'number', label: 'Number', group: 'Basic' },
+  { value: 'email', label: 'Email', group: 'Basic' },
+  { value: 'tel', label: 'Phone', group: 'Basic' },
+  { value: 'url', label: 'URL', group: 'Basic' },
+  { value: 'password', label: 'Password', group: 'Basic' },
+  { value: 'textarea', label: 'Text Area', group: 'Basic' },
+  { value: 'date', label: 'Date', group: 'Date & Time' },
+  { value: 'datetime-local', label: 'Date & Time', group: 'Date & Time' },
+  { value: 'time', label: 'Time', group: 'Date & Time' },
+  { value: 'select', label: 'Dropdown', group: 'Selection' },
+  { value: 'cascade', label: 'Cascading Dropdown', group: 'Selection' },
+  { value: 'radio', label: 'Radio Buttons', group: 'Selection' },
+  { value: 'checkbox', label: 'Checkbox', group: 'Selection' },
+  { value: 'multicheck', label: 'Multi-Select Checkboxes', group: 'Selection' },
+  { value: 'listbox', label: 'Listbox (Multi-Select)', group: 'Selection' },
+  { value: 'currency', label: 'Currency', group: 'Formatted' }
+];
+
 const SEARCH_TYPES = [
   { value: 'contains', label: 'Contains' },
   { value: 'exact', label: 'Exact Match' },
   { value: 'starts_with', label: 'Starts With' },
-  { value: 'dropdown', label: 'Dropdown (distinct values)' }
+  { value: 'dropdown', label: 'Auto-discover Dropdown' },
+  { value: 'greater_than', label: 'Greater Than' },
+  { value: 'less_than', label: 'Less Than' }
 ];
 
 export const AppBuilder = ({ deepLinkId, urlFilters }) => {
@@ -58,11 +80,13 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [liveConfig, setLiveConfig] = useState(null);
   const [liveError, setLiveError] = useState(null);
+  const [expandedSearchField, setExpandedSearchField] = useState(null);
 
   // Search form values
   const [searchFormValues, setSearchFormValues] = useState({});
   const [searchApplied, setSearchApplied] = useState(false);
   const [distinctValues, setDistinctValues] = useState({});
+  const [cascadeCache, setCascadeCache] = useState({});
 
   // Detail view
   const [selectedRow, setSelectedRow] = useState(null);
@@ -219,8 +243,28 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
         const sf = (c.searchFields || []).find(s => s.column === col);
         const sType = sf?.searchType || 'contains';
         data = data.filter(row => {
-          const rv = (row[col] || '').toString().toLowerCase();
+          const rvRaw = row[col];
+          const rv = (rvRaw || '').toString().toLowerCase();
+
+          // Array filtering (for listbox/multicheck)
+          if (Array.isArray(val)) {
+            if (val.length === 0) return true;
+            // For listbox/multicheck, if the DB value is a string of comma separated items, 
+            // we check if ANY of the selected val array items are included in rv
+            return val.some(v => rv.includes(v.toString().toLowerCase()));
+          }
+
           const fv = val.toString().toLowerCase();
+
+          // Number / Date filtering
+          if (sType === 'greater_than') return parseFloat(rvRaw) > parseFloat(val) || new Date(rvRaw) > new Date(val);
+          if (sType === 'less_than') return parseFloat(rvRaw) < parseFloat(val) || new Date(rvRaw) < new Date(val);
+
+          // Boolean checkbox
+          if (typeof val === 'boolean') {
+            return val ? (rvRaw === true || fv === 'true' || rv === 'true' || rv === '1' || rv === 'yes') : true;
+          }
+
           switch (sType) {
             case 'exact': case 'dropdown': return rv === fv;
             case 'starts_with': return rv.startsWith(fv);
@@ -266,6 +310,178 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
     const resetSearch = () => { setSearchFormValues({}); setSearchApplied(false); };
     const applySearch = () => { setSearchApplied(true); };
 
+    // ── Cascade fetching ──
+    const fetchCascadeOptions = async (field, parentValue) => {
+      const cacheKey = `${field.lookupTable}:${field.lookupColumn}:${field.filterColumn}:${parentValue}`;
+      if (cascadeCache[cacheKey]) return cascadeCache[cacheKey];
+      let q = supabase.from(field.lookupTable).select(`${field.lookupColumn}, ${field.lookupLabel || field.lookupColumn}`);
+      if (field.filterColumn && parentValue) q = q.eq(field.filterColumn, parentValue);
+      const { data } = await q;
+      const opts = data || [];
+      setCascadeCache(prev => ({ ...prev, [cacheKey]: opts }));
+      return opts;
+    };
+
+    const renderSearchField = (sf) => {
+      const val = searchFormValues[sf.column];
+      
+      // Handle Auto-discover Dropdown (Original simple logic)
+      if (sf.searchType === 'dropdown') {
+        return (
+          <select value={val || ''} onChange={e => setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }))}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-violet-400">
+            <option value="">All</option>
+            {(distinctValues[sf.column] || []).map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+        );
+      }
+
+      // Handle custom Lookup Tables for Dropdowns
+      if ((sf.fieldType === 'select' || sf.fieldType === 'radio' || sf.fieldType === 'listbox' || sf.fieldType === 'multicheck') && sf.lookupTable) {
+        // We use cascade logic without a parent for standard lookups
+        const opts = cascadeCache[`${sf.lookupTable}:${sf.lookupColumn}:undefined:undefined`] || [];
+        if (opts.length === 0) fetchCascadeOptions(sf, null);
+        
+        if (sf.fieldType === 'radio') {
+          return (
+            <div className="flex flex-wrap gap-3 mt-1">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input type="radio" checked={!val} onChange={() => { const ny = {...searchFormValues}; delete ny[sf.column]; setSearchFormValues(ny); }} className="text-violet-600 focus:ring-violet-500" />
+                <span className="text-sm text-slate-700">All</span>
+              </label>
+              {opts.map(o => (
+                <label key={o[sf.lookupColumn]} className="flex items-center space-x-2 cursor-pointer">
+                  <input type="radio" checked={val === o[sf.lookupColumn]} onChange={() => setSearchFormValues(prev => ({ ...prev, [sf.column]: o[sf.lookupColumn] }))} className="text-violet-600 focus:ring-violet-500" />
+                  <span className="text-sm text-slate-700">{o[sf.lookupLabel || sf.lookupColumn]}</span>
+                </label>
+              ))}
+            </div>
+          );
+        }
+        
+        if (sf.fieldType === 'multicheck') {
+          const arrVal = Array.isArray(val) ? val : [];
+          return (
+            <div className="flex flex-col gap-1 mt-1 max-h-40 overflow-y-auto">
+              {opts.map(o => (
+                <label key={o[sf.lookupColumn]} className="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" checked={arrVal.includes(o[sf.lookupColumn])} 
+                    onChange={e => {
+                      const newArr = e.target.checked ? [...arrVal, o[sf.lookupColumn]] : arrVal.filter(v => v !== o[sf.lookupColumn]);
+                      setSearchFormValues(prev => ({ ...prev, [sf.column]: newArr.length ? newArr : undefined }));
+                    }} className="w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500" />
+                  <span className="text-sm text-slate-700">{o[sf.lookupLabel || sf.lookupColumn]}</span>
+                </label>
+              ))}
+            </div>
+          );
+        }
+        
+        return (
+          <select value={val || (sf.fieldType === 'listbox' ? [] : '')} 
+            onChange={e => {
+              if (sf.fieldType === 'listbox') {
+                const arr = Array.from(e.target.selectedOptions, opt => opt.value);
+                setSearchFormValues(prev => ({ ...prev, [sf.column]: arr.length ? arr : undefined }));
+              } else {
+                setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }));
+              }
+            }}
+            multiple={sf.fieldType === 'listbox'}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-violet-400">
+            {sf.fieldType !== 'listbox' && <option value="">All</option>}
+            {opts.map(o => <option key={o[sf.lookupColumn]} value={o[sf.lookupColumn]}>{o[sf.lookupLabel || sf.lookupColumn]}</option>)}
+          </select>
+        );
+      }
+
+      // Handle Cascading Dropdowns
+      if (sf.fieldType === 'cascade') {
+        const parentVal = searchFormValues[sf.parentField];
+        const opts = (parentVal && cascadeCache[`${sf.lookupTable}:${sf.lookupColumn}:${sf.filterColumn}:${parentVal}`]) || [];
+        if (parentVal && opts.length === 0) fetchCascadeOptions(sf, parentVal);
+        return (
+          <select value={val || ''} onChange={e => setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }))} disabled={!parentVal}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-50 disabled:bg-slate-50">
+            <option value="">{parentVal ? 'Select...' : 'Select parent first...'}</option>
+            {opts.map(o => <option key={o[sf.lookupColumn]} value={o[sf.lookupColumn]}>{o[sf.lookupLabel || sf.lookupColumn]}</option>)}
+          </select>
+        );
+      }
+
+      // Handle Custom Options Lists (comma separated)
+      if ((sf.fieldType === 'select' || sf.fieldType === 'radio' || sf.fieldType === 'listbox' || sf.fieldType === 'multicheck') && sf.options) {
+        const opts = sf.options.split(',').map(s => s.trim());
+        if (sf.fieldType === 'radio') {
+          return (
+            <div className="flex flex-wrap gap-3 mt-1">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input type="radio" checked={!val} onChange={() => { const ny = {...searchFormValues}; delete ny[sf.column]; setSearchFormValues(ny); }} className="text-violet-600 focus:ring-violet-500" />
+                <span className="text-sm text-slate-700">All</span>
+              </label>
+              {opts.map(o => (
+                <label key={o} className="flex items-center space-x-2 cursor-pointer">
+                  <input type="radio" checked={val === o} onChange={() => setSearchFormValues(prev => ({ ...prev, [sf.column]: o }))} className="text-violet-600 focus:ring-violet-500" />
+                  <span className="text-sm text-slate-700">{o}</span>
+                </label>
+              ))}
+            </div>
+          );
+        }
+        if (sf.fieldType === 'multicheck') {
+          const arrVal = Array.isArray(val) ? val : [];
+          return (
+            <div className="flex flex-col gap-1 mt-1 max-h-40 overflow-y-auto">
+              {opts.map(o => (
+                <label key={o} className="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" checked={arrVal.includes(o)} 
+                    onChange={e => {
+                      const newArr = e.target.checked ? [...arrVal, o] : arrVal.filter(v => v !== o);
+                      setSearchFormValues(prev => ({ ...prev, [sf.column]: newArr.length ? newArr : undefined }));
+                    }} className="w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500" />
+                  <span className="text-sm text-slate-700">{o}</span>
+                </label>
+              ))}
+            </div>
+          );
+        }
+        return (
+          <select value={val || (sf.fieldType === 'listbox' ? [] : '')} 
+            onChange={e => {
+              if (sf.fieldType === 'listbox') {
+                const arr = Array.from(e.target.selectedOptions, opt => opt.value);
+                setSearchFormValues(prev => ({ ...prev, [sf.column]: arr.length ? arr : undefined }));
+              } else {
+                setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }));
+              }
+            }}
+            multiple={sf.fieldType === 'listbox'}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-violet-400">
+            {sf.fieldType !== 'listbox' && <option value="">All</option>}
+            {opts.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        );
+      }
+
+      // Handle Boolean Checkbox
+      if (sf.fieldType === 'checkbox') {
+        return (
+          <label className="flex items-center space-x-2 mt-2 cursor-pointer">
+            <input type="checkbox" checked={!!val} onChange={e => setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.checked }))} className="w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500" />
+            <span className="text-sm text-slate-700">Checked only</span>
+          </label>
+        );
+      }
+
+      // Handle Default Dates / Numbers / Text
+      const inputType = sf.fieldType === 'date' ? 'date' : sf.fieldType === 'number' || sf.fieldType === 'currency' ? 'number' : 'text';
+      return (
+        <input type={inputType} value={val || ''} onChange={e => setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }))}
+          placeholder={`${sf.searchType === 'exact' ? 'Exact match' : sf.searchType === 'starts_with' ? 'Starts with' : sf.searchType === 'greater_than' ? '> greater than' : sf.searchType === 'less_than' ? '< less than' : 'Contains'}...`}
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400" />
+      );
+    };
+
     // ── Search Section ──
     const SearchSection = () => {
       if (!hasSearch || searchFields.length === 0) return null;
@@ -276,17 +492,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
             {searchFields.map(sf => (
               <div key={sf.column}>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{prettyCol(sf.column)}</label>
-                {sf.searchType === 'dropdown' ? (
-                  <select value={searchFormValues[sf.column] || ''} onChange={e => setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-violet-400">
-                    <option value="">All</option>
-                    {(distinctValues[sf.column] || []).map(v => <option key={v} value={v}>{v}</option>)}
-                  </select>
-                ) : (
-                  <input type="text" value={searchFormValues[sf.column] || ''} onChange={e => setSearchFormValues(prev => ({ ...prev, [sf.column]: e.target.value }))}
-                    placeholder={`${sf.searchType === 'exact' ? 'Exact match' : sf.searchType === 'starts_with' ? 'Starts with' : 'Contains'}...`}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400" />
-                )}
+                {renderSearchField(sf)}
               </div>
             ))}
           </div>
@@ -529,7 +735,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
               <div className="bg-blue-50 rounded-xl p-5 border border-blue-200">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-bold text-blue-700 flex items-center"><Search size={16} className="mr-1.5" /> Search Fields</h3>
-                  <button onClick={() => setAppSearchFields(prev => [...prev, { column: currentTableCols[0]?.column_name || '', searchType: 'contains' }])}
+                  <button onClick={() => setAppSearchFields(prev => [...prev, { column: currentTableCols[0]?.column_name || '', searchType: 'contains', fieldType: 'text' }])}
                     className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center"><Plus size={12} className="mr-0.5" /> Add</button>
                 </div>
                 {appSearchFields.length === 0 ? (
@@ -537,16 +743,97 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
                 ) : (
                   <div className="space-y-2">
                     {appSearchFields.map((sf, idx) => (
-                      <div key={idx} className="flex items-center gap-2 bg-white rounded-lg p-2 border border-blue-200">
-                        <select value={sf.column} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, column: e.target.value }; setAppSearchFields(arr); }}
-                          className="flex-1 px-2 py-1.5 border border-slate-300 rounded text-sm bg-white outline-none">
-                          {currentTableCols.map(c => <option key={c.column_name} value={c.column_name}>{c.column_name}</option>)}
-                        </select>
-                        <select value={sf.searchType} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, searchType: e.target.value }; setAppSearchFields(arr); }}
-                          className="w-36 px-2 py-1.5 border border-slate-300 rounded text-sm bg-white outline-none">
-                          {SEARCH_TYPES.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
-                        </select>
-                        <button onClick={() => setAppSearchFields(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-red-400 hover:text-red-600 rounded"><X size={14} /></button>
+                      <div key={idx} className="bg-white rounded-lg border border-blue-200 overflow-hidden">
+                        <div className="flex items-center gap-2 p-2">
+                          <select value={sf.column} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, column: e.target.value }; setAppSearchFields(arr); }}
+                            className="flex-1 px-2 py-1.5 border border-slate-300 rounded text-sm bg-white outline-none">
+                            {currentTableCols.map(c => <option key={c.column_name} value={c.column_name}>{c.column_name}</option>)}
+                          </select>
+                          <select value={sf.searchType} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, searchType: e.target.value }; setAppSearchFields(arr); }}
+                            className="w-32 px-2 py-1.5 border border-slate-300 rounded text-sm bg-white outline-none">
+                            {SEARCH_TYPES.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                          </select>
+                          <button onClick={() => setExpandedSearchField(expandedSearchField === idx ? null : idx)} 
+                            className={`p-1.5 rounded ${expandedSearchField === idx ? 'bg-blue-100 text-blue-600' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}>
+                            <Settings size={14} />
+                          </button>
+                          <button onClick={() => setAppSearchFields(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"><X size={14} /></button>
+                        </div>
+                        
+                        {/* Expanded Settings area for Caspio-style options */}
+                        {expandedSearchField === idx && (
+                          <div className="p-3 border-t border-slate-100 bg-slate-50 space-y-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Input Field Type</label>
+                              <select value={sf.fieldType || 'text'} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, fieldType: e.target.value }; setAppSearchFields(arr); }}
+                                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm bg-white outline-none">
+                                {Array.from(new Set(FIELD_TYPES.map(f => f.group))).map(group => (
+                                  <optgroup key={group} label={group}>
+                                    {FIELD_TYPES.filter(f => f.group === group).map(f => (
+                                      <option key={f.value} value={f.value}>{f.label}</option>
+                                    ))}
+                                  </optgroup>
+                                ))}
+                              </select>
+                            </div>
+                            
+                            {(sf.fieldType === 'select' || sf.fieldType === 'cascade' || sf.fieldType === 'radio' || sf.fieldType === 'listbox') && sf.searchType !== 'dropdown' && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-xs font-semibold text-slate-600 mb-1">Lookup Table</label>
+                                  <select value={sf.lookupTable || ''} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, lookupTable: e.target.value }; setAppSearchFields(arr); }}
+                                    className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm bg-white outline-none">
+                                    <option value="">-- Custom Values --</option>
+                                    {tables.map(t => <option key={t} value={t}>{t}</option>)}
+                                  </select>
+                                </div>
+                                {sf.lookupTable && (
+                                  <>
+                                    <div>
+                                      <label className="block text-xs font-semibold text-slate-600 mb-1">Value Column</label>
+                                      <input type="text" value={sf.lookupColumn || ''} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, lookupColumn: e.target.value }; setAppSearchFields(arr); }}
+                                        placeholder="e.id" className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none" />
+                                    </div>
+                                    <div className="col-span-2">
+                                      <label className="block text-xs font-semibold text-slate-600 mb-1">Display Column (Optional)</label>
+                                      <input type="text" value={sf.lookupLabel || ''} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, lookupLabel: e.target.value }; setAppSearchFields(arr); }}
+                                        placeholder="e.name" className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none" />
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                            
+                            {sf.fieldType === 'cascade' && sf.lookupTable && (
+                              <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200">
+                                <div className="col-span-2"><p className="text-xs text-blue-600 font-medium mb-1">Cascading Logic</p></div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-slate-600 mb-1">Parent Field</label>
+                                  <select value={sf.parentField || ''} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, parentField: e.target.value }; setAppSearchFields(arr); }}
+                                    className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm bg-white outline-none">
+                                    <option value="">-- Select Parent --</option>
+                                    {appSearchFields.filter((_, i) => i !== idx).map(f => (
+                                      <option key={f.column} value={f.column}>{f.column}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-slate-600 mb-1">Matches Lookup Column</label>
+                                  <input type="text" value={sf.filterColumn || ''} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, filterColumn: e.target.value }; setAppSearchFields(arr); }}
+                                    placeholder="e.g. department_id" className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none" />
+                                </div>
+                              </div>
+                            )}
+                            
+                            {(!sf.lookupTable) && (sf.fieldType === 'select' || sf.fieldType === 'radio' || sf.fieldType === 'listbox') && sf.searchType !== 'dropdown' && (
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Custom Options (comma separated)</label>
+                                <input type="text" value={sf.options || ''} onChange={e => { const arr = [...appSearchFields]; arr[idx] = { ...sf, options: e.target.value }; setAppSearchFields(arr); }}
+                                  placeholder="Option 1, Option 2, Option 3" className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm outline-none" />
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
