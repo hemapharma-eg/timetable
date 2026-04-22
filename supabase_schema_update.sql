@@ -346,7 +346,7 @@ BEGIN
     SELECT tablename FROM pg_tables WHERE schemaname = 'public'
   LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
-    EXECUTE format('DROP POLICY IF EXISTS "Full access on %I" ON public.%I', tbl, tbl);
-    EXECUTE format('CREATE POLICY "Full access on %I" ON public.%I FOR ALL USING (true) WITH CHECK (true)', tbl, tbl);
+    EXECUTE format('DROP POLICY IF EXISTS "Full access on %s" ON public.%I', tbl, tbl);
+    EXECUTE format('CREATE POLICY "Full access on %s" ON public.%I FOR ALL USING (true) WITH CHECK (true)', tbl, tbl);
   END LOOP;
 END $$;
