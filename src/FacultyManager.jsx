@@ -9,6 +9,7 @@ export const FACULTY_FIELDS = [
   { key: 'college', label: 'College', group: 'Basic Info' },
   { key: 'dept', label: 'Dept', group: 'Basic Info' },
   { key: 'email', label: 'Email', group: 'Basic Info' },
+  { key: 'role', label: 'System Role', group: 'Basic Info', type: 'select', options: [{value: "faculty", label: "Faculty"}, {value: "academic_admin", label: "Academic Admin"}, {value: "technical_admin", label: "Technical Admin"}] },
   
   { key: 'active', label: 'Active', group: 'Employment', type: 'select', options: [{value: "Yes", label: "Yes"}, {value: "No", label: "No"}] },
   { key: 'designation', label: 'Designation', group: 'Employment' },

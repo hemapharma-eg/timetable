@@ -350,3 +350,7 @@ BEGIN
     EXECUTE format('CREATE POLICY "Full access on %s" ON public.%I FOR ALL USING (true) WITH CHECK (true)', tbl, tbl);
   END LOOP;
 END $$;
+
+-- 10. Add roles directly to faculty and students
+ALTER TABLE public.faculty ADD COLUMN IF NOT EXISTS role text;
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS role text;

@@ -291,7 +291,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [appRole, setAppRole] = useState(null);
   const [appUserMeta, setAppUserMeta] = useState(null);
-  const [appUsers, setAppUsers] = useState([]);
+
   const [authMode, setAuthMode] = useState('signIn'); // 'signIn' | 'forgotPassword'
 
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -376,8 +376,12 @@ export default function App() {
     let roleToSet = 'student';
     if (userEmail === 'dribrahimpharmaceutics@gmail.com') {
       roleToSet = 'technical_admin';
+    } else if (matchedFaculty && matchedFaculty.role) {
+      roleToSet = matchedFaculty.role;
     } else if (matchedFaculty) {
       roleToSet = 'faculty';
+    } else if (matchedStudent && matchedStudent.role) {
+      roleToSet = matchedStudent.role;
     } else if (matchedStudent) {
       roleToSet = 'student';
     } else if (userData && userData.role) {
@@ -403,11 +407,7 @@ export default function App() {
       }, { onConflict: 'id' });
     }
 
-    if (roleToSet === 'technical_admin') {
-      supabase.from('app_users').select('*').then(({data}) => {
-        if (data) setAppUsers(data);
-      });
-    }
+
 
     // 2. Fetch App Data
     try {
@@ -638,63 +638,6 @@ export default function App() {
   };
 
   // --- Rendering Functions ---
-  const renderUsersManager = () => (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-          <Users className="mr-2 text-indigo-600" /> Manage User Roles
-        </h3>
-        <p className="text-sm text-slate-500 mb-4">View and change user roles/access level in the system.</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium text-sm">
-                <th className="p-4">User ID (UUID)</th>
-                <th className="p-4">Linked Group/Faculty</th>
-                <th className="p-4 w-48">Role</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {appUsers.map((u) => (
-                <tr key={u.id} className="hover:bg-slate-50">
-                  <td className="p-4 text-sm font-mono text-slate-500 truncate max-w-[200px]" title={u.id}>{u.id}</td>
-                  <td className="p-4 text-sm">
-                    {u.group_id ? `Group: ${groups.find(g => g.id === u.group_id)?.name || u.group_id}` : 
-                     u.faculty_id ? `Faculty: ${faculty.find(f => f.id === u.faculty_id)?.name || u.faculty_id}` : '-'}
-                  </td>
-                  <td className="p-4">
-                    <select 
-                      value={u.role || 'student'} 
-                      onChange={async (e) => {
-                        const newRole = e.target.value;
-                        const { error } = await supabase.from('app_users').update({ role: newRole }).eq('id', u.id);
-                        if (error) alert("Failed to update role: " + error.message);
-                        else {
-                          setAppUsers(appUsers.map(user => user.id === u.id ? { ...user, role: newRole } : user));
-                        }
-                      }}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm"
-                    >
-                      <option value="student">Viewer / Student</option>
-                      <option value="faculty">Faculty</option>
-                      <option value="academic_admin">Academic Admin</option>
-                      <option value="technical_admin">Technical Admin</option>
-                    </select>
-                  </td>
-                </tr>
-              ))}
-              {appUsers.length === 0 && (
-                <tr>
-                  <td colSpan="3" className="p-4 text-center text-slate-500 text-sm">No users found.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-
   const renderDashboard = () => (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-600 to-blue-500 rounded-2xl p-8 text-white shadow-lg">
@@ -1004,7 +947,6 @@ export default function App() {
           {isTechAdmin && (
             <>
               <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Parameters</div>
-              <SidebarItem id="users" icon={Users} label="User Roles" activeTab={activeTab} setActiveTab={setActiveTab} />
               <SidebarItem id="time" icon={Clock} label="Time Profiles" activeTab={activeTab} setActiveTab={setActiveTab} />
               <SidebarItem id="faculty" icon={Users} label="Faculty" activeTab={activeTab} setActiveTab={setActiveTab} />
               <SidebarItem id="courses" icon={BookOpen} label="Courses" activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -1044,7 +986,6 @@ export default function App() {
       <main className="flex-1 overflow-y-auto p-8">
         <div className="max-w-6xl mx-auto">
           {activeTab === 'dashboard' && renderDashboard()}
-          {activeTab === 'users' && renderUsersManager()}
           {activeTab === 'time' && renderTimeProfiles()}
           {activeTab === 'faculty' && (
             <FacultyManager faculty={faculty} setFaculty={setFaculty} />

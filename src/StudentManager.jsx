@@ -12,6 +12,7 @@ export const STUDENT_FIELDS = [
   { key: 'ugpg', label: 'UG/PG', group: 'Basic & Contact Info' },
   { key: 'college', label: 'College', group: 'Basic & Contact Info' },
   { key: 'email', label: 'Official Email', group: 'Basic & Contact Info' },
+  { key: 'role', label: 'System Role', group: 'Basic & Contact Info', type: 'select', options: [{value: "student", label: "Student"}, {value: "viewer", label: "Viewer"}] },
   { key: 'personal_email', label: 'Personal Email', group: 'Basic & Contact Info' },
   { key: 'phone', label: 'Phone', group: 'Basic & Contact Info' },
   { key: 'application_number', label: 'Application Number', group: 'Basic & Contact Info' },
