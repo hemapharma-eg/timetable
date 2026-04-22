@@ -73,8 +73,6 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   const [liveData, setLiveData] = useState([]);
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveSearch, setLiveSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const debounceRef = useRef(null);
   const [editRow, setEditRow] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [isCreating, setIsCreating] = useState(false);
@@ -95,8 +93,6 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   // Toast
   const [shareToast, setShareToast] = useState(false);
 
-  // Pagination & Loading
-  const [isSearching, setIsSearching] = useState(false);
   const [filteredData, setFilteredData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 50;
@@ -104,7 +100,6 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
   // Handlers for instant search
   const handleSearchChange = (val) => {
     setLiveSearch(val);
-    setDebouncedSearch(val);
   };
 
   // ─── Fetch ────────────────────────────────────────────────────────────
@@ -234,70 +229,62 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
 
   const toggleAppColumn = (col) => setAppColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
 
-  // ─── Filtering (Async to prevent UI freeze) ────────────────────────────
+  // ─── Filtering (Synchronous and direct for instant typing) ────────
   useEffect(() => {
-    setIsSearching(true);
-    
-    // Use timeout to allow UI to paint the loading state before heavy array filtering
-    const timer = setTimeout(() => {
-      const c = liveConfig?.config || {};
-      let data = [...liveData];
-      const mode = c.mode || 'search_results_details';
-      const hasSearch = mode.includes('search');
+    const c = liveConfig?.config || {};
+    let data = [...liveData];
+    const mode = c.mode || 'search_results_details';
+    const hasSearch = mode.includes('search');
 
-      // Apply search form filters
-      if (searchApplied || urlFilters) {
-        const activeFilters = { ...appliedSearchValues, ...(urlFilters || {}) };
-        Object.entries(activeFilters).forEach(([col, val]) => {
-          if (val === undefined || val === null || val === '') return;
-          const sf = (c.searchFields || []).find(s => s.column === col);
-          const sType = sf?.searchType || 'contains';
-          data = data.filter(row => {
-            const rvRaw = row[col];
-            const rv = (rvRaw || '').toString().toLowerCase();
-
-            // Array filtering (for listbox/multicheck)
-            if (Array.isArray(val)) {
-              if (val.length === 0) return true;
-              return val.some(v => rv.includes(v.toString().toLowerCase()));
-            }
-
-            const fv = val.toString().toLowerCase();
-
-            // Number / Date filtering
-            if (sType === 'greater_than') return parseFloat(rvRaw) > parseFloat(val) || new Date(rvRaw) > new Date(val);
-            if (sType === 'less_than') return parseFloat(rvRaw) < parseFloat(val) || new Date(rvRaw) < new Date(val);
-
-            // Boolean checkbox
-            if (typeof val === 'boolean') {
-              return val ? (rvRaw === true || fv === 'true' || rv === 'true' || rv === '1' || rv === 'yes') : true;
-            }
-
-            switch (sType) {
-              case 'exact': case 'dropdown': return rv === fv;
-              case 'starts_with': return rv.startsWith(fv);
-              default: return rv.includes(fv);
-            }
-          });
-        });
-      }
-
-      // Quick-search on top
-      if (debouncedSearch) {
-        const searchCol = c.searchCol;
+    // Apply search form filters
+    if (searchApplied || urlFilters) {
+      const activeFilters = { ...appliedSearchValues, ...(urlFilters || {}) };
+      Object.entries(activeFilters).forEach(([col, val]) => {
+        if (val === undefined || val === null || val === '') return;
+        const sf = (c.searchFields || []).find(s => s.column === col);
+        const sType = sf?.searchType || 'contains';
         data = data.filter(row => {
-          if (searchCol) return (row[searchCol] || '').toString().toLowerCase().includes(debouncedSearch.toLowerCase());
-          return Object.values(row).some(v => (v || '').toString().toLowerCase().includes(debouncedSearch.toLowerCase()));
-        });
-      }
-      
-      setFilteredData(data);
-      setCurrentPage(1); // Reset pagination on new search
-      setIsSearching(false);
-    }, 10);
+          const rvRaw = row[col];
+          const rv = (rvRaw || '').toString().toLowerCase();
 
-    return () => clearTimeout(timer);
-  }, [liveConfig, liveData, searchApplied, appliedSearchValues, urlFilters, debouncedSearch]);
+          // Array filtering (for listbox/multicheck)
+          if (Array.isArray(val)) {
+            if (val.length === 0) return true;
+            return val.some(v => rv.includes(v.toString().toLowerCase()));
+          }
+
+          const fv = val.toString().toLowerCase();
+
+          // Number / Date filtering
+          if (sType === 'greater_than') return parseFloat(rvRaw) > parseFloat(val) || new Date(rvRaw) > new Date(val);
+          if (sType === 'less_than') return parseFloat(rvRaw) < parseFloat(val) || new Date(rvRaw) < new Date(val);
+
+          // Boolean checkbox
+          if (typeof val === 'boolean') {
+            return val ? (rvRaw === true || fv === 'true' || rv === 'true' || rv === '1' || rv === 'yes') : true;
+          }
+
+          switch (sType) {
+            case 'exact': case 'dropdown': return rv === fv;
+            case 'starts_with': return rv.startsWith(fv);
+            default: return rv.includes(fv);
+          }
+        });
+      });
+    }
+
+    // Quick-search on top
+    if (liveSearch) {
+      const searchCol = c.searchCol;
+      data = data.filter(row => {
+        if (searchCol) return (row[searchCol] || '').toString().toLowerCase().includes(liveSearch.toLowerCase());
+        return Object.values(row).some(v => (v || '').toString().toLowerCase().includes(liveSearch.toLowerCase()));
+      });
+    }
+    
+    setFilteredData(data);
+    setCurrentPage(1); // Reset pagination on new search
+  }, [liveConfig, liveData, searchApplied, appliedSearchValues, urlFilters, liveSearch]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // RENDER: App View (Live)
@@ -638,16 +625,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {isSearching ? (
-                        <tr>
-                          <td colSpan={cols.length + 2} className="py-12 text-center text-slate-400">
-                            <div className="flex flex-col items-center justify-center">
-                              <RefreshCw size={24} className="animate-spin text-violet-500 mb-3" />
-                              <span>Searching records...</span>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : filteredData.length === 0 ? (
+                      {filteredData.length === 0 ? (
                         <tr><td colSpan={cols.length + 2} className="p-8 text-center text-slate-400">No records found.</td></tr>
                       ) : (
                         filteredData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((row, idx) => (
@@ -674,7 +652,7 @@ export const AppBuilder = ({ deepLinkId, urlFilters }) => {
               )}
               
               {/* Pagination Controls */}
-              {!isSearching && filteredData.length > PAGE_SIZE && (
+              {filteredData.length > PAGE_SIZE && (
                 <div className="flex items-center justify-between mt-4 px-2">
                   <p className="text-xs text-slate-500">
                     Showing <span className="font-medium">{(currentPage - 1) * PAGE_SIZE + 1}</span> to <span className="font-medium">{Math.min(currentPage * PAGE_SIZE, filteredData.length)}</span> of <span className="font-medium">{filteredData.length}</span> results
