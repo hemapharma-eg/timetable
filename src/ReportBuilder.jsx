@@ -1106,6 +1106,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>
