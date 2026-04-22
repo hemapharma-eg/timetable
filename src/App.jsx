@@ -698,7 +698,7 @@ export default function App() {
   const renderDashboard = () => (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-600 to-blue-500 rounded-2xl p-8 text-white shadow-lg">
-        <h1 className="text-3xl font-bold mb-2">Welcome to DMU Timetable</h1>
+        <h1 className="text-3xl font-bold mb-2">Welcome to TooLabX SIS</h1>
         <p className="text-indigo-100 max-w-2xl">
           Define multiple Time Profiles, upload your CSV data, apply constraints, and automatically build a conflict-free university schedule.
         </p>
@@ -924,7 +924,7 @@ export default function App() {
           <div className="flex justify-center mb-6 text-indigo-400">
             <Calendar size={48} />
           </div>
-          <h2 className="text-2xl font-bold text-center mb-2">DMU Timetable</h2>
+          <h2 className="text-2xl font-bold text-center mb-2">TooLabX SIS</h2>
           {authMode === 'forgotPassword' ? (
             <>
               <p className="text-slate-400 text-center text-sm mb-6">Enter your email to receive a password reset link</p>
@@ -993,9 +993,9 @@ export default function App() {
       <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
         <div className="p-6">
           <h1 className="text-2xl font-bold tracking-tight text-white flex items-center">
-            <Calendar className="mr-2 text-indigo-400" /> DMU <span className="text-indigo-400 font-light">Timetable</span>
+            <Calendar className="mr-2 text-indigo-400" /> TooLabX <span className="text-indigo-400 font-light">SIS</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">Web Timetabling Engine</p>
+          <p className="text-xs text-slate-400 mt-1">Student Information System</p>
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <SidebarItem id="dashboard" icon={LayoutGrid} label="Dashboard" activeTab={activeTab} setActiveTab={setActiveTab} />

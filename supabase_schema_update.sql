@@ -1,4 +1,4 @@
--- DMU Timetable Migration Script
+-- TooLabX SIS Migration Script
 -- Run this script in your Supabase SQL Editor.
 
 -- 1. Add email to Faculty
