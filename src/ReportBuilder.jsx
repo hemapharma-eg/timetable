@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   FileSpreadsheet, Plus, Pencil, Trash2, X, Search, Eye, Download,
   ChevronDown, ChevronUp, Filter, ArrowUpDown, Copy, Save, Share2, CheckCircle2,
@@ -59,47 +59,60 @@ const FIELD_TYPES = [
 
 const prettyCol = (col) => col.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-// --- Sub-component to isolate search typing state from the heavy ReportBuilder ---
+// --- Sub-component: uses refs for text inputs = ZERO re-renders on typing ---
 const InteractiveSearchPanel = React.memo(({ 
-  searchFields, 
-  onSearch, 
-  onReset, 
-  distinctValues, 
-  cascadeCache, 
-  fetchCascadeOptions 
+  searchFields, onSearch, onReset, distinctValues, cascadeCache, fetchCascadeOptions 
 }) => {
-  const [localValues, setLocalValues] = useState({});
+  const inputRefs = useRef({});
+  const [selectValues, setSelectValues] = useState({});
 
-  const handleFieldChange = (col, val) => {
-    setLocalValues(prev => ({ ...prev, [col]: val }));
+  const gatherValues = () => {
+    const vals = { ...selectValues };
+    searchFields.forEach(sf => {
+      const el = inputRefs.current[sf.column];
+      if (el && el.value) vals[sf.column] = el.value;
+    });
+    return vals;
+  };
+
+  const handleSelectChange = (col, val) => {
+    setSelectValues(prev => ({ ...prev, [col]: val }));
+  };
+
+  const handleReset = () => {
+    searchFields.forEach(sf => {
+      const el = inputRefs.current[sf.column];
+      if (el) el.value = '';
+    });
+    setSelectValues({});
+    onReset();
   };
 
   const renderField = (sf) => {
-    const val = localValues[sf.column];
-    
     if (sf.searchType === 'dropdown') {
       return (
-        <select value={val || ''} onChange={e => handleFieldChange(sf.column, e.target.value)}
+        <select value={selectValues[sf.column] || ''} onChange={e => handleSelectChange(sf.column, e.target.value)}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-violet-400">
           <option value="">All</option>
           {(distinctValues[sf.column] || []).map(v => <option key={v} value={v}>{v}</option>)}
         </select>
       );
     }
-    
+
     if ((sf.fieldType === 'select' || sf.fieldType === 'radio' || sf.fieldType === 'listbox' || sf.fieldType === 'multicheck') && sf.lookupTable) {
       const opts = cascadeCache[`${sf.lookupTable}:${sf.lookupColumn}:undefined:undefined`] || [];
       if (opts.length === 0) fetchCascadeOptions(sf, null);
+      const val = selectValues[sf.column];
       if (sf.fieldType === 'radio') {
         return (
           <div className="flex flex-wrap gap-3 mt-1">
             <label className="flex items-center space-x-2 cursor-pointer">
-              <input type="radio" checked={!val} onChange={() => { const ny = {...localValues}; delete ny[sf.column]; setLocalValues(ny); }} className="text-violet-600 focus:ring-violet-500" />
+              <input type="radio" checked={!val} onChange={() => { const nv = {...selectValues}; delete nv[sf.column]; setSelectValues(nv); }} className="text-violet-600" />
               <span className="text-sm text-slate-700">All</span>
             </label>
             {opts.map(o => (
               <label key={o[sf.lookupColumn]} className="flex items-center space-x-2 cursor-pointer">
-                <input type="radio" checked={val === o[sf.lookupColumn]} onChange={() => handleFieldChange(sf.column, o[sf.lookupColumn])} className="text-violet-600 focus:ring-violet-500" />
+                <input type="radio" checked={val === o[sf.lookupColumn]} onChange={() => handleSelectChange(sf.column, o[sf.lookupColumn])} className="text-violet-600" />
                 <span className="text-sm text-slate-700">{o[sf.lookupLabel || sf.lookupColumn]}</span>
               </label>
             ))}
@@ -115,8 +128,8 @@ const InteractiveSearchPanel = React.memo(({
                 <input type="checkbox" checked={arrVal.includes(o[sf.lookupColumn])} 
                   onChange={e => {
                     const newArr = e.target.checked ? [...arrVal, o[sf.lookupColumn]] : arrVal.filter(v => v !== o[sf.lookupColumn]);
-                    handleFieldChange(sf.column, newArr.length ? newArr : undefined);
-                  }} className="w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500" />
+                    handleSelectChange(sf.column, newArr.length ? newArr : undefined);
+                  }} className="w-4 h-4 text-violet-600 border-slate-300 rounded" />
                 <span className="text-sm text-slate-700">{o[sf.lookupLabel || sf.lookupColumn]}</span>
               </label>
             ))}
@@ -128,9 +141,9 @@ const InteractiveSearchPanel = React.memo(({
           onChange={e => {
             if (sf.fieldType === 'listbox') {
               const arr = Array.from(e.target.selectedOptions, opt => opt.value);
-              handleFieldChange(sf.column, arr.length ? arr : undefined);
+              handleSelectChange(sf.column, arr.length ? arr : undefined);
             } else {
-              handleFieldChange(sf.column, e.target.value);
+              handleSelectChange(sf.column, e.target.value);
             }
           }}
           multiple={sf.fieldType === 'listbox'}
@@ -140,32 +153,33 @@ const InteractiveSearchPanel = React.memo(({
         </select>
       );
     }
-    
+
     if (sf.fieldType === 'cascade') {
-      const parentVal = localValues[sf.parentField];
+      const parentVal = selectValues[sf.parentField];
       const opts = (parentVal && cascadeCache[`${sf.lookupTable}:${sf.lookupColumn}:${sf.filterColumn}:${parentVal}`]) || [];
       if (parentVal && opts.length === 0) fetchCascadeOptions(sf, parentVal);
       return (
-        <select value={val || ''} onChange={e => handleFieldChange(sf.column, e.target.value)} disabled={!parentVal}
+        <select value={selectValues[sf.column] || ''} onChange={e => handleSelectChange(sf.column, e.target.value)} disabled={!parentVal}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-50 disabled:bg-slate-50">
           <option value="">{parentVal ? 'Select...' : 'Select parent first...'}</option>
           {opts.map(o => <option key={o[sf.lookupColumn]} value={o[sf.lookupColumn]}>{o[sf.lookupLabel || sf.lookupColumn]}</option>)}
         </select>
       );
     }
-    
+
     if ((sf.fieldType === 'select' || sf.fieldType === 'radio' || sf.fieldType === 'listbox' || sf.fieldType === 'multicheck') && sf.options) {
       const opts = sf.options.split(',').map(s => s.trim());
+      const val = selectValues[sf.column];
       if (sf.fieldType === 'radio') {
         return (
           <div className="flex flex-wrap gap-3 mt-1">
             <label className="flex items-center space-x-2 cursor-pointer">
-              <input type="radio" checked={!val} onChange={() => { const ny = {...localValues}; delete ny[sf.column]; setLocalValues(ny); }} className="text-violet-600 focus:ring-violet-500" />
+              <input type="radio" checked={!val} onChange={() => { const nv = {...selectValues}; delete nv[sf.column]; setSelectValues(nv); }} className="text-violet-600" />
               <span className="text-sm text-slate-700">All</span>
             </label>
             {opts.map(o => (
               <label key={o} className="flex items-center space-x-2 cursor-pointer">
-                <input type="radio" checked={val === o} onChange={() => handleFieldChange(sf.column, o)} className="text-violet-600 focus:ring-violet-500" />
+                <input type="radio" checked={val === o} onChange={() => handleSelectChange(sf.column, o)} className="text-violet-600" />
                 <span className="text-sm text-slate-700">{o}</span>
               </label>
             ))}
@@ -181,8 +195,8 @@ const InteractiveSearchPanel = React.memo(({
                 <input type="checkbox" checked={arrVal.includes(o)} 
                   onChange={e => {
                     const newArr = e.target.checked ? [...arrVal, o] : arrVal.filter(v => v !== o);
-                    handleFieldChange(sf.column, newArr.length ? newArr : undefined);
-                  }} className="w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500" />
+                    handleSelectChange(sf.column, newArr.length ? newArr : undefined);
+                  }} className="w-4 h-4 text-violet-600 border-slate-300 rounded" />
                 <span className="text-sm text-slate-700">{o}</span>
               </label>
             ))}
@@ -194,9 +208,9 @@ const InteractiveSearchPanel = React.memo(({
           onChange={e => {
             if (sf.fieldType === 'listbox') {
               const arr = Array.from(e.target.selectedOptions, opt => opt.value);
-              handleFieldChange(sf.column, arr.length ? arr : undefined);
+              handleSelectChange(sf.column, arr.length ? arr : undefined);
             } else {
-              handleFieldChange(sf.column, e.target.value);
+              handleSelectChange(sf.column, e.target.value);
             }
           }}
           multiple={sf.fieldType === 'listbox'}
@@ -206,10 +220,11 @@ const InteractiveSearchPanel = React.memo(({
         </select>
       );
     }
-    
+
+    // TEXT/NUMBER/DATE: Uncontrolled input with ref — NO state, NO re-render on keystroke
     const inputType = sf.fieldType === 'date' ? 'date' : sf.fieldType === 'number' || sf.fieldType === 'currency' ? 'number' : 'text';
     return (
-      <input type={inputType} value={val || ''} onChange={e => handleFieldChange(sf.column, e.target.value)}
+      <input type={inputType} defaultValue="" ref={el => { inputRefs.current[sf.column] = el; }}
         placeholder={`${sf.searchType === 'exact' ? 'Exact match' : 'Contains'}...`}
         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-400" />
     );
@@ -227,8 +242,8 @@ const InteractiveSearchPanel = React.memo(({
         ))}
       </div>
       <div className="flex gap-2 mt-3">
-        <button onClick={() => onSearch(localValues)} className="px-4 py-2 text-white bg-violet-600 hover:bg-violet-700 rounded-lg text-sm font-medium flex items-center"><Search size={14} className="mr-1" /> Search Report</button>
-        <button onClick={() => { setLocalValues({}); onReset(); }} className="px-4 py-2 text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg text-sm font-medium">Reset</button>
+        <button onClick={() => onSearch(gatherValues())} className="px-4 py-2 text-white bg-violet-600 hover:bg-violet-700 rounded-lg text-sm font-medium flex items-center"><Search size={14} className="mr-1" /> Search Report</button>
+        <button onClick={handleReset} className="px-4 py-2 text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg text-sm font-medium">Reset</button>
       </div>
     </div>
   );
@@ -539,10 +554,10 @@ export const ReportBuilder = ({ deepLinkId }) => {
   ) : null;
 
   // ─── End-User Interactive Controls ─────────────────────────────────────
-  const resetSearch = () => { setAppliedSearchValues({}); setSearchApplied(false); setCurrentPage(1); };
-  const applySearch = (values) => { setAppliedSearchValues(values); setSearchApplied(true); setCurrentPage(1); };
+  const resetSearch = useCallback(() => { setAppliedSearchValues({}); setSearchApplied(false); setCurrentPage(1); }, []);
+  const applySearch = useCallback((values) => { setAppliedSearchValues(values); setSearchApplied(true); setCurrentPage(1); }, []);
 
-  const fetchCascadeOptions = async (field, parentValue) => {
+  const fetchCascadeOptions = useCallback(async (field, parentValue) => {
     const cacheKey = `${field.lookupTable}:${field.lookupColumn}:${field.filterColumn}:${parentValue}`;
     if (cascadeCache[cacheKey]) return cascadeCache[cacheKey];
     let q = supabase.from(field.lookupTable).select(`${field.lookupColumn}, ${field.lookupLabel || field.lookupColumn}`);
@@ -551,7 +566,7 @@ export const ReportBuilder = ({ deepLinkId }) => {
     const opts = data || [];
     setCascadeCache(prev => ({ ...prev, [cacheKey]: opts }));
     return opts;
-  };
+  }, [cascadeCache]);
 
   const renderSearchSection = () => {
     if (!reportMode.includes('search') || reportSearchFields.length === 0) return null;
