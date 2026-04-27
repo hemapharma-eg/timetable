@@ -12,6 +12,7 @@ import { ReportBuilder } from './ReportBuilder';
 import { FormBuilder } from './FormBuilder';
 import { AppBuilder } from './AppBuilder';
 import { supabase } from './supabase';
+import { RiskManagement } from './RiskManagement';
 
 // --- Default Mock Data ---
 const defaultTimeProfiles = [
@@ -1074,6 +1075,7 @@ export default function App() {
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <SidebarItem id="dashboard" icon={LayoutGrid} label="Dashboard" activeTab={activeTab} setActiveTab={setActiveTab} />
           <SidebarItem id="scheduling" icon={Calendar} label="Scheduling" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" activeTab={activeTab} setActiveTab={setActiveTab} />
 
           {isTechAdmin && (
             <>
@@ -1097,6 +1099,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto p-8">
         <div className="max-w-6xl mx-auto h-full flex flex-col">
           {activeTab === 'dashboard' && renderDashboard()}
+          {activeTab === 'risk' && <RiskManagement session={session} userMeta={appUserMeta} />}
           
           {activeTab === 'databases' && isTechAdmin && (
             <PageContainer 
