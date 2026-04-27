@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   ShieldAlert, PlusCircle, List as ListIcon, 
   Search, AlertTriangle, CheckCircle, Clock,
-  Activity, BookOpen, Stethoscope, Briefcase
+  Activity, BookOpen, Stethoscope, Briefcase,
+  Edit, Trash2, X, Target, Download, Share2, Printer
 } from 'lucide-react';
 import { supabase } from './supabase';
 
@@ -20,24 +21,16 @@ let mockRisks = [
     Existing_Internal_control_: "Monthly IT security audits.",
     Rubrics: "High",
     created_at: "2026-04-20T10:00:00Z"
-  },
-  {
-    id: 2,
-    Risk_Title: "Lab Equipment Failure During Exams",
-    Category: "Clinical",
-    Reporter_Email: "faculty@dmu.ac.ae",
-    Risk_Causes: "Aging equipment in Lab 4.",
-    Risk_Consequences_: "Disruption of practical exams, student complaints.",
-    Existing_Internal_control_: "Annual maintenance contract.",
-    Rubrics: "Medium",
-    created_at: "2026-04-25T14:30:00Z"
   }
 ];
 
-// Reusable Page Container to match Timetable styling
+let mockKRIs = [];
+let mockKRIValues = [];
+
+// Reusable Page Container
 const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab, children }) => (
   <div className="flex h-full flex-col animate-in fade-in duration-300">
-    <div className="mb-6 border-b border-slate-200 pb-0">
+    <div className="mb-6 border-b border-slate-200 pb-0 print:hidden">
       <h2 className="text-2xl font-bold text-slate-800 mb-1">{title}</h2>
       {description && <p className="text-sm text-slate-500 mb-6">{description}</p>}
       <div className="flex gap-6 overflow-x-auto">
@@ -52,18 +45,19 @@ const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab
         ))}
       </div>
     </div>
-    <div className="flex-1 min-h-0 pb-8 overflow-auto px-1">
+    <div className="flex-1 min-h-0 pb-8 overflow-auto px-1 print:overflow-visible print:h-auto">
       {children}
     </div>
   </div>
 );
 
-export function RiskManagement({ session, userMeta }) {
+export function RiskManagement({ session, userMeta, isTechAdmin }) {
   const [activeSubTab, setActiveSubTab] = useState('dashboard');
   const tabs = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'new_risk', label: 'Report a Risk' },
-    { id: 'register', label: 'Risk Register' }
+    { id: 'register', label: 'Risk Register' },
+    { id: 'reports', label: 'Yearly Reports' }
   ];
 
   return (
@@ -76,7 +70,8 @@ export function RiskManagement({ session, userMeta }) {
     >
       {activeSubTab === 'dashboard' && <DashboardView />}
       {activeSubTab === 'new_risk' && <NewRiskForm onSuccess={() => setActiveSubTab('register')} session={session} />}
-      {activeSubTab === 'register' && <RiskRegister />}
+      {activeSubTab === 'register' && <RiskRegister isTechAdmin={isTechAdmin} />}
+      {activeSubTab === 'reports' && <RiskReportsView />}
     </PageContainer>
   );
 }
@@ -86,7 +81,6 @@ function DashboardView() {
   const [stats, setStats] = useState({ total: 0, high: 0, clinical: 0 });
 
   useEffect(() => {
-    // Attempt to fetch from DB, fallback to mock data
     const fetchStats = async () => {
       try {
         const { data, error } = await supabase.from('risk_management_plan').select('*');
@@ -112,24 +106,9 @@ function DashboardView() {
     <div className="space-y-6">
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard 
-          title="Total Risks Logged" 
-          value={stats.total} 
-          icon={<ListIcon className="text-blue-500 w-8 h-8" />} 
-          bg="bg-blue-50" 
-        />
-        <StatCard 
-          title="High/Critical Severity" 
-          value={stats.high} 
-          icon={<AlertTriangle className="text-red-500 w-8 h-8" />} 
-          bg="bg-red-50" 
-        />
-        <StatCard 
-          title="Clinical Risks" 
-          value={stats.clinical} 
-          icon={<Stethoscope className="text-emerald-500 w-8 h-8" />} 
-          bg="bg-emerald-50" 
-        />
+        <StatCard title="Total Risks Logged" value={stats.total} icon={<ListIcon className="text-blue-500 w-8 h-8" />} bg="bg-blue-50" />
+        <StatCard title="High/Critical Severity" value={stats.high} icon={<AlertTriangle className="text-red-500 w-8 h-8" />} bg="bg-red-50" />
+        <StatCard title="Clinical Risks" value={stats.clinical} icon={<Stethoscope className="text-emerald-500 w-8 h-8" />} bg="bg-emerald-50" />
       </div>
 
       {/* Information Panel */}
@@ -139,11 +118,11 @@ function DashboardView() {
           Risk Management Policy Overview
         </h3>
         <p className="text-slate-600 mb-4 leading-relaxed">
-          The Dubai Medical University Risk Management Plan ensures systematic identification, assessment, and mitigation of risks across Academic, Clinical, Operational, and Strategic domains. All faculty and staff are required to report identified risks using the framework below.
+          The DMU QA Hub Risk Management Plan ensures systematic identification, assessment, and mitigation of risks. All faculty and staff are required to report identified risks using the framework below.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
           <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-            <h4 className="font-semibold text-slate-700 mb-2">Severity Rubric (Impact x Likelihood)</h4>
+            <h4 className="font-semibold text-slate-700 mb-2">Severity Rubric</h4>
             <ul className="text-sm text-slate-600 space-y-1 list-disc pl-4">
               <li><span className="font-medium text-red-600">Critical:</span> Immediate action required. Board level visibility.</li>
               <li><span className="font-medium text-orange-500">High:</span> Senior management attention needed.</li>
@@ -174,36 +153,73 @@ function StatCard({ title, value, icon, bg }) {
         <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
         <p className="text-3xl font-bold text-slate-800">{value}</p>
       </div>
-      <div className={`p-4 rounded-full ${bg}`}>
-        {icon}
+      <div className={`p-4 rounded-full ${bg}`}>{icon}</div>
+    </div>
+  );
+}
+
+// --- Form Components ---
+function RiskFormFields({ formData, handleChange }) {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Title <span className="text-red-500">*</span></label>
+          <input type="text" name="Risk_Title" required value={formData.Risk_Title} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-1">Category <span className="text-red-500">*</span></label>
+          <select name="Category" required value={formData.Category} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white outline-none">
+            <option value="">Select Category...</option>
+            <option value="Academic">Academic & Research</option>
+            <option value="Clinical">Clinical Operations</option>
+            <option value="Compliance">Compliance & Legal</option>
+            <option value="Financial">Financial</option>
+            <option value="IT">IT & Cybersecurity</option>
+            <option value="Operational">Operational / Facilities</option>
+            <option value="Strategic">Strategic</option>
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-6">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Causes</label>
+          <textarea name="Risk_Causes" rows="3" value={formData.Risk_Causes} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></textarea>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Consequences</label>
+          <textarea name="Risk_Consequences_" rows="3" value={formData.Risk_Consequences_} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></textarea>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-1">Existing Internal Controls</label>
+          <textarea name="Existing_Internal_control_" rows="3" value={formData.Existing_Internal_control_} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></textarea>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+        <div>
+           <label className="block text-sm font-semibold text-slate-700 mb-1">Severity / Rubric Level</label>
+           <select name="Rubrics" value={formData.Rubrics} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white outline-none">
+            <option value="Low">Low (Routine)</option>
+            <option value="Medium">Medium (Manageable)</option>
+            <option value="High">High (Serious impact)</option>
+            <option value="Critical">Critical (Immediate action)</option>
+          </select>
+        </div>
       </div>
     </div>
   );
 }
 
-// --- New Risk Form View ---
 function NewRiskForm({ onSuccess, session }) {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    Risk_Title: '',
-    Category: '',
-    Risk_Causes: '',
-    Risk_Consequences_: '',
-    Existing_Internal_control_: '',
-    Rubrics: 'Medium'
-  });
+  const [formData, setFormData] = useState({ Risk_Title: '', Category: '', Risk_Causes: '', Risk_Consequences_: '', Existing_Internal_control_: '', Rubrics: 'Medium' });
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
-    const payload = {
-      ...formData,
-      Reporter_Email: session?.user?.email || 'unknown@dmu.ac.ae'
-    };
-
+    const payload = { ...formData, Reporter_Email: session?.user?.email || 'unknown@dmu.ac.ae' };
     try {
       const { error } = await supabase.from('risk_management_plan').insert([payload]);
       if (error) throw error;
@@ -224,89 +240,11 @@ function NewRiskForm({ onSuccess, session }) {
         <ShieldAlert className="w-6 h-6 text-indigo-600 mr-2" />
         <h3 className="text-lg font-semibold text-indigo-900">Risk Identification Form</h3>
       </div>
-      
       <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Title <span className="text-red-500">*</span></label>
-            <input 
-              type="text" name="Risk_Title" required value={formData.Risk_Title} onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-              placeholder="Brief, clear description of the risk"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Category <span className="text-red-500">*</span></label>
-            <select 
-              name="Category" required value={formData.Category} onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white outline-none"
-            >
-              <option value="">Select Category...</option>
-              <option value="Academic">Academic & Research</option>
-              <option value="Clinical">Clinical Operations</option>
-              <option value="Compliance">Compliance & Legal</option>
-              <option value="Financial">Financial</option>
-              <option value="IT">IT & Cybersecurity</option>
-              <option value="Operational">Operational / Facilities</option>
-              <option value="Strategic">Strategic</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6">
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Causes</label>
-            <textarea 
-              name="Risk_Causes" rows="3" value={formData.Risk_Causes} onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-              placeholder="What events or vulnerabilities could trigger this risk?"
-            ></textarea>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Consequences</label>
-            <textarea 
-              name="Risk_Consequences_" rows="3" value={formData.Risk_Consequences_} onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-              placeholder="What is the impact on DMU if this risk materializes? (Financial, reputational, safety, etc.)"
-            ></textarea>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Existing Internal Controls</label>
-            <textarea 
-              name="Existing_Internal_control_" rows="3" value={formData.Existing_Internal_control_} onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-              placeholder="What procedures, policies, or physical controls are currently in place to mitigate this?"
-            ></textarea>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-          <div>
-             <label className="block text-sm font-semibold text-slate-700 mb-1">Severity / Rubric Level</label>
-             <select 
-              name="Rubrics" value={formData.Rubrics} onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white outline-none"
-            >
-              <option value="Low">Low (Routine)</option>
-              <option value="Medium">Medium (Manageable)</option>
-              <option value="High">High (Serious impact)</option>
-              <option value="Critical">Critical (Immediate action)</option>
-            </select>
-          </div>
-        </div>
-
+        <RiskFormFields formData={formData} handleChange={handleChange} />
         <div className="flex justify-end pt-6">
-          <button 
-            type="submit" disabled={loading}
-            className={`px-6 py-2.5 rounded-lg text-white font-medium flex items-center shadow-md transition-all ${
-              loading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg'
-            }`}
-          >
-            {loading ? 'Submitting to Database...' : (
-              <><CheckCircle className="w-5 h-5 mr-2" /> Submit Risk Assessment</>
-            )}
+          <button type="submit" disabled={loading} className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 flex items-center shadow-md">
+            {loading ? 'Submitting...' : <><CheckCircle className="w-5 h-5 mr-2" /> Submit Risk Assessment</>}
           </button>
         </div>
       </form>
@@ -315,98 +253,433 @@ function NewRiskForm({ onSuccess, session }) {
 }
 
 // --- Risk Register (List View) ---
-function RiskRegister() {
+function RiskRegister({ isTechAdmin }) {
   const [risks, setRisks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  const [editingRisk, setEditingRisk] = useState(null);
+  const [managingKRIsFor, setManagingKRIsFor] = useState(null);
 
-  useEffect(() => {
-    fetchRisks();
-  }, []);
+  useEffect(() => { fetchRisks(); }, []);
 
   const fetchRisks = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('risk_management_plan')
-        .select('*');
-        
+      const { data, error } = await supabase.from('risk_management_plan').select('*');
       if (error) throw error;
       setRisks(data);
     } catch (err) {
-      console.warn("Using mock data for Risk Register due to DB error:", err.message);
       setRisks(mockRisks);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredRisks = risks.filter(r => 
-    r.Risk_Title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    r.Category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this risk?")) return;
+    try {
+      const { error } = await supabase.from('risk_management_plan').delete().eq('id', id);
+      if (error) throw error;
+      setRisks(risks.filter(r => r.id !== id));
+    } catch(err) {
+      alert("Failed to delete from DB, updating local state.");
+      setRisks(risks.filter(r => r.id !== id));
+      mockRisks = mockRisks.filter(r => r.id !== id);
+    }
+  };
+
+  const filteredRisks = risks.filter(r => r.Risk_Title.toLowerCase().includes(searchTerm.toLowerCase()) || r.Category.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const getSeverityBadge = (level) => {
     switch(level) {
-      case 'Critical': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700 border border-red-200">Critical</span>;
-      case 'High': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-700 border border-orange-200">High</span>;
-      case 'Medium': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200">Medium</span>;
-      case 'Low': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700 border border-green-200">Low</span>;
+      case 'Critical': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700">Critical</span>;
+      case 'High': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-700">High</span>;
+      case 'Medium': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700">Medium</span>;
+      case 'Low': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700">Low</span>;
       default: return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">{level}</span>;
     }
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
-      <div className="p-4 md:p-6 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h3 className="text-lg font-semibold text-slate-800">Identified Risks</h3>
-        
-        <div className="relative">
-          <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Search risks..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full md:w-64 text-sm outline-none"
-          />
+    <>
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+        <div className="p-4 md:p-6 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <h3 className="text-lg font-semibold text-slate-800">Identified Risks</h3>
+          <div className="relative">
+            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+            <input type="text" placeholder="Search risks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full md:w-64 text-sm outline-none" />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                <th className="p-4 font-semibold">Risk Title</th>
+                <th className="p-4 font-semibold">Category</th>
+                <th className="p-4 font-semibold">Severity</th>
+                <th className="p-4 font-semibold hidden md:table-cell">Reporter</th>
+                {isTechAdmin && <th className="p-4 font-semibold text-right">Actions</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr><td colSpan="5" className="p-8 text-center text-slate-500">Loading records...</td></tr>
+              ) : filteredRisks.length === 0 ? (
+                <tr><td colSpan="5" className="p-8 text-center text-slate-500">No risks found.</td></tr>
+              ) : (
+                filteredRisks.map((risk) => (
+                  <tr key={risk.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-4"><p className="font-medium text-slate-800">{risk.Risk_Title}</p></td>
+                    <td className="p-4 hidden md:table-cell text-sm text-slate-600">{risk.Category}</td>
+                    <td className="p-4">{getSeverityBadge(risk.Rubrics)}</td>
+                    <td className="p-4 hidden md:table-cell text-sm text-slate-600">{risk.Reporter_Email}</td>
+                    {isTechAdmin && (
+                      <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                        <button onClick={() => setManagingKRIsFor(risk)} className="text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg transition-colors" title="Manage KRIs"><Target size={18} /></button>
+                        <button onClick={() => setEditingRisk(risk)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors" title="Edit Risk"><Edit size={18} /></button>
+                        <button onClick={() => handleDelete(risk.id)} className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete Risk"><Trash2 size={18} /></button>
+                      </td>
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
-              <th className="p-4 font-semibold">Risk Title</th>
-              <th className="p-4 font-semibold">Category</th>
-              <th className="p-4 font-semibold">Severity</th>
-              <th className="p-4 font-semibold hidden md:table-cell">Reporter</th>
-              <th className="p-4 font-semibold hidden lg:table-cell">Date Logged</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr><td colSpan="5" className="p-8 text-center text-slate-500">Loading records...</td></tr>
-            ) : filteredRisks.length === 0 ? (
-              <tr><td colSpan="5" className="p-8 text-center text-slate-500">No risks found.</td></tr>
-            ) : (
-              filteredRisks.map((risk) => (
-                <tr key={risk.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-4">
-                    <p className="font-medium text-slate-800">{risk.Risk_Title}</p>
-                    <p className="text-xs text-slate-500 md:hidden mt-1">{risk.Category}</p>
-                  </td>
-                  <td className="p-4 hidden md:table-cell text-sm text-slate-600">{risk.Category}</td>
-                  <td className="p-4">{getSeverityBadge(risk.Rubrics)}</td>
-                  <td className="p-4 hidden md:table-cell text-sm text-slate-600">{risk.Reporter_Email}</td>
-                  <td className="p-4 hidden lg:table-cell text-sm text-slate-500">
-                    {new Date(risk.created_at).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      {editingRisk && <EditRiskModal risk={editingRisk} onClose={() => setEditingRisk(null)} onRefresh={fetchRisks} />}
+      {managingKRIsFor && <KRIManagementModal risk={managingKRIsFor} onClose={() => setManagingKRIsFor(null)} />}
+    </>
+  );
+}
+
+// --- Admin Modals ---
+function EditRiskModal({ risk, onClose, onRefresh }) {
+  const [formData, setFormData] = useState({ ...risk });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('risk_management_plan').update(formData).eq('id', risk.id);
+      if (error) throw error;
+      onRefresh();
+      onClose();
+    } catch (err) {
+      alert("DB Error, updating locally.");
+      Object.assign(mockRisks.find(r => r.id === risk.id), formData);
+      onRefresh();
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex justify-between items-center z-10">
+          <h2 className="text-xl font-bold text-slate-800">Edit Risk</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><X size={20} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6">
+          <RiskFormFields formData={formData} handleChange={(e) => setFormData({...formData, [e.target.name]: e.target.value})} />
+          <div className="mt-8 flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="px-6 py-2.5 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50">Cancel</button>
+            <button type="submit" disabled={loading} className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">{loading ? 'Saving...' : 'Save Changes'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function KRIManagementModal({ risk, onClose }) {
+  const [kris, setKris] = useState([]);
+  const [newKriName, setNewKriName] = useState('');
+  const [values, setValues] = useState([]);
+  const [newValData, setNewValData] = useState({ kri_id: '', academic_year: '2024-2025', indicator_value: '' });
+
+  useEffect(() => { fetchKRIs(); }, [risk.id]);
+
+  const fetchKRIs = async () => {
+    try {
+      const { data: kData, error: kErr } = await supabase.from('risk_kris').select('*').eq('risk_id', risk.id);
+      if (kErr) throw kErr;
+      setKris(kData);
+      
+      if (kData.length > 0) {
+        const kriIds = kData.map(k => k.id);
+        const { data: vData, error: vErr } = await supabase.from('risk_kri_values').select('*').in('kri_id', kriIds);
+        if (vErr) throw vErr;
+        setValues(vData);
+      }
+    } catch (e) {
+      setKris(mockKRIs.filter(k => k.risk_id === risk.id));
+      setValues(mockKRIValues.filter(v => mockKRIs.find(k => k.id === v.kri_id && k.risk_id === risk.id)));
+    }
+  };
+
+  const handleAddKRI = async (e) => {
+    e.preventDefault();
+    if (!newKriName.trim()) return;
+    try {
+      const payload = { risk_id: risk.id, indicator_name: newKriName };
+      const { error } = await supabase.from('risk_kris').insert([payload]);
+      if (error) throw error;
+      setNewKriName('');
+      fetchKRIs();
+    } catch(e) {
+      mockKRIs.push({ id: Date.now(), risk_id: risk.id, indicator_name: newKriName });
+      setNewKriName('');
+      fetchKRIs();
+    }
+  };
+
+  const handleAddValue = async (e) => {
+    e.preventDefault();
+    if (!newValData.kri_id || !newValData.indicator_value) return;
+    try {
+      const { error } = await supabase.from('risk_kri_values').upsert([{
+        kri_id: newValData.kri_id,
+        academic_year: newValData.academic_year,
+        indicator_value: newValData.indicator_value
+      }], { onConflict: 'kri_id, academic_year' });
+      if (error) throw error;
+      setNewValData({ ...newValData, indicator_value: '' });
+      fetchKRIs();
+    } catch(e) {
+      const existingIdx = mockKRIValues.findIndex(v => v.kri_id === newValData.kri_id && v.academic_year === newValData.academic_year);
+      if (existingIdx >= 0) mockKRIValues[existingIdx].indicator_value = newValData.indicator_value;
+      else mockKRIValues.push({ id: Date.now(), ...newValData });
+      fetchKRIs();
+    }
+  };
+
+  const handleDeleteKRI = async (id) => {
+    try {
+      await supabase.from('risk_kris').delete().eq('id', id);
+      fetchKRIs();
+    } catch(e) {
+      mockKRIs = mockKRIs.filter(k => k.id !== id);
+      fetchKRIs();
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Key Risk Indicators (KRIs)</h2>
+            <p className="text-sm text-slate-500 truncate max-w-md">{risk.Risk_Title}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full"><X size={20} /></button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          {/* Add KRI */}
+          <section>
+            <h3 className="font-semibold text-slate-800 mb-3 text-sm uppercase tracking-wider">Define Indicators</h3>
+            <form onSubmit={handleAddKRI} className="flex gap-2">
+              <input type="text" value={newKriName} onChange={e => setNewKriName(e.target.value)} placeholder="e.g. Number of delayed incident reports" className="flex-1 border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+              <button type="submit" className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900">Add KRI</button>
+            </form>
+            <div className="mt-4 space-y-2">
+              {kris.map(kri => (
+                <div key={kri.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <span className="text-sm font-medium text-slate-700">{kri.indicator_name}</span>
+                  <button onClick={() => handleDeleteKRI(kri.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16} /></button>
+                </div>
+              ))}
+              {kris.length === 0 && <p className="text-sm text-slate-400">No KRIs defined yet.</p>}
+            </div>
+          </section>
+
+          {/* Add Values */}
+          {kris.length > 0 && (
+            <section className="border-t border-slate-100 pt-6">
+              <h3 className="font-semibold text-slate-800 mb-3 text-sm uppercase tracking-wider">Record KRI Values</h3>
+              <form onSubmit={handleAddValue} className="flex gap-2 flex-wrap items-end mb-6 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-semibold text-indigo-900 mb-1">Select KRI</label>
+                  <select required value={newValData.kri_id} onChange={e => setNewValData({...newValData, kri_id: e.target.value})} className="w-full border-none rounded-lg px-3 py-2 text-sm">
+                    <option value="">-- Choose --</option>
+                    {kris.map(k => <option key={k.id} value={k.id}>{k.indicator_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-indigo-900 mb-1">Academic Year</label>
+                  <select required value={newValData.academic_year} onChange={e => setNewValData({...newValData, academic_year: e.target.value})} className="w-32 border-none rounded-lg px-3 py-2 text-sm">
+                    <option>2023-2024</option>
+                    <option>2024-2025</option>
+                    <option>2025-2026</option>
+                  </select>
+                </div>
+                <div className="w-32">
+                  <label className="block text-xs font-semibold text-indigo-900 mb-1">Value</label>
+                  <input required type="text" value={newValData.indicator_value} onChange={e => setNewValData({...newValData, indicator_value: e.target.value})} placeholder="e.g. 5%" className="w-full border-none rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">Save</button>
+              </form>
+
+              <div className="space-y-4">
+                {kris.map(kri => {
+                  const kriVals = values.filter(v => v.kri_id === kri.id).sort((a,b) => a.academic_year.localeCompare(b.academic_year));
+                  if (kriVals.length === 0) return null;
+                  return (
+                    <div key={kri.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                      <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-sm font-semibold text-slate-700">{kri.indicator_name}</div>
+                      <div className="p-3 flex gap-4 overflow-x-auto">
+                        {kriVals.map(val => (
+                          <div key={val.id} className="text-center px-4 border-r last:border-0 border-slate-200">
+                            <div className="text-xs text-slate-500 font-medium mb-1">{val.academic_year}</div>
+                            <div className="font-bold text-indigo-600 text-lg">{val.indicator_value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Reports ---
+export function RiskReportsView({ initialYear }) {
+  const [selectedYear, setSelectedYear] = useState(initialYear || '2024-2025');
+  const [reportData, setReportData] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchReport = async (year) => {
+    setLoading(true);
+    try {
+      const { data: rData, error: rErr } = await supabase.from('risk_management_plan').select('*');
+      const { data: kData, error: kErr } = await supabase.from('risk_kris').select('*');
+      const { data: vData, error: vErr } = await supabase.from('risk_kri_values').select('*').eq('academic_year', year);
+      
+      if (rErr || kErr || vErr) throw new Error("DB Error");
+
+      // Assemble Data
+      const combined = rData.map(risk => {
+        const riskKRIs = kData.filter(k => k.risk_id === risk.id).map(kri => {
+          const val = vData.find(v => v.kri_id === kri.id);
+          return { name: kri.indicator_name, value: val ? val.indicator_value : 'Not Set' };
+        });
+        return { ...risk, kris: riskKRIs };
+      });
+      setReportData(combined);
+    } catch(e) {
+      // Mock Assembly
+      const combined = mockRisks.map(risk => {
+        const riskKRIs = mockKRIs.filter(k => k.risk_id === risk.id).map(kri => {
+          const val = mockKRIValues.find(v => v.kri_id === kri.id && v.academic_year === year);
+          return { name: kri.indicator_name, value: val ? val.indicator_value : 'Not Set' };
+        });
+        return { ...risk, kris: riskKRIs };
+      });
+      setReportData(combined);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchReport(selectedYear); }, [selectedYear]);
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}?view=public_risk_report&year=${selectedYear}`;
+    await navigator.clipboard.writeText(url);
+    alert('Public report link copied to clipboard!');
+  };
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Print-hidden controls */}
+      <div className="print:hidden flex justify-between items-center mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center space-x-3">
+          <label className="font-semibold text-slate-700">Academic Year:</label>
+          <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500">
+            <option>2023-2024</option>
+            <option>2024-2025</option>
+            <option>2025-2026</option>
+          </select>
+        </div>
+        <div className="flex space-x-3">
+          <button onClick={handleShare} className="flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 font-medium rounded-lg hover:bg-indigo-100 transition-colors"><Share2 size={16} className="mr-2" /> Share URL</button>
+          <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-slate-800 text-white font-medium rounded-lg hover:bg-slate-900 transition-colors"><Printer size={16} className="mr-2" /> Export PDF</button>
+        </div>
+      </div>
+
+      {/* Printable Report Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 print:border-none print:shadow-none print:p-0 flex-1 overflow-auto print:overflow-visible">
+        <div className="text-center mb-8 pb-6 border-b border-slate-200">
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">DMU QA Hub</h1>
+          <h2 className="text-xl font-semibold text-indigo-800">Risk Management Report & Key Risk Indicators</h2>
+          <p className="text-slate-500 font-medium mt-2">Academic Year: {selectedYear}</p>
+        </div>
+
+        {loading ? <p className="text-center py-10">Compiling report...</p> : (
+          <div className="space-y-8">
+            {reportData.map(risk => (
+              <div key={risk.id} className="break-inside-avoid border border-slate-200 rounded-xl overflow-hidden print:border-slate-300">
+                <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 print:bg-slate-100">
+                  <div className="flex justify-between items-start">
+                    <h3 className="text-lg font-bold text-slate-800">{risk.Risk_Title}</h3>
+                    <span className="px-3 py-1 bg-white border border-slate-200 rounded-full text-xs font-bold text-slate-600 shadow-sm print:shadow-none">{risk.Category} | {risk.Rubrics}</span>
+                  </div>
+                </div>
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Causes & Consequences</h4>
+                    <p className="text-sm text-slate-700 mb-3"><span className="font-semibold text-slate-900">Causes:</span> {risk.Risk_Causes || 'N/A'}</p>
+                    <p className="text-sm text-slate-700"><span className="font-semibold text-slate-900">Impact:</span> {risk.Risk_Consequences_ || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Controls & Indicators</h4>
+                    <p className="text-sm text-slate-700 mb-4"><span className="font-semibold text-slate-900">Controls:</span> {risk.Existing_Internal_control_ || 'N/A'}</p>
+                    
+                    {risk.kris.length > 0 ? (
+                      <table className="w-full text-left text-sm border border-slate-200 rounded-lg overflow-hidden print:border-collapse">
+                        <thead className="bg-slate-50">
+                          <tr><th className="px-3 py-2 font-semibold">Key Risk Indicator</th><th className="px-3 py-2 font-semibold w-24 text-center">Value</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {risk.kris.map((kri, i) => (
+                            <tr key={i}><td className="px-3 py-2">{kri.name}</td><td className="px-3 py-2 text-center font-bold text-indigo-700">{kri.value}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : <p className="text-xs text-slate-400 italic">No KRIs defined for this risk.</p>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Public View ---
+export function PublicRiskReport({ year }) {
+  return (
+    <div className="min-h-screen bg-slate-100 p-4 md:p-8">
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-6 flex justify-between items-center print:hidden">
+          <div className="flex items-center text-indigo-700 font-bold text-xl"><ShieldAlert className="mr-2"/> DMU QA Hub Public Portal</div>
+          <button onClick={() => window.print()} className="px-4 py-2 bg-white text-slate-700 font-medium rounded-lg shadow-sm hover:shadow transition-shadow flex items-center border border-slate-200"><Printer size={16} className="mr-2"/> Print Report</button>
+        </div>
+        <RiskReportsView initialYear={year} />
       </div>
     </div>
   );
