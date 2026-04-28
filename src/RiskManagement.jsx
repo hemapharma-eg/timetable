@@ -250,13 +250,18 @@ function NewRiskForm({ onSuccess, session }) {
     e.preventDefault();
     setLoading(true);
     const payload = { ...formData, Reporter_Email: session?.user?.email || 'unknown@dmu.ac.ae' };
+    
+    // Prevent Supabase type error on empty numeric strings
+    if (payload.Impact === '') payload.Impact = null;
+    if (payload.Appetite === '') payload.Appetite = null;
+
     try {
       const { error } = await supabase.from('risk_management_plan').insert([payload]);
       if (error) throw error;
       onSuccess();
     } catch (error) {
       console.error(error);
-      alert("Database error. Saving to mock array instead.");
+      alert("Database error: " + (error.message || 'Unknown') + "\nSaving to mock array instead.");
       mockRisks.unshift({ ...payload, id: Date.now(), created_at: new Date().toISOString() });
       onSuccess();
     } finally {
@@ -395,13 +400,22 @@ function EditRiskModal({ risk, onClose, onRefresh }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.from('risk_management_plan').update(formData).eq('id', risk.id);
+      const payload = { ...formData };
+      delete payload.id; // Prevent updating the primary key directly
+      
+      // Prevent Supabase type error on empty numeric strings
+      if (payload.Impact === '') payload.Impact = null;
+      if (payload.Appetite === '') payload.Appetite = null;
+
+      const { error } = await supabase.from('risk_management_plan').update(payload).eq('id', risk.id);
       if (error) throw error;
       onRefresh();
       onClose();
     } catch (err) {
-      alert("DB Error, updating locally.");
-      Object.assign(mockRisks.find(r => r.id === risk.id), formData);
+      console.error(err);
+      alert("DB Error: " + (err.message || 'Unknown') + "\nUpdating locally.");
+      const mockRisk = mockRisks.find(r => r.id === risk.id);
+      if (mockRisk) Object.assign(mockRisk, formData);
       onRefresh();
       onClose();
     } finally {
