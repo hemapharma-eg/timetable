@@ -251,17 +251,18 @@ function NewRiskForm({ onSuccess, session }) {
     setLoading(true);
     const payload = { ...formData, Reporter_Email: session?.user?.email || 'unknown@dmu.ac.ae' };
     
-    // Prevent Supabase type error on empty numeric strings
-    if (payload.Impact === '') payload.Impact = null;
-    if (payload.Appetite === '') payload.Appetite = null;
+    // Strictly cast to numbers to prevent Supabase type mismatches
+    payload.Impact = (payload.Impact === '' || payload.Impact == null) ? null : Number(payload.Impact);
+    payload.Appetite = (payload.Appetite === '' || payload.Appetite == null) ? null : Number(payload.Appetite);
 
     try {
-      const { error } = await supabase.from('risk_management_plan').insert([payload]);
+      const { data, error } = await supabase.from('risk_management_plan').insert([payload]).select();
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Insert failed silently (0 rows returned). This is usually an RLS policy issue.");
       onSuccess();
     } catch (error) {
       console.error(error);
-      alert("Database error: " + (error.message || 'Unknown') + "\nSaving to mock array instead.");
+      alert("Database error: " + (error.message || 'Unknown') + "\n\nSaving to local preview instead. Please ensure columns exist and RLS policies allow inserts.");
       mockRisks.unshift({ ...payload, id: Date.now(), created_at: new Date().toISOString() });
       onSuccess();
     } finally {
@@ -403,17 +404,19 @@ function EditRiskModal({ risk, onClose, onRefresh }) {
       const payload = { ...formData };
       delete payload.id; // Prevent updating the primary key directly
       
-      // Prevent Supabase type error on empty numeric strings
-      if (payload.Impact === '') payload.Impact = null;
-      if (payload.Appetite === '') payload.Appetite = null;
+      // Strictly cast to numbers to prevent Supabase type mismatches
+      payload.Impact = (payload.Impact === '' || payload.Impact == null) ? null : Number(payload.Impact);
+      payload.Appetite = (payload.Appetite === '' || payload.Appetite == null) ? null : Number(payload.Appetite);
 
-      const { error } = await supabase.from('risk_management_plan').update(payload).eq('id', risk.id);
+      const { data, error } = await supabase.from('risk_management_plan').update(payload).eq('id', risk.id).select();
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error(`Update failed silently for ID ${risk.id}. The record might not exist or RLS blocked the update.`);
+      
       onRefresh();
       onClose();
     } catch (err) {
       console.error(err);
-      alert("DB Error: " + (err.message || 'Unknown') + "\nUpdating locally.");
+      alert("DB Error: " + (err.message || 'Unknown') + "\n\nUpdating locally. Please ensure columns exist and RLS allows updates.");
       const mockRisk = mockRisks.find(r => r.id === risk.id);
       if (mockRisk) Object.assign(mockRisk, formData);
       onRefresh();
