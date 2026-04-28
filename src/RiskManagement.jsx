@@ -170,6 +170,10 @@ function RiskFormFields({ formData, handleChange }) {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-1">Risk No.</label>
+          <input type="text" name="Risk_No" placeholder="e.g. R1" value={formData.Risk_No || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+        </div>
+        <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Title <span className="text-red-500">*</span></label>
           <input type="text" name="Risk_Title" required value={formData.Risk_Title || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
         </div>
@@ -239,7 +243,7 @@ function RiskFormFields({ formData, handleChange }) {
 function NewRiskForm({ onSuccess, session }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ 
-    Risk_Title: '', Category: '', Risk_Causes: '', 
+    Risk_No: '', Risk_Title: '', Category: '', Risk_Causes: '', 
     Risk_Consequences_: '', Existing_Internal_control_: '', Rubrics: 'Medium',
     Risk_Owner: '', Risk_Reporter: '', Impact: '', Appetite: '', Mitigating_Actions: ''
   });
@@ -326,6 +330,7 @@ function RiskRegister({ isTechAdmin }) {
   };
 
   const filteredRisks = risks.filter(r => r.Risk_Title.toLowerCase().includes(searchTerm.toLowerCase()) || r.Category.toLowerCase().includes(searchTerm.toLowerCase()));
+  const sortedRisks = [...filteredRisks].sort((a, b) => (a.Risk_No || '').localeCompare(b.Risk_No || '', undefined, { numeric: true }));
 
   const getSeverityBadge = (level) => {
     switch(level) {
@@ -352,6 +357,7 @@ function RiskRegister({ isTechAdmin }) {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                <th className="p-4 font-semibold">No.</th>
                 <th className="p-4 font-semibold">Risk Title</th>
                 <th className="p-4 font-semibold">Category</th>
                 <th className="p-4 font-semibold">Severity</th>
@@ -361,12 +367,13 @@ function RiskRegister({ isTechAdmin }) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan="5" className="p-8 text-center text-slate-500">Loading records...</td></tr>
-              ) : filteredRisks.length === 0 ? (
-                <tr><td colSpan="5" className="p-8 text-center text-slate-500">No risks found.</td></tr>
+                <tr><td colSpan="6" className="p-8 text-center text-slate-500">Loading records...</td></tr>
+              ) : sortedRisks.length === 0 ? (
+                <tr><td colSpan="6" className="p-8 text-center text-slate-500">No risks found.</td></tr>
               ) : (
-                filteredRisks.map((risk) => (
+                sortedRisks.map((risk) => (
                   <tr key={risk.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-4 font-bold text-slate-600">{risk.Risk_No || '-'}</td>
                     <td className="p-4"><p className="font-medium text-slate-800">{risk.Risk_Title}</p></td>
                     <td className="p-4 hidden md:table-cell text-sm text-slate-600">{risk.Category}</td>
                     <td className="p-4">{getSeverityBadge(risk.Rubrics)}</td>
@@ -634,12 +641,23 @@ function KRIManagementModal({ risk, onClose }) {
                     <div key={kri.id} className="border border-slate-200 rounded-lg overflow-hidden">
                       <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-sm font-semibold text-slate-700">{kri.indicator_name}</div>
                       <div className="p-3 flex gap-4 overflow-x-auto">
-                        {kriVals.map(val => (
-                          <div key={val.id} className="text-center px-4 border-r last:border-0 border-slate-200">
+                        {kriVals.map(val => {
+                          const likelihood = getLikelihoodForKRI(val.indicator_value, kri.id, rubrics);
+                          const impact = Number(risk.Impact) || 0;
+                          const appetite = Number(risk.Appetite) || 0;
+                          const residual = likelihood * impact;
+                          const accepted = residual <= appetite;
+                          return (
+                          <div key={val.id} className="text-center px-4 border-r last:border-0 border-slate-200 min-w-[120px]">
                             <div className="text-xs text-slate-500 font-medium mb-1">{val.academic_year}</div>
-                            <div className="font-bold text-indigo-600 text-lg">{val.indicator_value}</div>
+                            <div className="font-bold text-indigo-600 text-lg mb-2">{val.indicator_value}</div>
+                            <div className="text-[10px] text-slate-500 mb-1">Likelihood: <span className="font-bold text-slate-700">{likelihood}</span></div>
+                            <div className="text-[10px] text-slate-500 mb-1">Residual: <span className="font-bold text-slate-700">{residual}</span></div>
+                            <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded inline-block mt-1 ${accepted ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {accepted ? 'Accepted' : 'Not Accepted'}
+                            </div>
                           </div>
-                        ))}
+                        )})}
                       </div>
                     </div>
                   )
@@ -682,6 +700,8 @@ function getLikelihoodForKRI(value, kId, allRubrics) {
 // --- Reports ---
 export function RiskReportsView({ initialYear }) {
   const [selectedYear, setSelectedYear] = useState(initialYear || '2024-2025');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -743,12 +763,18 @@ export function RiskReportsView({ initialYear }) {
     <div className="h-full flex flex-col">
       {/* Print-hidden controls */}
       <div className="print:hidden flex justify-between items-center mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex items-center space-x-3">
-          <label className="font-semibold text-slate-700">Academic Year:</label>
+        <div className="flex items-center space-x-3 flex-wrap gap-y-2">
+          <label className="font-semibold text-slate-700 whitespace-nowrap">Filters:</label>
           <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500">
             <option>2023-2024</option>
             <option>2024-2025</option>
             <option>2025-2026</option>
+          </select>
+          <input type="text" placeholder="Search title..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 w-full sm:w-48" />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500">
+            <option value="All">All Statuses</option>
+            <option value="Accepted">Accepted Only</option>
+            <option value="Not Accepted">Not Accepted Only</option>
           </select>
         </div>
         <div className="flex space-x-3">
@@ -767,12 +793,17 @@ export function RiskReportsView({ initialYear }) {
 
         {loading ? <p className="text-center py-10">Compiling report...</p> : (
           <div className="space-y-8">
-            {reportData.map(risk => (
+            {reportData.filter(r => {
+              if (searchTerm && !r.Risk_Title.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+              if (statusFilter === 'Accepted' && r.residual_rating > r.appetite) return false;
+              if (statusFilter === 'Not Accepted' && r.residual_rating <= r.appetite) return false;
+              return true;
+            }).sort((a,b) => (a.Risk_No || '').localeCompare(b.Risk_No || '', undefined, { numeric: true })).map(risk => (
               <div key={risk.id} className="break-inside-avoid border border-slate-200 rounded-xl overflow-hidden print:border-slate-300">
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 print:bg-slate-100">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-lg font-bold text-slate-800">{risk.Risk_Title}</h3>
+                      <h3 className="text-lg font-bold text-slate-800">{risk.Risk_No ? `${risk.Risk_No}: ` : ''}{risk.Risk_Title}</h3>
                       <div className="text-sm text-slate-500 mt-1 flex gap-4">
                         <span><strong className="text-slate-700">Owner:</strong> {risk.Risk_Owner || 'N/A'}</span>
                         <span><strong className="text-slate-700">Reporter:</strong> {risk.Risk_Reporter || 'N/A'}</span>
@@ -783,10 +814,10 @@ export function RiskReportsView({ initialYear }) {
                     <div className="flex flex-wrap gap-2 items-center">
                        <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 shadow-sm">Impact: {risk.Impact || 0}</span>
                        <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 shadow-sm">Likelihood: {risk.calculated_likelihood}</span>
-                       <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 shadow-sm">Appetite: {risk.appetite}</span>
                        <span className={`px-3 py-1 border rounded-lg text-xs font-bold shadow-sm print:shadow-none ${risk.residual_rating > risk.appetite ? 'bg-red-100 text-red-800 border-red-300' : 'bg-green-100 text-green-800 border-green-300'}`}>
                          Residual: {risk.residual_rating} ({risk.residual_rating > risk.appetite ? 'Not Accepted' : 'Accepted'})
                        </span>
+                       <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 shadow-sm">Appetite: {risk.appetite}</span>
                     </div>
                   </div>
                 </div>
