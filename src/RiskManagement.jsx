@@ -165,7 +165,7 @@ function DashboardView({ categories }) {
           Risk Management Policy Overview
         </h3>
         <p className="text-slate-600 mb-4 leading-relaxed">
-          The DMU QA Hub Risk Management Plan ensures systematic identification, assessment, and mitigation of risks. All faculty and staff are required to report identified risks using the framework below.
+          The DMU QA Hub Risk Management Plan ensures systematic identification, assessment, and mitigation of risks.
         </p>
         <div className="grid grid-cols-1 gap-4 mt-6">
           <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
