@@ -61,9 +61,13 @@ export function RolesManager() {
   };
 
   const MODULES = [
-    { key: 'risk_management_reports', label: 'Risk Management (Reports Only)' },
-    { key: 'risk_management_full', label: 'Risk Management (Full Access)' },
-    { key: 'databases', label: 'Databases (Faculty/Students)' }
+    { section: 'Risk Management Plan', key: 'risk_dashboard', label: 'Dashboard' },
+    { section: 'Risk Management Plan', key: 'risk_new_risk', label: 'Log New Risk' },
+    { section: 'Risk Management Plan', key: 'risk_register', label: 'Risk Register' },
+    { section: 'Risk Management Plan', key: 'risk_reports', label: 'Yearly Reports' },
+    { section: 'Databases', key: 'db_faculty', label: 'Faculty & Staff' },
+    { section: 'Databases', key: 'db_students', label: 'Students' },
+    { section: 'Databases', key: 'db_courses', label: 'Courses' }
   ];
 
   return (
@@ -136,25 +140,32 @@ export function RolesManager() {
                   <h4 className="text-md font-semibold text-slate-800 mb-4 pb-2 border-b border-slate-200">
                     Permissions for: <span className="text-indigo-600">{roles.find(r => r.id === selectedRoleId)?.name}</span>
                   </h4>
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    {MODULES.map(m => {
-                      const perm = permissions.find(p => p.role_id === selectedRoleId && p.module_name === m.key) || {};
-                      return (
-                        <div key={m.key} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors">
-                          <div className="font-medium text-slate-800 mb-3">{m.label}</div>
-                          <div className="flex items-center gap-6 pt-2 border-t border-slate-100">
-                            <label className="flex items-center cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-                              <input type="checkbox" className="mr-2 w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" checked={perm.can_view || false} onChange={() => togglePermission(selectedRoleId, m.key, 'can_view', perm.can_view)} />
-                              View Access
-                            </label>
-                            <label className="flex items-center cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-                              <input type="checkbox" className="mr-2 w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" checked={perm.can_edit || false} onChange={() => togglePermission(selectedRoleId, m.key, 'can_edit', perm.can_edit)} />
-                              Edit Access
-                            </label>
-                          </div>
+                  <div className="space-y-6">
+                    {Array.from(new Set(MODULES.map(m => m.section))).map(section => (
+                      <div key={section}>
+                        <h5 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 pb-1 border-b border-slate-200">{section}</h5>
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                          {MODULES.filter(m => m.section === section).map(m => {
+                            const perm = permissions.find(p => p.role_id === selectedRoleId && p.module_name === m.key) || {};
+                            return (
+                              <div key={m.key} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors">
+                                <div className="font-medium text-slate-800 mb-3">{m.label}</div>
+                                <div className="flex items-center gap-6 pt-2 border-t border-slate-100">
+                                  <label className="flex items-center cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+                                    <input type="checkbox" className="mr-2 w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" checked={perm.can_view || false} onChange={() => togglePermission(selectedRoleId, m.key, 'can_view', perm.can_view)} />
+                                    View Access
+                                  </label>
+                                  <label className="flex items-center cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+                                    <input type="checkbox" className="mr-2 w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" checked={perm.can_edit || false} onChange={() => togglePermission(selectedRoleId, m.key, 'can_edit', perm.can_edit)} />
+                                    Edit Access
+                                  </label>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                   </div>
                 </>
               ) : (

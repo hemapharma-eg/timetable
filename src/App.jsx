@@ -108,8 +108,31 @@ function AdminPortal({ session, userMeta, permissions }) {
 function FacultyPortal({ session, userMeta, permissions }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const currentTab = location.pathname.split('/')[2] || 'risk';
-  const hasRiskReportsPerm = permissions.some(p => p.module_name === 'risk_management_reports' && p.can_view);
+  const currentTab = location.pathname.split('/')[2] || '';
+
+  const riskPerms = permissions.filter(p => p.module_name.startsWith('risk_') && p.can_view);
+  const dbPerms = permissions.filter(p => p.module_name.startsWith('db_') && p.can_view);
+
+  const hasRisk = riskPerms.length > 0;
+  const hasDb = dbPerms.length > 0;
+
+  const allowedRiskTabs = riskPerms.map(p => p.module_name.replace('risk_', ''));
+  const allowedDbTabs = dbPerms.map(p => p.module_name.replace('db_', ''));
+
+  const [dbSubTab, setDbSubTab] = useState(allowedDbTabs.length > 0 ? allowedDbTabs[0] : '');
+
+  // Shared Data States
+  const [faculty, setFaculty] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [students, setStudents] = useState([]);
+
+  useEffect(() => {
+    if (hasDb) {
+      supabase.from('faculty').select('*').then(({ data }) => setFaculty(data || []));
+      supabase.from('courses').select('*').then(({ data }) => setCourses(data || []));
+      supabase.from('students').select('*').then(({ data }) => setStudents(data || []));
+    }
+  }, [hasDb]);
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
@@ -121,8 +144,11 @@ function FacultyPortal({ session, userMeta, permissions }) {
           <p className="text-xs text-slate-400 mt-1">{userMeta?.custom_role_name || 'Faculty Portal'}</p>
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
-          {hasRiskReportsPerm && (
-            <SidebarItem id="risk" icon={ShieldAlert} label="Risk Reports" active={currentTab === 'risk'} onClick={() => navigate('/faculty/risk')} />
+          {hasRisk && (
+            <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/faculty/risk')} />
+          )}
+          {hasDb && (
+            <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/faculty/databases')} />
           )}
           
           <div className="pt-4 mt-auto pb-4">
@@ -137,10 +163,26 @@ function FacultyPortal({ session, userMeta, permissions }) {
       <main className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible">
         <div className="max-w-6xl mx-auto h-full flex flex-col">
           <Routes>
-            <Route path="/" element={<Navigate to={hasRiskReportsPerm ? "/faculty/risk" : "/faculty/welcome"} replace />} />
-            {hasRiskReportsPerm && (
-              <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={false} allowedSubTabs={['reports', 'dashboard']} />} />
+            <Route path="/" element={<Navigate to={hasRisk ? "/faculty/risk" : (hasDb ? "/faculty/databases" : "/faculty/welcome")} replace />} />
+            
+            {hasRisk && (
+              <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={false} allowedSubTabs={allowedRiskTabs} permissions={permissions} />} />
             )}
+            
+            {hasDb && (
+              <Route path="databases" element={
+                <PageContainer title="Databases" description="Manage core system records" activeSubTab={dbSubTab} setActiveSubTab={setDbSubTab} tabs={[
+                  ...(allowedDbTabs.includes('faculty') ? [{ id: 'faculty', label: 'Faculty & Staff' }] : []),
+                  ...(allowedDbTabs.includes('students') ? [{ id: 'students', label: 'Students' }] : []),
+                  ...(allowedDbTabs.includes('courses') ? [{ id: 'courses', label: 'Courses' }] : [])
+                ]}>
+                  {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} isReadOnly={!permissions.some(p => p.module_name === 'db_faculty' && p.can_edit)} />}
+                  {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} />}
+                  {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} />}
+                </PageContainer>
+              } />
+            )}
+
             <Route path="welcome" element={
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">

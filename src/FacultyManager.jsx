@@ -9,8 +9,7 @@ export const FACULTY_FIELDS = [
   { key: 'college', label: 'College', group: 'Basic Info' },
   { key: 'dept', label: 'Dept', group: 'Basic Info' },
   { key: 'email', label: 'Email', group: 'Basic Info' },
-  { key: 'role', label: 'System Role', group: 'Basic Info', type: 'select', options: [{value: "faculty", label: "Faculty"}, {value: "academic_admin", label: "Academic Admin"}, {value: "technical_admin", label: "Technical Admin"}] },
-  { key: 'custom_role_id', label: 'Custom Staff Role (RBAC)', group: 'Basic Info', type: 'select', options: [] }, // Options injected dynamically
+  { key: 'custom_role_id', label: 'Role', group: 'Basic Info', type: 'select', options: [] }, // Options injected dynamically
 
   { key: 'active', label: 'Active', group: 'Employment', type: 'select', options: [{value: "Yes", label: "Yes"}, {value: "No", label: "No"}] },
   { key: 'designation', label: 'Designation', group: 'Employment' },
@@ -51,7 +50,7 @@ export const FACULTY_FIELDS = [
   { key: 'specialty', label: 'Specialty', group: 'Medical / Clinical' }
 ];
 
-export const FacultyManager = ({ faculty, setFaculty }) => {
+export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -211,16 +210,24 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
               className="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-64"
             />
           </div>
-          <button onClick={handleDownloadTemplate} className="px-3 py-2 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center text-sm font-medium">
-            <Download size={16} className="mr-1.5" /> Template
-          </button>
-          <label className="px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center text-sm font-medium cursor-pointer">
-            <Upload size={16} className="mr-1.5" /> Import
-            <input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
-          </label>
-          <button onClick={() => openForm()} className="px-3 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center text-sm font-medium">
-            <Plus size={16} className="mr-1.5" /> Add New
-          </button>
+          <div className="flex gap-3 mt-4 md:mt-0">
+              <button onClick={handleDownloadTemplate} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm text-sm">
+                <Download size={16} /> Template
+              </button>
+              
+              {!isReadOnly && (
+                <>
+                  <button onClick={() => fileInputRef.current.click()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm text-sm">
+                    <Upload size={16} /> Import
+                  </button>
+                  <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx,.xls" className="hidden" />
+
+                  <button onClick={() => { setForm(initialForm); setEditingId(null); setIsModalOpen(true); }} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm text-sm">
+                    <Plus size={16} /> Add Staff
+                  </button>
+                </>
+              )}
+            </div>
         </div>
       </div>
 
@@ -235,7 +242,7 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
                 <th className="p-3">Designation</th>
                 <th className="p-3">College / Dept</th>
                 <th className="p-3">Status</th>
-                <th className="p-3 text-right pr-4">Actions</th>
+                {!isReadOnly && <th className="p-3 text-right pr-4">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -255,12 +262,14 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
                       {f.active || 'Unknown'}
                     </span>
                   </td>
-                  <td className="p-3 pr-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                       <button onClick={() => openForm(f)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><Pencil size={16} /></button>
-                       <button onClick={() => handleDelete(f.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={16} /></button>
-                    </div>
-                  </td>
+                  {!isReadOnly && (
+                    <td className="p-3 pr-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                         <button onClick={() => openForm(f)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><Pencil size={16} /></button>
+                         <button onClick={() => handleDelete(f.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
               {filteredFaculty.length === 0 && (

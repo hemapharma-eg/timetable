@@ -58,7 +58,7 @@ const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab
   </div>
 );
 
-export function RiskManagement({ session, userMeta, isTechAdmin }) {
+export function RiskManagement({ session, userMeta, isTechAdmin, allowedSubTabs, permissions }) {
   const [activeSubTab, setActiveSubTab] = useState('dashboard');
   const [categories, setCategories] = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
@@ -94,7 +94,7 @@ export function RiskManagement({ session, userMeta, isTechAdmin }) {
 
   useEffect(() => { fetchCategories(); fetchAcademicYears(); }, []);
 
-  const tabs = [
+  const allTabs = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'new_risk', label: 'Report a Risk' },
     { id: 'register', label: 'Risk Register' },
@@ -106,6 +106,14 @@ export function RiskManagement({ session, userMeta, isTechAdmin }) {
     ] : [])
   ];
 
+  const tabs = isTechAdmin ? allTabs : allTabs.filter(t => allowedSubTabs && allowedSubTabs.includes(t.id));
+
+  useEffect(() => {
+    if (!isTechAdmin && allowedSubTabs && !allowedSubTabs.includes(activeSubTab) && allowedSubTabs.length > 0) {
+      setActiveSubTab(allowedSubTabs[0]);
+    }
+  }, [allowedSubTabs, activeSubTab, isTechAdmin]);
+
   return (
     <PageContainer
       title="Risk Management"
@@ -116,7 +124,7 @@ export function RiskManagement({ session, userMeta, isTechAdmin }) {
     >
       {activeSubTab === 'dashboard' && <DashboardView categories={categories} />}
       {activeSubTab === 'new_risk' && <NewRiskForm onSuccess={() => setActiveSubTab('register')} session={session} categories={categories} />}
-      {activeSubTab === 'register' && <RiskRegister isTechAdmin={isTechAdmin} categories={categories} />}
+      {activeSubTab === 'register' && <RiskRegister isTechAdmin={isTechAdmin} permissions={permissions} categories={categories} />}
       {activeSubTab === 'reports' && <RiskReportsView academicYears={academicYears} />}
       {activeSubTab === 'categories' && isTechAdmin && <CategoriesManager categories={categories} onRefresh={fetchCategories} />}
       {activeSubTab === 'years' && isTechAdmin && <AcademicYearsManager years={academicYears} onRefresh={fetchAcademicYears} />}
@@ -315,8 +323,9 @@ function NewRiskForm({ onSuccess, session, categories }) {
 }
 
 // --- Risk Register (List View) ---
-function RiskRegister({ isTechAdmin, categories }) {
+function RiskRegister({ isTechAdmin, permissions, categories }) {
   const [risks, setRisks] = useState([]);
+  const canEdit = isTechAdmin || (permissions && permissions.some(p => p.module_name === 'risk_register' && p.can_edit));
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -421,7 +430,7 @@ function RiskRegister({ isTechAdmin, categories }) {
               <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
               <input type="text" placeholder="Search risks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full md:w-64 text-sm outline-none" />
             </div>
-            {isTechAdmin && (
+            {canEdit && (
               <>
                 <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors" title="Export to Excel">
                   <Download size={16} /> Export
@@ -443,7 +452,7 @@ function RiskRegister({ isTechAdmin, categories }) {
                 <th className="p-4 font-semibold">Risk Title</th>
                 <th className="p-4 font-semibold">Category</th>
                 <th className="p-4 font-semibold hidden md:table-cell">Owner</th>
-                {isTechAdmin && <th className="p-4 font-semibold text-right">Actions</th>}
+                {canEdit && <th className="p-4 font-semibold text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -458,7 +467,7 @@ function RiskRegister({ isTechAdmin, categories }) {
                     <td className="p-4"><p className="font-medium text-slate-800">{risk.Risk_Title}</p></td>
                     <td className="p-4 hidden md:table-cell text-sm text-slate-600">{risk.Category}</td>
                     <td className="p-4 hidden md:table-cell text-sm text-slate-600">{risk.Risk_Owner || '-'}</td>
-                    {isTechAdmin && (
+                    {canEdit && (
                       <td className="p-4 text-right space-x-2 whitespace-nowrap">
                         <button onClick={() => setManagingKRIsFor(risk)} className="text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg transition-colors" title="Manage KRIs"><Target size={18} /></button>
                         <button onClick={() => setEditingRisk(risk)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors" title="Edit Risk"><Edit size={18} /></button>
