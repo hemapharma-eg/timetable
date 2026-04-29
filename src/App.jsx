@@ -1074,7 +1074,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
-      <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
+      <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 print:hidden">
         <div className="p-6">
           <h1 className="text-2xl font-bold tracking-tight text-white flex items-center">
             <Calendar className="mr-2 text-indigo-400" /> DMU <span className="text-indigo-400 font-light">QA Hub</span>
@@ -1105,7 +1105,7 @@ export default function App() {
         </nav>
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-8">
+      <main className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible">
         <div className="max-w-6xl mx-auto h-full flex flex-col">
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'scheduling' && renderSchedulingTab()}

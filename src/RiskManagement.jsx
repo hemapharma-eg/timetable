@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShieldAlert, PlusCircle, List as ListIcon, 
   Search, AlertTriangle, CheckCircle, Clock,
   Activity, BookOpen, Stethoscope, Briefcase,
-  Edit, Trash2, X, Target, Download, Share2, Printer, Tags
+  Edit, Trash2, X, Target, Download, Share2, Printer, Tags, Upload
 } from 'lucide-react';
 import { supabase } from './supabase';
+import * as XLSX from 'xlsx';
 
 // ============================================================================
 // MOCK DATA (Fallback for UI Preview)
@@ -136,9 +137,8 @@ function DashboardView({ categories }) {
   return (
     <div className="space-y-6">
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <StatCard title="Total Risks Logged" value={stats.total} icon={<ListIcon className="text-blue-500 w-8 h-8" />} bg="bg-blue-50" />
-        <StatCard title="High/Critical Severity" value={stats.high} icon={<AlertTriangle className="text-red-500 w-8 h-8" />} bg="bg-red-50" />
         <StatCard title="Clinical Risks" value={stats.clinical} icon={<Stethoscope className="text-emerald-500 w-8 h-8" />} bg="bg-emerald-50" />
       </div>
 
@@ -151,16 +151,7 @@ function DashboardView({ categories }) {
         <p className="text-slate-600 mb-4 leading-relaxed">
           The DMU QA Hub Risk Management Plan ensures systematic identification, assessment, and mitigation of risks. All faculty and staff are required to report identified risks using the framework below.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-          <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-            <h4 className="font-semibold text-slate-700 mb-2">Severity Rubric</h4>
-            <ul className="text-sm text-slate-600 space-y-1 list-disc pl-4">
-              <li><span className="font-medium text-red-600">Critical:</span> Immediate action required. Board level visibility.</li>
-              <li><span className="font-medium text-orange-500">High:</span> Senior management attention needed.</li>
-              <li><span className="font-medium text-yellow-600">Medium:</span> Manageable through standard controls.</li>
-              <li><span className="font-medium text-green-600">Low:</span> Routine monitoring required.</li>
-            </ul>
-          </div>
+        <div className="grid grid-cols-1 gap-4 mt-6">
           <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
             <h4 className="font-semibold text-slate-700 mb-2">Primary Categories</h4>
             <ul className="text-sm text-slate-600 space-y-1 list-disc pl-4">
@@ -222,10 +213,6 @@ function RiskFormFields({ formData, handleChange, categories = [] }) {
           <input type="text" name="Risk_Owner" value={formData.Risk_Owner || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Reporter</label>
-          <input type="text" name="Risk_Reporter" value={formData.Risk_Reporter || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
-        </div>
-        <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Impact (Numeric)</label>
           <input type="number" name="Impact" value={formData.Impact || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
         </div>
@@ -252,17 +239,6 @@ function RiskFormFields({ formData, handleChange, categories = [] }) {
           <textarea name="Existing_Internal_control_" rows="3" value={formData.Existing_Internal_control_ || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></textarea>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-        <div>
-           <label className="block text-sm font-semibold text-slate-700 mb-1">Severity / Rubric Level</label>
-           <select name="Rubrics" value={formData.Rubrics || 'Medium'} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white outline-none">
-            <option value="Low">Low (Routine)</option>
-            <option value="Medium">Medium (Manageable)</option>
-            <option value="High">High (Serious impact)</option>
-            <option value="Critical">Critical (Immediate action)</option>
-          </select>
-        </div>
-      </div>
     </div>
   );
 }
@@ -271,8 +247,8 @@ function NewRiskForm({ onSuccess, session, categories }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ 
     Risk_No: '', Risk_Title: '', Category: '', Risk_Causes: '', 
-    Risk_Consequences_: '', Existing_Internal_control_: '', Rubrics: 'Medium',
-    Risk_Owner: '', Risk_Reporter: '', Impact: '', Appetite: '', Mitigating_Actions: ''
+    Risk_Consequences_: '', Existing_Internal_control_: '',
+    Risk_Owner: '', Impact: '', Appetite: '', Mitigating_Actions: ''
   });
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -356,17 +332,64 @@ function RiskRegister({ isTechAdmin, categories }) {
     }
   };
 
-  const filteredRisks = risks.filter(r => r.Risk_Title.toLowerCase().includes(searchTerm.toLowerCase()) || r.Category.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredRisks = risks.filter(r => r.Risk_Title.toLowerCase().includes(searchTerm.toLowerCase()) || (r.Category || '').toLowerCase().includes(searchTerm.toLowerCase()));
   const sortedRisks = [...filteredRisks].sort((a, b) => (a.Risk_No || '').localeCompare(b.Risk_No || '', undefined, { numeric: true }));
 
-  const getSeverityBadge = (level) => {
-    switch(level) {
-      case 'Critical': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700">Critical</span>;
-      case 'High': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-700">High</span>;
-      case 'Medium': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700">Medium</span>;
-      case 'Low': return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700">Low</span>;
-      default: return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">{level}</span>;
-    }
+  // --- Excel Export ---
+  const handleExportExcel = () => {
+    const exportData = risks.map(r => ({
+      Risk_No: r.Risk_No || '',
+      Risk_Title: r.Risk_Title || '',
+      Category: r.Category || '',
+      Risk_Owner: r.Risk_Owner || '',
+      Impact: r.Impact || '',
+      Appetite: r.Appetite || '',
+      Risk_Causes: r.Risk_Causes || '',
+      Risk_Consequences: r.Risk_Consequences_ || '',
+      Existing_Controls: r.Existing_Internal_control_ || '',
+      Mitigating_Actions: r.Mitigating_Actions || ''
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Risk Register');
+    XLSX.writeFile(wb, 'Risk_Management_Plan.xlsx');
+  };
+
+  // --- Excel Import ---
+  const fileInputRef = useRef(null);
+  const handleImportExcel = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws);
+        if (rows.length === 0) { alert('No data found in the file.'); return; }
+        const mapped = rows.map(r => ({
+          Risk_No: r.Risk_No || r['Risk No'] || '',
+          Risk_Title: r.Risk_Title || r['Risk Title'] || '',
+          Category: r.Category || '',
+          Risk_Owner: r.Risk_Owner || r['Risk Owner'] || '',
+          Impact: r.Impact ? Number(r.Impact) : null,
+          Appetite: r.Appetite ? Number(r.Appetite) : null,
+          Risk_Causes: r.Risk_Causes || r['Risk Causes'] || '',
+          Risk_Consequences_: r.Risk_Consequences || r.Risk_Consequences_ || '',
+          Existing_Internal_control_: r.Existing_Controls || r.Existing_Internal_control_ || '',
+          Mitigating_Actions: r.Mitigating_Actions || r['Mitigating Actions'] || ''
+        }));
+        if (!window.confirm(`Import ${mapped.length} risks from Excel? This will ADD them to the existing register.`)) return;
+        const { error } = await supabase.from('risk_management_plan').insert(mapped);
+        if (error) throw error;
+        alert(`Successfully imported ${mapped.length} risks!`);
+        fetchRisks();
+      } catch (err) {
+        alert('Import error: ' + (err.message || 'Unknown'));
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
   };
 
   return (
@@ -374,9 +397,22 @@ function RiskRegister({ isTechAdmin, categories }) {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
         <div className="p-4 md:p-6 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h3 className="text-lg font-semibold text-slate-800">Identified Risks</h3>
-          <div className="relative">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-            <input type="text" placeholder="Search risks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full md:w-64 text-sm outline-none" />
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative">
+              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+              <input type="text" placeholder="Search risks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full md:w-64 text-sm outline-none" />
+            </div>
+            {isTechAdmin && (
+              <>
+                <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors" title="Export to Excel">
+                  <Download size={16} /> Export
+                </button>
+                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors" title="Import from Excel">
+                  <Upload size={16} /> Import
+                </button>
+                <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportExcel} />
+              </>
+            )}
           </div>
         </div>
 
@@ -387,24 +423,22 @@ function RiskRegister({ isTechAdmin, categories }) {
                 <th className="p-4 font-semibold">No.</th>
                 <th className="p-4 font-semibold">Risk Title</th>
                 <th className="p-4 font-semibold">Category</th>
-                <th className="p-4 font-semibold">Severity</th>
-                <th className="p-4 font-semibold hidden md:table-cell">Reporter</th>
+                <th className="p-4 font-semibold hidden md:table-cell">Owner</th>
                 {isTechAdmin && <th className="p-4 font-semibold text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan="6" className="p-8 text-center text-slate-500">Loading records...</td></tr>
+                <tr><td colSpan="5" className="p-8 text-center text-slate-500">Loading records...</td></tr>
               ) : sortedRisks.length === 0 ? (
-                <tr><td colSpan="6" className="p-8 text-center text-slate-500">No risks found.</td></tr>
+                <tr><td colSpan="5" className="p-8 text-center text-slate-500">No risks found.</td></tr>
               ) : (
                 sortedRisks.map((risk) => (
                   <tr key={risk.id} className="hover:bg-slate-50 transition-colors">
                     <td className="p-4 font-bold text-slate-600">{risk.Risk_No || '-'}</td>
                     <td className="p-4"><p className="font-medium text-slate-800">{risk.Risk_Title}</p></td>
                     <td className="p-4 hidden md:table-cell text-sm text-slate-600">{risk.Category}</td>
-                    <td className="p-4">{getSeverityBadge(risk.Rubrics)}</td>
-                    <td className="p-4 hidden md:table-cell text-sm text-slate-600">{risk.Reporter_Email}</td>
+                    <td className="p-4 hidden md:table-cell text-sm text-slate-600">{risk.Risk_Owner || '-'}</td>
                     {isTechAdmin && (
                       <td className="p-4 text-right space-x-2 whitespace-nowrap">
                         <button onClick={() => setManagingKRIsFor(risk)} className="text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg transition-colors" title="Manage KRIs"><Target size={18} /></button>
@@ -995,7 +1029,6 @@ export function RiskReportsView({ initialYear }) {
                       <h3 className="text-lg font-bold text-slate-800">{risk.Risk_No ? `${risk.Risk_No}: ` : ''}{risk.Risk_Title}</h3>
                       <div className="text-sm text-slate-500 mt-1 flex gap-4">
                         <span><strong className="text-slate-700">Owner:</strong> {risk.Risk_Owner || 'N/A'}</span>
-                        <span><strong className="text-slate-700">Reporter:</strong> {risk.Risk_Reporter || 'N/A'}</span>
                         <span><strong className="text-slate-700">Category:</strong> {risk.Category}</span>
                       </div>
                     </div>
