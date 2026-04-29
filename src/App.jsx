@@ -208,7 +208,6 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        setLoading(true);
         fetchRoleAndData(session.user.id, session.user.email);
       } else {
         setAppRole(null);
