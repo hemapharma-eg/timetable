@@ -558,10 +558,11 @@ function KRIManagementModal({ risk, onClose }) {
       
       if (kData.length > 0) {
         const kriIds = kData.map(k => k.id);
-        const { data: vData, error: vErr } = await supabase.from('risk_kri_values').select('*').in('kri_id', kriIds);
+        const [ { data: vData, error: vErr }, { data: rData, error: rErr } ] = await Promise.all([
+          supabase.from('risk_kri_values').select('*').in('kri_id', kriIds),
+          supabase.from('kri_rubrics').select('*').in('kri_id', kriIds)
+        ]);
         if (!vErr) setValues(vData);
-
-        const { data: rData, error: rErr } = await supabase.from('kri_rubrics').select('*').in('kri_id', kriIds);
         if (!rErr) setRubrics(rData);
       }
     } catch (e) {
@@ -1115,11 +1116,19 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
   const fetchReport = async (year) => {
     setLoading(true);
     try {
-      const { data: rData, error: rErr } = await supabase.from('risk_management_plan').select('*');
-      const { data: kData, error: kErr } = await supabase.from('risk_kris').select('*');
-      const { data: vData, error: vErr } = await supabase.from('risk_kri_values').select('*').eq('academic_year', year);
-      const { data: rubData } = await supabase.from('kri_rubrics').select('*');
-      const { data: mapData } = await supabase.from('risk_year_mapping').select('risk_id').eq('academic_year', year);
+      const [
+        { data: rData, error: rErr },
+        { data: kData, error: kErr },
+        { data: vData, error: vErr },
+        { data: rubData },
+        { data: mapData }
+      ] = await Promise.all([
+        supabase.from('risk_management_plan').select('*'),
+        supabase.from('risk_kris').select('*'),
+        supabase.from('risk_kri_values').select('*').eq('academic_year', year),
+        supabase.from('kri_rubrics').select('*'),
+        supabase.from('risk_year_mapping').select('risk_id').eq('academic_year', year)
+      ]);
       if (rErr || kErr || vErr) throw new Error("DB Error");
       // If mappings exist for this year, filter risks; else show all
       const mappedIds = (mapData || []).map(m => m.risk_id);
@@ -1133,10 +1142,15 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
   const fetchTrend = async (riskId) => {
     setLoading(true);
     try {
-      const { data: rData } = await supabase.from('risk_management_plan').select('*').eq('id', riskId).single();
-      const { data: kData } = await supabase.from('risk_kris').select('*').eq('risk_id', riskId);
-      const { data: allVals } = await supabase.from('risk_kri_values').select('*').in('kri_id', (kData || []).map(k => k.id));
-      const { data: rubData } = await supabase.from('kri_rubrics').select('*').in('kri_id', (kData || []).map(k => k.id));
+      const [ { data: rData }, { data: kData } ] = await Promise.all([
+        supabase.from('risk_management_plan').select('*').eq('id', riskId).single(),
+        supabase.from('risk_kris').select('*').eq('risk_id', riskId)
+      ]);
+      const kriIds = (kData || []).map(k => k.id);
+      const [ { data: allVals }, { data: rubData } ] = await Promise.all([
+        kriIds.length > 0 ? supabase.from('risk_kri_values').select('*').in('kri_id', kriIds) : { data: [] },
+        kriIds.length > 0 ? supabase.from('kri_rubrics').select('*').in('kri_id', kriIds) : { data: [] }
+      ]);
       const trend = academicYears.map(yr => {
         const yearVals = (allVals || []).filter(v => v.academic_year === yr);
         let maxL = 0;
