@@ -177,8 +177,8 @@ function FacultyPortal({ session, userMeta, permissions }) {
                   ...(allowedDbTabs.includes('courses') ? [{ id: 'courses', label: 'Courses' }] : [])
                 ]}>
                   {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} isReadOnly={!permissions.some(p => p.module_name === 'db_faculty' && p.can_edit)} />}
-                  {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} />}
-                  {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} />}
+                  {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} isReadOnly={!permissions.some(p => p.module_name === 'db_students' && p.can_edit)} />}
+                  {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} isReadOnly={!permissions.some(p => p.module_name === 'db_courses' && p.can_edit)} />}
                 </PageContainer>
               } />
             )}

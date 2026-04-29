@@ -430,11 +430,11 @@ function RiskRegister({ isTechAdmin, permissions, categories }) {
               <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
               <input type="text" placeholder="Search risks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full md:w-64 text-sm outline-none" />
             </div>
-            {canEdit && (
-              <>
-                <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors" title="Export to Excel">
+            <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors" title="Export to Excel">
                   <Download size={16} /> Export
                 </button>
+            {canEdit && (
+              <>
                 <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors" title="Import from Excel">
                   <Upload size={16} /> Import
                 </button>
@@ -1116,26 +1116,36 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
   const fetchReport = async (year) => {
     setLoading(true);
     try {
-      const [
-        { data: rData, error: rErr },
-        { data: kData, error: kErr },
-        { data: vData, error: vErr },
-        { data: rubData },
-        { data: mapData }
-      ] = await Promise.all([
-        supabase.from('risk_management_plan').select('*'),
-        supabase.from('risk_kris').select('*'),
-        supabase.from('risk_kri_values').select('*').eq('academic_year', year),
-        supabase.from('kri_rubrics').select('*'),
-        supabase.from('risk_year_mapping').select('risk_id').eq('academic_year', year)
+      // Fetch each table individually to handle RLS restrictions gracefully
+      const safeQuery = async (table, query) => {
+        try {
+          const result = await query;
+          if (result.error) {
+            console.warn(`RLS/query issue on ${table}:`, result.error.message);
+            return [];
+          }
+          return result.data || [];
+        } catch (e) {
+          console.warn(`Failed to fetch ${table}:`, e.message);
+          return [];
+        }
+      };
+
+      const [rData, kData, vData, rubData, mapData] = await Promise.all([
+        safeQuery('risk_management_plan', supabase.from('risk_management_plan').select('*')),
+        safeQuery('risk_kris', supabase.from('risk_kris').select('*')),
+        safeQuery('risk_kri_values', supabase.from('risk_kri_values').select('*').eq('academic_year', year)),
+        safeQuery('kri_rubrics', supabase.from('kri_rubrics').select('*')),
+        safeQuery('risk_year_mapping', supabase.from('risk_year_mapping').select('risk_id').eq('academic_year', year))
       ]);
-      if (rErr || kErr || vErr) throw new Error("DB Error");
+
       // If mappings exist for this year, filter risks; else show all
-      const mappedIds = (mapData || []).map(m => m.risk_id);
-      const filteredRisks = mappedIds.length > 0 ? (rData || []).filter(r => mappedIds.includes(r.id)) : (rData || []);
+      const mappedIds = mapData.map(m => m.risk_id);
+      const filteredRisks = mappedIds.length > 0 ? rData.filter(r => mappedIds.includes(r.id)) : rData;
       setReportData(assembleData(filteredRisks, kData, vData, rubData, year));
     } catch(e) {
-      setReportData(assembleData(mockRisks, mockKRIs, mockKRIValues.filter(v => v.academic_year === year), mockKRIRubrics, year));
+      console.error('fetchReport critical error:', e);
+      setReportData([]);
     } finally { setLoading(false); }
   };
 

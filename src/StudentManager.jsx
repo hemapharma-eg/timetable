@@ -111,7 +111,7 @@ export const STUDENT_FIELDS = [
   { key: 'attrition_submission', label: 'Attrition Submission', group: 'Graduation / Attrition' }
 ];
 
-export const StudentManager = ({ students, setStudents }) => {
+export const StudentManager = ({ students, setStudents, isReadOnly = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -250,13 +250,17 @@ export const StudentManager = ({ students, setStudents }) => {
           <button onClick={handleDownloadTemplate} className="px-3 py-2 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center text-sm font-medium">
             <Download size={16} className="mr-1.5" /> Template
           </button>
-          <label className="px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center text-sm font-medium cursor-pointer">
-            <Upload size={16} className="mr-1.5" /> Import
-            <input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
-          </label>
-          <button onClick={() => openForm()} className="px-3 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center text-sm font-medium">
-            <Plus size={16} className="mr-1.5" /> Add New
-          </button>
+          {!isReadOnly && (
+            <>
+              <label className="px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center text-sm font-medium cursor-pointer">
+                <Upload size={16} className="mr-1.5" /> Import
+                <input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+              </label>
+              <button onClick={() => openForm()} className="px-3 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center text-sm font-medium">
+                <Plus size={16} className="mr-1.5" /> Add New
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -270,8 +274,8 @@ export const StudentManager = ({ students, setStudents }) => {
                 <th className="p-3">Program</th>
                 <th className="p-3">Major</th>
                 <th className="p-3">GPA</th>
-                <th className="p-3">Mentor</th>
-                <th className="p-3 text-right pr-4">Actions</th>
+                <th className="p-3">Academic Year</th>
+                {!isReadOnly && <th className="p-3 text-right pr-4">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -290,20 +294,24 @@ export const StudentManager = ({ students, setStudents }) => {
                        </span>
                      ) : '-'}
                   </td>
-                  <td className="p-3 text-sm text-slate-500">
-                    {s.mentor_name || '-'}
+                  <td className="p-3">
+                    <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-medium border border-slate-200">
+                      {s.enroll_academic_year || 'Unknown'}
+                    </span>
                   </td>
-                  <td className="p-3 pr-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                       <button onClick={() => openForm(s)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><Pencil size={16} /></button>
-                       <button onClick={() => setStudents(students.filter(x => x.id !== s.id))} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={16} /></button>
-                    </div>
-                  </td>
+                  {!isReadOnly && (
+                    <td className="p-3 pr-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                         <button onClick={() => openForm(s)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><Pencil size={16} /></button>
+                         <button onClick={() => setStudents(students.filter(x => x.id !== s.id))} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
               {filteredStudents.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="p-8 text-center text-slate-500">
+                  <td colSpan={isReadOnly ? 5 : 6} className="p-8 text-center text-slate-500">
                     No students found in the database.
                   </td>
                 </tr>
