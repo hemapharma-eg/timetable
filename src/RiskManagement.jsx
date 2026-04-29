@@ -61,6 +61,7 @@ const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab
 export function RiskManagement({ session, userMeta, isTechAdmin }) {
   const [activeSubTab, setActiveSubTab] = useState('dashboard');
   const [categories, setCategories] = useState([]);
+  const [academicYears, setAcademicYears] = useState([]);
 
   const fetchCategories = async () => {
     try {
@@ -70,25 +71,39 @@ export function RiskManagement({ session, userMeta, isTechAdmin }) {
     } catch (e) {
       console.warn('Using fallback categories:', e.message);
       setCategories([
-        { id: '1', value: 'Academic', label: 'Academic & Research', sort_order: 1 },
-        { id: '2', value: 'Clinical', label: 'Clinical Operations', sort_order: 2 },
-        { id: '3', value: 'Compliance', label: 'Compliance & Legal', sort_order: 3 },
-        { id: '4', value: 'Financial', label: 'Financial', sort_order: 4 },
-        { id: '5', value: 'IT', label: 'IT & Cybersecurity', sort_order: 5 },
-        { id: '6', value: 'Operational', label: 'Operational / Facilities', sort_order: 6 },
-        { id: '7', value: 'Strategic', label: 'Strategic', sort_order: 7 },
+        { id: '1', value: 'C01', label: 'Academic & Research', sort_order: 1 },
+        { id: '2', value: 'C02', label: 'Clinical Operations', sort_order: 2 },
+        { id: '3', value: 'C03', label: 'Compliance & Legal', sort_order: 3 },
+        { id: '4', value: 'C04', label: 'Financial', sort_order: 4 },
+        { id: '5', value: 'C05', label: 'IT & Cybersecurity', sort_order: 5 },
+        { id: '6', value: 'C06', label: 'Operational / Facilities', sort_order: 6 },
+        { id: '7', value: 'C07', label: 'Strategic', sort_order: 7 },
       ]);
     }
   };
 
-  useEffect(() => { fetchCategories(); }, []);
+  const fetchAcademicYears = async () => {
+    try {
+      const { data, error } = await supabase.from('academic_years').select('*').order('sort_order');
+      if (error) throw error;
+      setAcademicYears(data || []);
+    } catch (e) {
+      setAcademicYears([{ id:'1',label:'2023-2024',sort_order:1 },{ id:'2',label:'2024-2025',sort_order:2 },{ id:'3',label:'2025-2026',sort_order:3 }]);
+    }
+  };
+
+  useEffect(() => { fetchCategories(); fetchAcademicYears(); }, []);
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'new_risk', label: 'Report a Risk' },
     { id: 'register', label: 'Risk Register' },
     { id: 'reports', label: 'Yearly Reports' },
-    ...(isTechAdmin ? [{ id: 'categories', label: 'Manage Categories' }] : [])
+    ...(isTechAdmin ? [
+      { id: 'categories', label: 'Manage Categories' },
+      { id: 'years', label: 'Academic Years' },
+      { id: 'mapping', label: 'Risk-Year Mapping' }
+    ] : [])
   ];
 
   return (
@@ -102,8 +117,10 @@ export function RiskManagement({ session, userMeta, isTechAdmin }) {
       {activeSubTab === 'dashboard' && <DashboardView categories={categories} />}
       {activeSubTab === 'new_risk' && <NewRiskForm onSuccess={() => setActiveSubTab('register')} session={session} categories={categories} />}
       {activeSubTab === 'register' && <RiskRegister isTechAdmin={isTechAdmin} categories={categories} />}
-      {activeSubTab === 'reports' && <RiskReportsView />}
+      {activeSubTab === 'reports' && <RiskReportsView academicYears={academicYears} />}
       {activeSubTab === 'categories' && isTechAdmin && <CategoriesManager categories={categories} onRefresh={fetchCategories} />}
+      {activeSubTab === 'years' && isTechAdmin && <AcademicYearsManager years={academicYears} onRefresh={fetchAcademicYears} />}
+      {activeSubTab === 'mapping' && isTechAdmin && <RiskYearMappingManager academicYears={academicYears} />}
     </PageContainer>
   );
 }
@@ -193,7 +210,10 @@ function RiskFormFields({ formData, handleChange, categories = [] }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Risk No.</label>
-          <input type="text" name="Risk_No" placeholder="e.g. R1" value={formData.Risk_No || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+          <select name="Risk_No" value={formData.Risk_No || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white outline-none">
+            <option value="">Select...</option>
+            {Array.from({length:30},(_,i)=>{ const v=`R${String(i+1).padStart(2,'0')}`; return <option key={v} value={v}>{v}</option>; })}
+          </select>
         </div>
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Title <span className="text-red-500">*</span></label>
@@ -204,7 +224,7 @@ function RiskFormFields({ formData, handleChange, categories = [] }) {
           <select name="Category" required value={formData.Category || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white outline-none">
             <option value="">Select Category...</option>
             {categories.map(c => (
-              <option key={c.id} value={c.value}>{c.label}</option>
+              <option key={c.id} value={c.value}>{c.value} — {c.label}</option>
             ))}
           </select>
         </div>
@@ -610,6 +630,39 @@ function KRIManagementModal({ risk, onClose }) {
     }
   };
 
+  const handleEditKRIName = async (kriId, newName) => {
+    if (!newName.trim()) return;
+    try {
+      await supabase.from('risk_kris').update({ indicator_name: newName }).eq('id', kriId);
+      fetchKRIs();
+    } catch(e) { console.warn(e); }
+  };
+
+  const handleEditRubric = async (rubricId, newVal, newLikelihood) => {
+    try {
+      await supabase.from('kri_rubrics').update({ rubric_value: newVal, likelihood: Number(newLikelihood) }).eq('id', rubricId);
+      fetchKRIs();
+    } catch(e) { console.warn(e); }
+  };
+
+  const handleMoveRubric = async (kriId, idx, direction) => {
+    const kriRubs = rubrics.filter(r => r.kri_id === kriId).sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
+    if (direction === 'up' && idx === 0) return;
+    if (direction === 'down' && idx === kriRubs.length - 1) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    const a = kriRubs[idx], b = kriRubs[swapIdx];
+    try {
+      await supabase.from('kri_rubrics').update({ sort_order: b.sort_order || swapIdx }).eq('id', a.id);
+      await supabase.from('kri_rubrics').update({ sort_order: a.sort_order || idx }).eq('id', b.id);
+      fetchKRIs();
+    } catch(e) { console.warn(e); }
+  };
+
+  const [editingKriId, setEditingKriId] = useState(null);
+  const [editKriName, setEditKriName] = useState('');
+  const [editingRubricId, setEditingRubricId] = useState(null);
+  const [editRubricData, setEditRubricData] = useState({ val: '', likelihood: '' });
+
   const handleAddValue = async (e) => {
     e.preventDefault();
     if (!newValData.kri_id || !newValData.indicator_value) return;
@@ -665,21 +718,43 @@ function KRIManagementModal({ risk, onClose }) {
             <div className="mt-4 space-y-4">
               {kris.map(kri => {
                 const form = getRubricForm(kri.id);
+                const kriRubs = rubrics.filter(r => r.kri_id === kri.id).sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
                 return (
                 <div key={kri.id} className="p-4 bg-slate-50 rounded-lg border border-slate-100 flex flex-col gap-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-800">{kri.indicator_name}</span>
+                    {editingKriId === kri.id ? (
+                      <div className="flex gap-2 flex-1 mr-2">
+                        <input type="text" value={editKriName} onChange={e => setEditKriName(e.target.value)} className="flex-1 text-sm border rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500" />
+                        <button onClick={() => { handleEditKRIName(kri.id, editKriName); setEditingKriId(null); }} className="text-xs bg-indigo-600 text-white px-2 py-1 rounded">Save</button>
+                        <button onClick={() => setEditingKriId(null)} className="text-xs text-slate-500 px-2 py-1">Cancel</button>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-bold text-slate-800 cursor-pointer hover:text-indigo-600" onClick={() => { setEditingKriId(kri.id); setEditKriName(kri.indicator_name); }}>{kri.indicator_name} <Edit size={12} className="inline ml-1 text-slate-400" /></span>
+                    )}
                     <button onClick={() => handleDeleteKRI(kri.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16} /></button>
                   </div>
                   
                   <div className="pl-4 border-l-2 border-indigo-200">
                     <h4 className="text-xs font-semibold text-slate-600 mb-2">Rubric Rules</h4>
-                    {rubrics.filter(r => r.kri_id === kri.id).map(r => (
+                    {kriRubs.map((r, rIdx) => (
                       <div key={r.id} className="flex gap-2 items-center mb-1.5">
-                        <span className="text-xs bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-md font-medium text-indigo-800">{formatRubricDisplay(r.rubric_value)}</span>
-                        <span className="text-xs text-slate-400">→</span>
-                        <span className="text-xs bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md font-bold text-amber-800">Likelihood: {r.likelihood}</span>
-                        <button onClick={() => handleDeleteRubric(r.id)} className="text-red-400 hover:text-red-600 ml-1"><X size={14}/></button>
+                        {editingRubricId === r.id ? (
+                          <>
+                            <input value={editRubricData.val} onChange={e => setEditRubricData({...editRubricData, val: e.target.value})} className="text-xs border px-2 py-1 rounded w-28" />
+                            <input type="number" value={editRubricData.likelihood} onChange={e => setEditRubricData({...editRubricData, likelihood: e.target.value})} className="text-xs border px-2 py-1 rounded w-16" />
+                            <button onClick={() => { handleEditRubric(r.id, editRubricData.val, editRubricData.likelihood); setEditingRubricId(null); }} className="text-[10px] bg-indigo-600 text-white px-2 py-1 rounded">Save</button>
+                            <button onClick={() => setEditingRubricId(null)} className="text-[10px] text-slate-400">Cancel</button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-md font-medium text-indigo-800 cursor-pointer hover:bg-indigo-100" onClick={() => { setEditingRubricId(r.id); setEditRubricData({ val: r.rubric_value, likelihood: r.likelihood }); }}>{formatRubricDisplay(r.rubric_value)}</span>
+                            <span className="text-xs text-slate-400">→</span>
+                            <span className="text-xs bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md font-bold text-amber-800">Likelihood: {r.likelihood}</span>
+                            <button onClick={() => handleMoveRubric(kri.id, rIdx, 'up')} disabled={rIdx === 0} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 text-xs">↑</button>
+                            <button onClick={() => handleMoveRubric(kri.id, rIdx, 'down')} disabled={rIdx === kriRubs.length - 1} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 text-xs">↓</button>
+                            <button onClick={() => handleDeleteRubric(r.id)} className="text-red-400 hover:text-red-600 ml-1"><X size={14}/></button>
+                          </>
+                        )}
                       </div>
                     ))}
                     
@@ -999,8 +1074,10 @@ function CategoriesManager({ categories, onRefresh }) {
 }
 
 // --- Reports ---
-export function RiskReportsView({ initialYear }) {
-  const [selectedYear, setSelectedYear] = useState(initialYear || '2024-2025');
+export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
+  const defaultYears = ['2023-2024', '2024-2025', '2025-2026'];
+  const academicYears = (yearsFromProp && yearsFromProp.length > 0) ? yearsFromProp.map(y => y.label) : defaultYears;
+  const [selectedYear, setSelectedYear] = useState(initialYear || academicYears[academicYears.length - 1] || '2024-2025');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [reportData, setReportData] = useState([]);
@@ -1008,7 +1085,6 @@ export function RiskReportsView({ initialYear }) {
   const [viewMode, setViewMode] = useState('year'); // 'year' or 'trend'
   const [selectedRiskId, setSelectedRiskId] = useState(null);
   const [trendData, setTrendData] = useState([]);
-  const academicYears = ['2023-2024', '2024-2025', '2025-2026'];
 
   const assembleData = (rData, kData, vData, rubData, year) => {
     return rData.map(risk => {
@@ -1035,8 +1111,12 @@ export function RiskReportsView({ initialYear }) {
       const { data: kData, error: kErr } = await supabase.from('risk_kris').select('*');
       const { data: vData, error: vErr } = await supabase.from('risk_kri_values').select('*').eq('academic_year', year);
       const { data: rubData } = await supabase.from('kri_rubrics').select('*');
+      const { data: mapData } = await supabase.from('risk_year_mapping').select('risk_id').eq('academic_year', year);
       if (rErr || kErr || vErr) throw new Error("DB Error");
-      setReportData(assembleData(rData, kData, vData, rubData || [], year));
+      // If mappings exist for this year, filter risks; else show all
+      const mappedIds = (mapData || []).map(m => m.risk_id);
+      const filteredRisks = mappedIds.length > 0 ? rData.filter(r => mappedIds.includes(r.id)) : rData;
+      setReportData(assembleData(filteredRisks, kData, vData, rubData || [], year));
     } catch(e) {
       setReportData(assembleData(mockRisks, mockKRIs, mockKRIValues.filter(v => v.academic_year === year), mockKRIRubrics, year));
     } finally { setLoading(false); }
@@ -1114,7 +1194,7 @@ export function RiskReportsView({ initialYear }) {
           {viewMode === 'trend' && (
             <select value={selectedRiskId || ''} onChange={(e) => fetchTrend(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 min-w-[250px]">
               <option value="">Select Risk...</option>
-              {reportData.map(r => <option key={r.id} value={r.id}>{r.Risk_No ? `${r.Risk_No}: ` : ''}{r.Risk_Title}</option>)}
+              {[...reportData].sort((a,b) => (a.Risk_No||'').localeCompare(b.Risk_No||'', undefined, { numeric: true })).map(r => <option key={r.id} value={r.id}>{r.Risk_No ? `${r.Risk_No}: ` : ''}{r.Risk_Title}</option>)}
             </select>
           )}
         </div>
@@ -1330,6 +1410,149 @@ export function RiskReportsView({ initialYear }) {
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// --- Academic Years Manager (Admin Only) ---
+function AcademicYearsManager({ years, onRefresh }) {
+  const [newLabel, setNewLabel] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editLabel, setEditLabel] = useState('');
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!newLabel.trim()) return;
+    const maxOrder = years.length > 0 ? Math.max(...years.map(y => y.sort_order || 0)) : 0;
+    try {
+      await supabase.from('academic_years').insert([{ label: newLabel.trim(), sort_order: maxOrder + 1 }]);
+      setNewLabel('');
+      onRefresh();
+    } catch(e) { alert(e.message); }
+  };
+
+  const handleUpdate = async (id) => {
+    if (!editLabel.trim()) return;
+    try {
+      await supabase.from('academic_years').update({ label: editLabel.trim() }).eq('id', id);
+      setEditingId(null);
+      onRefresh();
+    } catch(e) { alert(e.message); }
+  };
+
+  const handleDelete = async (id, label) => {
+    if (!window.confirm(`Delete academic year "${label}"?`)) return;
+    try {
+      await supabase.from('academic_years').delete().eq('id', id);
+      onRefresh();
+    } catch(e) { alert(e.message); }
+  };
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 className="text-lg font-bold text-slate-800 mb-4">Manage Academic Years</h3>
+        <form onSubmit={handleAdd} className="flex gap-3 mb-6">
+          <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. 2026-2027" className="flex-1 px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
+          <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">Add Year</button>
+        </form>
+        <div className="space-y-2">
+          {years.map(y => (
+            <div key={y.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 group">
+              {editingId === y.id ? (
+                <div className="flex gap-2 flex-1 mr-2">
+                  <input value={editLabel} onChange={e => setEditLabel(e.target.value)} className="flex-1 px-3 py-1.5 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-indigo-500" />
+                  <button onClick={() => handleUpdate(y.id)} className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg">Save</button>
+                  <button onClick={() => setEditingId(null)} className="text-sm text-slate-500 px-3 py-1.5">Cancel</button>
+                </div>
+              ) : (
+                <>
+                  <span className="font-semibold text-slate-800">{y.label}</span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => { setEditingId(y.id); setEditLabel(y.label); }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded"><Edit size={15} /></button>
+                    <button onClick={() => handleDelete(y.id, y.label)} className="p-1.5 text-red-500 hover:bg-red-50 rounded"><Trash2 size={15} /></button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Risk-Year Mapping Manager (Admin Only) ---
+function RiskYearMappingManager({ academicYears }) {
+  const [risks, setRisks] = useState([]);
+  const [mappings, setMappings] = useState([]);
+  const [selectedYear, setSelectedYear] = useState(academicYears[0]?.label || '2024-2025');
+
+  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchMappings(); }, [selectedYear]);
+
+  const fetchData = async () => {
+    try {
+      const { data } = await supabase.from('risk_management_plan').select('id, Risk_No, Risk_Title');
+      setRisks((data || []).sort((a,b) => (a.Risk_No||'').localeCompare(b.Risk_No||'', undefined, { numeric: true })));
+    } catch(e) { setRisks([]); }
+  };
+
+  const fetchMappings = async () => {
+    try {
+      const { data } = await supabase.from('risk_year_mapping').select('*').eq('academic_year', selectedYear);
+      setMappings(data || []);
+    } catch(e) { setMappings([]); }
+  };
+
+  const isMapped = (riskId) => mappings.some(m => m.risk_id === riskId);
+
+  const toggleMapping = async (riskId) => {
+    if (isMapped(riskId)) {
+      await supabase.from('risk_year_mapping').delete().eq('risk_id', riskId).eq('academic_year', selectedYear);
+    } else {
+      await supabase.from('risk_year_mapping').insert([{ risk_id: riskId, academic_year: selectedYear }]);
+    }
+    fetchMappings();
+  };
+
+  const selectAll = async () => {
+    const unmapped = risks.filter(r => !isMapped(r.id));
+    if (unmapped.length === 0) return;
+    await supabase.from('risk_year_mapping').insert(unmapped.map(r => ({ risk_id: r.id, academic_year: selectedYear })));
+    fetchMappings();
+  };
+
+  const deselectAll = async () => {
+    await supabase.from('risk_year_mapping').delete().eq('academic_year', selectedYear);
+    fetchMappings();
+  };
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 className="text-lg font-bold text-slate-800 mb-2">Risk-Year Mapping</h3>
+        <p className="text-sm text-slate-500 mb-4">Select which risks are active for each academic year.</p>
+        
+        <div className="flex items-center gap-4 mb-6">
+          <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+            {academicYears.map(y => <option key={y.id} value={y.label}>{y.label}</option>)}
+          </select>
+          <button onClick={selectAll} className="text-sm px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100">Select All</button>
+          <button onClick={deselectAll} className="text-sm px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100">Deselect All</button>
+          <span className="text-sm text-slate-500">{mappings.length}/{risks.length} mapped</span>
+        </div>
+
+        <div className="space-y-1.5 max-h-[500px] overflow-y-auto">
+          {risks.map(r => (
+            <label key={r.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${isMapped(r.id) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+              <input type="checkbox" checked={isMapped(r.id)} onChange={() => toggleMapping(r.id)} className="w-4 h-4 text-indigo-600 rounded" />
+              <span className="font-bold text-slate-600 text-sm w-12">{r.Risk_No || '—'}</span>
+              <span className="text-sm text-slate-800">{r.Risk_Title}</span>
+            </label>
+          ))}
+        </div>
       </div>
     </div>
   );
