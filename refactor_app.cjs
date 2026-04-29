@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+const fs = require('fs');
+
+const appContent = `import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck } from 'lucide-react';
 import { FacultyManager } from './FacultyManager';
@@ -12,7 +14,7 @@ import { RiskManagement, PublicRiskReport } from './RiskManagement';
 const SidebarItem = ({ icon: Icon, label, path, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+    className={\`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors \${active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}\`}
   >
     <Icon size={20} />
     <span className="font-medium">{label}</span>
@@ -29,7 +31,7 @@ const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab
           <button
             key={tab.id}
             onClick={() => setActiveSubTab(tab.id)}
-            className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeSubTab === tab.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'}`}
+            className={\`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap \${activeSubTab === tab.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'}\`}
           >
             {tab.label}
           </button>
@@ -195,6 +197,7 @@ export default function App() {
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [authMode, setAuthMode] = useState('signIn');
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -220,7 +223,7 @@ export default function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, []);
 
   const fetchRoleAndData = async (userId, userEmail) => {
     try {
@@ -289,7 +292,7 @@ export default function App() {
   }
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center bg-slate-900 text-white font-sans">Loading...</div>;
+    return <div className="flex h-screen items-center justify-center bg-slate-900 text-white">Loading...</div>;
   }
 
   if (!session) {
@@ -345,3 +348,7 @@ export default function App() {
     </Routes>
   );
 }
+\`
+
+fs.writeFileSync('src/App.jsx', appContent, 'utf8');
+console.log('App.jsx completely refactored with Router and RBAC Portals.');

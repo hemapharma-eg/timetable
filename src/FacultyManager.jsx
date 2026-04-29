@@ -55,12 +55,28 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [activeTab, setActiveTab] = useState('Basic Info');
+  const [customRoles, setCustomRoles] = useState([]);
   
-  const initialForm = FACULTY_FIELDS.reduce((acc, f) => ({ ...acc, [f.key]: '' }), {});
+  useEffect(() => {
+    supabase.from('custom_roles').select('*').then(({ data }) => setCustomRoles(data || []));
+  }, []);
+
+  const dynamicFields = [...FACULTY_FIELDS];
+  // Add Custom Role field dynamically
+  const roleFieldIndex = dynamicFields.findIndex(f => f.key === 'role');
+  dynamicFields.splice(roleFieldIndex + 1, 0, {
+    key: 'custom_role_id',
+    label: 'Custom Staff Role (RBAC)',
+    group: 'Basic Info',
+    type: 'select',
+    options: customRoles.map(cr => ({ value: cr.id, label: cr.name }))
+  });
+
+  const initialForm = dynamicFields.reduce((acc, f) => ({ ...acc, [f.key]: '' }), {});
   const [form, setForm] = useState(initialForm);
   const fileInputRef = useRef(null);
 
-  const groups = [...new Set(FACULTY_FIELDS.map(f => f.group))];
+  const groups = [...new Set(dynamicFields.map(f => f.group))];
 
   const filteredFaculty = faculty.filter(f => 
     (f.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -110,7 +126,7 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
           if (!row || row.length === 0) continue;
           
           let item = { id: Date.now().toString() + i };
-          FACULTY_FIELDS.forEach((f) => {
+          dynamicFields.forEach((f) => {
             const hIdx = headers.indexOf(f.key);
             if (hIdx >= 0 && row[hIdx] !== undefined) {
               item[f.key] = row[hIdx].toString().trim();
@@ -161,7 +177,7 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
 
     // Build the record object (exclude client-side 'id' for new inserts)
     const record = {};
-    FACULTY_FIELDS.forEach(f => {
+    dynamicFields.forEach(f => {
       if (form[f.key] !== undefined && form[f.key] !== '') record[f.key] = form[f.key];
     });
 
@@ -301,7 +317,7 @@ export const FacultyManager = ({ faculty, setFaculty }) => {
               <div className="flex-1 overflow-y-auto p-6 bg-white">
                 <form id="facultyForm" onSubmit={saveForm}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                    {FACULTY_FIELDS.filter(f => f.group === activeTab).map(field => (
+                    {dynamicFields.filter(f => f.group === activeTab).map(field => (
                       <div key={field.key} className="space-y-1">
                         <label className="block text-sm font-medium text-slate-700">{field.label} {field.key === 'name' && <span className="text-red-500">*</span>}</label>
                         {field.type === 'select' ? (
