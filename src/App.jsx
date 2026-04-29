@@ -10,6 +10,16 @@ import { CourseManager } from './CourseManager';
 import { supabase } from './supabase';
 import { RiskManagement, PublicRiskReport } from './RiskManagement';
 
+const SidebarItem = ({ icon: Icon, label, id, activeTab, setActiveTab }) => (
+  <button
+    onClick={() => setActiveTab(id)}
+    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${activeTab === id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+  >
+    <Icon size={20} />
+    <span className="font-medium">{label}</span>
+  </button>
+);
+
 const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab, children }) => (
   <div className="flex h-full flex-col animate-in fade-in duration-300">
     <div className="mb-6 border-b border-slate-200 pb-0">
@@ -232,59 +242,6 @@ export default function App() {
             </PageContainer>
           )}
 
-          {activeTab === 'scheduling' && (
-            <PageContainer 
-              title="Scheduling" 
-              description="Manage timetables, rules, and activity generation"
-              activeSubTab={schedSubTab} 
-              setActiveSubTab={setSchedSubTab}
-              tabs={[
-                { id: 'timetable', label: 'View Timetable' },
-                ...(isTechAdmin ? [
-                  { id: 'tags', label: 'Activity Tags' },
-                  { id: 'groups', label: 'Student Groups' },
-                  { id: 'rooms', label: 'Rooms' },
-                  { id: 'time', label: 'Time Profiles' },
-                  { id: 'constraints', label: 'Constraints' },
-                  { id: 'activities', label: 'Activities' },
-                  { id: 'generate', label: 'Generate' }
-                ] : [])
-              ]}
-            >
-              {schedSubTab === 'timetable' && renderTimetable()}
-              {isTechAdmin && schedSubTab === 'tags' && (
-                <div className="max-w-3xl mx-auto"><ObjectListManager title="Activity Tags" items={activityTags} setItems={setActivityTags} fields={[{ key: 'name', label: 'Tag Name (e.g. Lecture, Lab)' }]} /></div>
-              )}
-              {isTechAdmin && schedSubTab === 'groups' && (
-                <div className="max-w-3xl mx-auto"><ObjectListManager title="Student Groups" items={groups} setItems={setGroups} fields={[{ key: 'name', label: 'Group Name' }, { key: 'size', label: 'Number of Students (Size)', type: 'number' }, { key: 'timeProfileId', label: 'Time Profile', type: 'select', options: timeProfiles.map(tp => ({ value: tp.id, label: tp.name })) }]} /></div>
-              )}
-              {isTechAdmin && schedSubTab === 'rooms' && (
-                <div className="max-w-3xl mx-auto"><ObjectListManager title="Rooms" items={rooms} setItems={setRooms} fields={[{ key: 'name', label: 'Room Name' }, { key: 'capacity', label: 'Room Capacity', type: 'number' }]} /></div>
-              )}
-              {isTechAdmin && schedSubTab === 'time' && renderTimeProfiles()}
-              {isTechAdmin && schedSubTab === 'constraints' && <ConstraintsManager constraints={constraints} setConstraints={setConstraints} faculty={faculty} days={allGlobalDays} groups={groups} courses={courses} rooms={rooms} activities={activities} />}
-              {isTechAdmin && schedSubTab === 'activities' && renderActivitiesManager()}
-              {isTechAdmin && schedSubTab === 'generate' && renderGenerateTab()}
-            </PageContainer>
-          )}
-
-          {activeTab === 'builders' && isTechAdmin && (
-            <PageContainer 
-              title="Builders" 
-              description="Design custom forms, applications, and dynamic reports"
-              activeSubTab={buildSubTab} 
-              setActiveSubTab={setBuildSubTab}
-              tabs={[
-                { id: 'formbuilder', label: 'Form Builder' },
-                { id: 'appbuilder', label: 'App Builder' },
-                { id: 'reports', label: 'Report Builder' }
-              ]}
-            >
-              {buildSubTab === 'formbuilder' && <FormBuilder deepLinkId={deepLinkId} />}
-              {buildSubTab === 'appbuilder' && <AppBuilder deepLinkId={deepLinkId} urlFilters={urlFilters} />}
-              {buildSubTab === 'reports' && <ReportBuilder deepLinkId={deepLinkId} />}
-            </PageContainer>
-          )}
         </div>
       </main>
     </div>
