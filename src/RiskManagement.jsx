@@ -1095,14 +1095,14 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
   const [selectedRiskId, setSelectedRiskId] = useState(null);
   const [trendData, setTrendData] = useState([]);
 
-  const assembleData = (rData, kData, vData, rubData, year) => {
-    return rData.map(risk => {
+  const assembleData = (rData = [], kData = [], vData = [], rubData = [], year) => {
+    return (rData || []).map(risk => {
       let maxLikelihood = 0;
-      const riskKRIs = kData.filter(k => k.risk_id === risk.id).map(kri => {
-        const val = vData.find(v => v.kri_id === kri.id);
+      const riskKRIs = (kData || []).filter(k => k.risk_id === risk.id).map(kri => {
+        const val = (vData || []).find(v => v.kri_id === kri.id);
         const kriValue = val ? val.indicator_value : 'Not Set';
         let likelihood = 0;
-        if (kriValue !== 'Not Set') likelihood = getLikelihoodForKRI(kriValue, kri.id, rubData);
+        if (kriValue !== 'Not Set') likelihood = getLikelihoodForKRI(kriValue, kri.id, rubData || []);
         if (likelihood > maxLikelihood) maxLikelihood = likelihood;
         return { name: kri.indicator_name, value: kriValue, likelihood };
       });
@@ -1132,8 +1132,8 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
       if (rErr || kErr || vErr) throw new Error("DB Error");
       // If mappings exist for this year, filter risks; else show all
       const mappedIds = (mapData || []).map(m => m.risk_id);
-      const filteredRisks = mappedIds.length > 0 ? rData.filter(r => mappedIds.includes(r.id)) : rData;
-      setReportData(assembleData(filteredRisks, kData, vData, rubData || [], year));
+      const filteredRisks = mappedIds.length > 0 ? (rData || []).filter(r => mappedIds.includes(r.id)) : (rData || []);
+      setReportData(assembleData(filteredRisks, kData, vData, rubData, year));
     } catch(e) {
       setReportData(assembleData(mockRisks, mockKRIs, mockKRIValues.filter(v => v.academic_year === year), mockKRIRubrics, year));
     } finally { setLoading(false); }
