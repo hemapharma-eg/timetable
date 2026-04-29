@@ -194,6 +194,7 @@ export default function App() {
   const [appUserMeta, setAppUserMeta] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -299,11 +300,22 @@ export default function App() {
             <Calendar size={48} />
           </div>
           <h2 className="text-2xl font-bold text-center mb-2">DMU QA Hub</h2>
-          <p className="text-slate-400 text-center text-sm mb-8">Sign in to access your portal</p>
+          <p className="text-slate-400 text-center text-sm mb-8">
+            {isSignUp ? "Create your account" : "Sign in to access your portal"}
+          </p>
           <form onSubmit={async (e) => {
             e.preventDefault();
-            const { error } = await supabase.auth.signInWithPassword({ email: e.target.email.value, password: e.target.password.value });
-            if (error) alert(error.message);
+            const email = e.target.email.value;
+            const password = e.target.password.value;
+            
+            if (isSignUp) {
+              const { error } = await supabase.auth.signUp({ email, password });
+              if (error) alert(error.message);
+              else alert("Signup successful! Please check your email for verification (if enabled) or sign in now.");
+            } else {
+              const { error } = await supabase.auth.signInWithPassword({ email, password });
+              if (error) alert(error.message);
+            }
           }} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
@@ -314,10 +326,22 @@ export default function App() {
               <input name="password" type="password" required className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
             </div>
             <button type="submit" className="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 flex items-center justify-center">
-              <LogIn size={18} className="mr-2" /> Sign In
+              {isSignUp ? "Sign Up" : <><LogIn size={18} className="mr-2" /> Sign In</>}
             </button>
           </form>
-          <p className="mt-4 text-center text-xs text-slate-500">Contact admin if you don't have access.</p>
+          
+          <div className="mt-6 pt-4 border-t border-slate-700 text-center text-sm">
+            <span className="text-slate-400">
+              {isSignUp ? "Already have an account?" : "Don't have an account?"}
+            </span>
+            <button 
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="ml-2 text-indigo-400 hover:text-indigo-300 font-medium"
+            >
+              {isSignUp ? "Sign In" : "Sign Up"}
+            </button>
+          </div>
+          <p className="mt-4 text-center text-xs text-slate-500">Contact admin if your account has no assigned permissions.</p>
         </div>
       </div>
     );
