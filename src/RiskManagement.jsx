@@ -153,10 +153,9 @@ function DashboardView({ categories }) {
 
   return (
     <div className="space-y-6">
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard title="Total Risks Logged" value={stats.total} icon={<ListIcon className="text-blue-500 w-8 h-8" />} bg="bg-blue-50" />
-        <StatCard title="Clinical Risks" value={stats.clinical} icon={<Stethoscope className="text-emerald-500 w-8 h-8" />} bg="bg-emerald-50" />
+        <StatCard title="High/Critical Risks" value={stats.high} icon={<AlertTriangle className="text-red-500 w-8 h-8" />} bg="bg-red-50" />
       </div>
 
       {/* Information Panel */}

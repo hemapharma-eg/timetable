@@ -9,9 +9,14 @@ export function RolesManager() {
   const [isEditingRole, setIsEditingRole] = useState(null);
   const [roleForm, setRoleForm] = useState({ name: '', description: '' });
 
+  const [selectedRoleId, setSelectedRoleId] = useState(null);
+
   const fetchRoles = async () => {
     const { data } = await supabase.from('custom_roles').select('*').order('created_at');
-    if (data) setRoles(data);
+    if (data) {
+      setRoles(data);
+      if (!selectedRoleId && data.length > 0) setSelectedRoleId(data[0].id);
+    }
   };
 
   const fetchPermissions = async () => {
@@ -39,6 +44,7 @@ export function RolesManager() {
   const deleteRole = async (id) => {
     if (!confirm('Are you sure? This will remove this role from all assigned staff.')) return;
     await supabase.from('custom_roles').delete().eq('id', id);
+    if (selectedRoleId === id) setSelectedRoleId(null);
     fetchRoles();
   };
 
@@ -101,46 +107,64 @@ export function RolesManager() {
         </div>
       </div>
 
-      <div>
-        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-          Role Permissions Matrix
+      <div className="pt-8 border-t border-slate-200">
+        <h3 className="text-lg font-semibold text-slate-800 mb-6 flex items-center">
+          Role Permissions
         </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse border border-slate-200">
-            <thead>
-              <tr className="bg-slate-100 border-b border-slate-200">
-                <th className="p-3 border-r font-semibold text-slate-700">Role</th>
-                {MODULES.map(m => (
-                  <th key={m.key} className="p-3 border-r font-semibold text-slate-700 text-center">{m.label}</th>
+        {roles.length === 0 ? (
+          <p className="text-slate-500 text-sm">No roles defined. Create a role first.</p>
+        ) : (
+          <div className="flex flex-col md:flex-row gap-8">
+            <div className="w-full md:w-64 flex-shrink-0">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Select Role to Manage</label>
+              <div className="flex flex-col space-y-2 max-h-[500px] overflow-y-auto pr-2">
+                {roles.map(r => (
+                  <button 
+                    key={r.id} 
+                    onClick={() => setSelectedRoleId(r.id)}
+                    className={`text-left px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${selectedRoleId === r.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    {r.name}
+                  </button>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {roles.map(r => (
-                <tr key={r.id} className="border-b border-slate-200 hover:bg-slate-50">
-                  <td className="p-3 font-medium border-r bg-slate-50">{r.name}</td>
-                  {MODULES.map(m => {
-                    const perm = permissions.find(p => p.role_id === r.id && p.module_name === m.key) || {};
-                    return (
-                      <td key={m.key} className="p-3 border-r text-center align-middle">
-                        <div className="flex flex-col items-center gap-2 text-sm">
-                          <label className="flex items-center cursor-pointer text-slate-600">
-                            <input type="checkbox" className="mr-1.5" checked={perm.can_view || false} onChange={() => togglePermission(r.id, m.key, 'can_view', perm.can_view)} />
-                            View
-                          </label>
-                          <label className="flex items-center cursor-pointer text-slate-600">
-                            <input type="checkbox" className="mr-1.5" checked={perm.can_edit || false} onChange={() => togglePermission(r.id, m.key, 'can_edit', perm.can_edit)} />
-                            Edit
-                          </label>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-inner min-h-[300px]">
+              {selectedRoleId ? (
+                <>
+                  <h4 className="text-md font-semibold text-slate-800 mb-4 pb-2 border-b border-slate-200">
+                    Permissions for: <span className="text-indigo-600">{roles.find(r => r.id === selectedRoleId)?.name}</span>
+                  </h4>
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    {MODULES.map(m => {
+                      const perm = permissions.find(p => p.role_id === selectedRoleId && p.module_name === m.key) || {};
+                      return (
+                        <div key={m.key} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors">
+                          <div className="font-medium text-slate-800 mb-3">{m.label}</div>
+                          <div className="flex items-center gap-6 pt-2 border-t border-slate-100">
+                            <label className="flex items-center cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+                              <input type="checkbox" className="mr-2 w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" checked={perm.can_view || false} onChange={() => togglePermission(selectedRoleId, m.key, 'can_view', perm.can_view)} />
+                              View Access
+                            </label>
+                            <label className="flex items-center cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+                              <input type="checkbox" className="mr-2 w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" checked={perm.can_edit || false} onChange={() => togglePermission(selectedRoleId, m.key, 'can_edit', perm.can_edit)} />
+                              Edit Access
+                            </label>
+                          </div>
                         </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                  Select a role from the left to view and edit its permissions.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

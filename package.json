@@ -13,6 +13,7 @@
     "@supabase/supabase-js": "^2.40.0",
     "@tailwindcss/vite": "^4.2.3",
     "lucide-react": "^1.8.0",
+    "puppeteer": "^24.42.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.2",
