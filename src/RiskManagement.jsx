@@ -559,22 +559,44 @@ function KRIManagementModal({ risk, onClose }) {
     }
   };
 
+  // --- Rubric state for structured input per KRI ---
+  const [rubricForms, setRubricForms] = useState({});
+  const getRubricForm = (kri_id) => rubricForms[kri_id] || { mode: 'single', op: '>', val1: '', val2: '', op2: '>', likelihood: '' };
+  const setRubricForm = (kri_id, patch) => setRubricForms(prev => ({ ...prev, [kri_id]: { ...getRubricForm(kri_id), ...patch } }));
+
+  const buildRubricValue = (form) => {
+    if (form.mode === 'range') {
+      return `${form.val1}${form.op}value${form.op2}${form.val2}`;
+    }
+    if (form.op === '=') return form.val1;
+    return `${form.op}${form.val1}`;
+  };
+
+  const formatRubricDisplay = (rv) => {
+    // Range pattern: 5>value>3
+    const rangeMatch = rv.match(/^(-?[\d.]+)(>=?|<=?)value(>=?|<=?)(-?[\d.]+)$/);
+    if (rangeMatch) return `${rangeMatch[1]} ${rangeMatch[2]} value ${rangeMatch[3]} ${rangeMatch[4]}`;
+    if (rv.startsWith('>=')) return `value ≥ ${rv.slice(2)}`;
+    if (rv.startsWith('<=')) return `value ≤ ${rv.slice(2)}`;
+    if (rv.startsWith('>')) return `value > ${rv.slice(1)}`;
+    if (rv.startsWith('<')) return `value < ${rv.slice(1)}`;
+    return `value = ${rv}`;
+  };
+
   const handleAddRubric = async (kri_id) => {
-    const rVal = document.getElementById(`rubric_val_${kri_id}`).value;
-    const rLike = document.getElementById(`rubric_like_${kri_id}`).value;
-    if (!rVal || !rLike) return;
-    
+    const form = getRubricForm(kri_id);
+    if (!form.val1 || !form.likelihood || (form.mode === 'range' && !form.val2)) return;
+    const rVal = buildRubricValue(form);
     try {
-      const payload = { kri_id, rubric_value: rVal, likelihood: Number(rLike) };
+      const payload = { kri_id, rubric_value: rVal, likelihood: Number(form.likelihood) };
       const { error } = await supabase.from('kri_rubrics').insert([payload]);
       if (error) throw error;
       fetchKRIs();
     } catch(e) {
-      mockKRIRubrics.push({ id: Date.now(), kri_id, rubric_value: rVal, likelihood: Number(rLike) });
+      mockKRIRubrics.push({ id: Date.now(), kri_id, rubric_value: rVal, likelihood: Number(form.likelihood) });
       fetchKRIs();
     }
-    document.getElementById(`rubric_val_${kri_id}`).value = '';
-    document.getElementById(`rubric_like_${kri_id}`).value = '';
+    setRubricForm(kri_id, { val1: '', val2: '', likelihood: '' });
   };
 
   const handleDeleteRubric = async (id) => {
@@ -619,6 +641,8 @@ function KRIManagementModal({ risk, onClose }) {
     }
   }
 
+  const opSelect = "text-xs border border-slate-300 rounded px-1.5 py-1.5 bg-white outline-none focus:border-indigo-500 font-mono font-bold text-indigo-700 w-14 text-center";
+
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
@@ -639,30 +663,71 @@ function KRIManagementModal({ risk, onClose }) {
               <button type="submit" className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900">Add KRI</button>
             </form>
             <div className="mt-4 space-y-4">
-              {kris.map(kri => (
-                <div key={kri.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col gap-2">
+              {kris.map(kri => {
+                const form = getRubricForm(kri.id);
+                return (
+                <div key={kri.id} className="p-4 bg-slate-50 rounded-lg border border-slate-100 flex flex-col gap-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-slate-800">{kri.indicator_name}</span>
                     <button onClick={() => handleDeleteKRI(kri.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16} /></button>
                   </div>
                   
-                  <div className="mt-2 pl-4 border-l-2 border-indigo-200">
-                    <h4 className="text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">Rubric <span className="font-normal text-slate-400">(Value {"->"} Likelihood)</span></h4>
+                  <div className="pl-4 border-l-2 border-indigo-200">
+                    <h4 className="text-xs font-semibold text-slate-600 mb-2">Rubric Rules</h4>
                     {rubrics.filter(r => r.kri_id === kri.id).map(r => (
-                      <div key={r.id} className="flex gap-2 items-center mb-1">
-                        <span className="text-xs bg-white border border-slate-200 px-2 py-1 rounded">Value: <strong className="text-indigo-700">{r.rubric_value}</strong></span>
-                        <span className="text-xs bg-white border border-slate-200 px-2 py-1 rounded">Likelihood: <strong className="text-indigo-700">{r.likelihood}</strong></span>
-                        <button onClick={() => handleDeleteRubric(r.id)} className="text-red-400 hover:text-red-600"><X size={14}/></button>
+                      <div key={r.id} className="flex gap-2 items-center mb-1.5">
+                        <span className="text-xs bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-md font-medium text-indigo-800">{formatRubricDisplay(r.rubric_value)}</span>
+                        <span className="text-xs text-slate-400">→</span>
+                        <span className="text-xs bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md font-bold text-amber-800">Likelihood: {r.likelihood}</span>
+                        <button onClick={() => handleDeleteRubric(r.id)} className="text-red-400 hover:text-red-600 ml-1"><X size={14}/></button>
                       </div>
                     ))}
-                    <div className="flex gap-2 mt-2 items-center">
-                      <input type="text" id={`rubric_val_${kri.id}`} placeholder="e.g. > 5, or exact string" className="text-xs border border-slate-300 px-2 py-1.5 rounded w-40 outline-none focus:border-indigo-500" />
-                      <input type="number" id={`rubric_like_${kri.id}`} placeholder="Likelihood" className="text-xs border border-slate-300 px-2 py-1.5 rounded w-24 outline-none focus:border-indigo-500" />
-                      <button onClick={() => handleAddRubric(kri.id)} className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded font-semibold hover:bg-indigo-200">Add Rubric</button>
+                    
+                    {/* Structured rubric add form */}
+                    <div className="mt-3 p-3 bg-white rounded-lg border border-slate-200 space-y-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-[11px] font-semibold text-slate-500 uppercase">Mode:</label>
+                        <button type="button" onClick={() => setRubricForm(kri.id, { mode: 'single' })} className={`text-[11px] px-2.5 py-1 rounded-full font-semibold transition-colors ${form.mode === 'single' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Single Condition</button>
+                        <button type="button" onClick={() => setRubricForm(kri.id, { mode: 'range' })} className={`text-[11px] px-2.5 py-1 rounded-full font-semibold transition-colors ${form.mode === 'range' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Range</button>
+                      </div>
+
+                      {form.mode === 'single' ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-slate-500 font-medium">value</span>
+                          <select value={form.op} onChange={e => setRubricForm(kri.id, { op: e.target.value })} className={opSelect}>
+                            <option value=">">{'>'}</option>
+                            <option value=">=">{'>='}</option>
+                            <option value="<">{'<'}</option>
+                            <option value="<=">{'<='}</option>
+                            <option value="=">{'='}</option>
+                          </select>
+                          <input type="number" step="any" value={form.val1} onChange={e => setRubricForm(kri.id, { val1: e.target.value })} placeholder="Number" className="text-xs border border-slate-300 px-2 py-1.5 rounded w-20 outline-none focus:border-indigo-500" />
+                          <span className="text-xs text-slate-400 mx-1">→</span>
+                          <input type="number" step="any" value={form.likelihood} onChange={e => setRubricForm(kri.id, { likelihood: e.target.value })} placeholder="Likelihood" className="text-xs border border-slate-300 px-2 py-1.5 rounded w-24 outline-none focus:border-indigo-500" />
+                          <button type="button" onClick={() => handleAddRubric(kri.id)} className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded font-semibold hover:bg-indigo-700">Add</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <input type="number" step="any" value={form.val1} onChange={e => setRubricForm(kri.id, { val1: e.target.value })} placeholder="Upper" className="text-xs border border-slate-300 px-2 py-1.5 rounded w-20 outline-none focus:border-indigo-500" />
+                          <select value={form.op} onChange={e => setRubricForm(kri.id, { op: e.target.value })} className={opSelect}>
+                            <option value=">">{'>'}</option>
+                            <option value=">=">{'>='}</option>
+                          </select>
+                          <span className="text-xs text-slate-500 font-medium">value</span>
+                          <select value={form.op2} onChange={e => setRubricForm(kri.id, { op2: e.target.value })} className={opSelect}>
+                            <option value=">">{'>'}</option>
+                            <option value=">=">{'>='}</option>
+                          </select>
+                          <input type="number" step="any" value={form.val2} onChange={e => setRubricForm(kri.id, { val2: e.target.value })} placeholder="Lower" className="text-xs border border-slate-300 px-2 py-1.5 rounded w-20 outline-none focus:border-indigo-500" />
+                          <span className="text-xs text-slate-400 mx-1">→</span>
+                          <input type="number" step="any" value={form.likelihood} onChange={e => setRubricForm(kri.id, { likelihood: e.target.value })} placeholder="Likelihood" className="text-xs border border-slate-300 px-2 py-1.5 rounded w-24 outline-none focus:border-indigo-500" />
+                          <button type="button" onClick={() => handleAddRubric(kri.id)} className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded font-semibold hover:bg-indigo-700">Add</button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              ))}
+                )})}
               {kris.length === 0 && <p className="text-sm text-slate-400">No KRIs defined yet.</p>}
             </div>
           </section>
@@ -741,6 +806,19 @@ function getLikelihoodForKRI(value, kId, allRubrics) {
   if (!isNaN(valNum)) {
     for (const r of kRubrics) {
        const rv = r.rubric_value.trim();
+       // Range pattern: upper{op}value{op2}lower e.g. 5>value>3 or 5>=value>=3
+       const rangeMatch = rv.match(/^(-?[\d.]+)(>=?|<=?)value(>=?|<=?)(-?[\d.]+)$/);
+       if (rangeMatch) {
+         const upper = Number(rangeMatch[1]);
+         const op1 = rangeMatch[2];
+         const op2 = rangeMatch[3];
+         const lower = Number(rangeMatch[4]);
+         const upperOk = op1 === '>=' ? valNum <= upper : valNum < upper;
+         const lowerOk = op2 === '>=' ? valNum >= lower : valNum > lower;
+         if (upperOk && lowerOk) return Number(r.likelihood);
+         continue;
+       }
+       // Single operators
        if (rv.startsWith('>=')) { if (valNum >= Number(rv.slice(2))) return Number(r.likelihood); }
        else if (rv.startsWith('<=')) { if (valNum <= Number(rv.slice(2))) return Number(r.likelihood); }
        else if (rv.startsWith('>')) { if (valNum > Number(rv.slice(1))) return Number(r.likelihood); }
@@ -927,6 +1005,10 @@ export function RiskReportsView({ initialYear }) {
   const [statusFilter, setStatusFilter] = useState('All');
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState('year'); // 'year' or 'trend'
+  const [selectedRiskId, setSelectedRiskId] = useState(null);
+  const [trendData, setTrendData] = useState([]);
+  const academicYears = ['2023-2024', '2024-2025', '2025-2026'];
 
   const assembleData = (rData, kData, vData, rubData, year) => {
     return rData.map(risk => {
@@ -935,24 +1017,14 @@ export function RiskReportsView({ initialYear }) {
         const val = vData.find(v => v.kri_id === kri.id);
         const kriValue = val ? val.indicator_value : 'Not Set';
         let likelihood = 0;
-        if (kriValue !== 'Not Set') {
-          likelihood = getLikelihoodForKRI(kriValue, kri.id, rubData);
-        }
+        if (kriValue !== 'Not Set') likelihood = getLikelihoodForKRI(kriValue, kri.id, rubData);
         if (likelihood > maxLikelihood) maxLikelihood = likelihood;
         return { name: kri.indicator_name, value: kriValue, likelihood };
       });
-      
       const impact = Number(risk.Impact) || 0;
       const appetite = Number(risk.Appetite) || 0;
       const residualRating = maxLikelihood * impact;
-      
-      return { 
-        ...risk, 
-        kris: riskKRIs,
-        calculated_likelihood: maxLikelihood,
-        residual_rating: residualRating,
-        appetite: appetite
-      };
+      return { ...risk, kris: riskKRIs, calculated_likelihood: maxLikelihood, residual_rating: residualRating, appetite };
     });
   };
 
@@ -962,19 +1034,42 @@ export function RiskReportsView({ initialYear }) {
       const { data: rData, error: rErr } = await supabase.from('risk_management_plan').select('*');
       const { data: kData, error: kErr } = await supabase.from('risk_kris').select('*');
       const { data: vData, error: vErr } = await supabase.from('risk_kri_values').select('*').eq('academic_year', year);
-      const { data: rubData, error: rubErr } = await supabase.from('kri_rubrics').select('*');
-      
+      const { data: rubData } = await supabase.from('kri_rubrics').select('*');
       if (rErr || kErr || vErr) throw new Error("DB Error");
-
       setReportData(assembleData(rData, kData, vData, rubData || [], year));
     } catch(e) {
       setReportData(assembleData(mockRisks, mockKRIs, mockKRIValues.filter(v => v.academic_year === year), mockKRIRubrics, year));
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchReport(selectedYear); }, [selectedYear]);
+  const fetchTrend = async (riskId) => {
+    setLoading(true);
+    try {
+      const { data: rData } = await supabase.from('risk_management_plan').select('*').eq('id', riskId).single();
+      const { data: kData } = await supabase.from('risk_kris').select('*').eq('risk_id', riskId);
+      const { data: allVals } = await supabase.from('risk_kri_values').select('*').in('kri_id', (kData || []).map(k => k.id));
+      const { data: rubData } = await supabase.from('kri_rubrics').select('*').in('kri_id', (kData || []).map(k => k.id));
+      const trend = academicYears.map(yr => {
+        const yearVals = (allVals || []).filter(v => v.academic_year === yr);
+        let maxL = 0;
+        const kris = (kData || []).map(kri => {
+          const val = yearVals.find(v => v.kri_id === kri.id);
+          const kriValue = val ? val.indicator_value : 'Not Set';
+          let l = kriValue !== 'Not Set' ? getLikelihoodForKRI(kriValue, kri.id, rubData || []) : 0;
+          if (l > maxL) maxL = l;
+          return { name: kri.indicator_name, value: kriValue, likelihood: l };
+        });
+        const impact = Number(rData?.Impact) || 0;
+        const appetite = Number(rData?.Appetite) || 0;
+        return { year: yr, likelihood: maxL, residual: maxL * impact, appetite, impact, kris };
+      });
+      setTrendData(trend);
+      setSelectedRiskId(riskId);
+    } catch(e) { console.warn(e); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { if (viewMode === 'year') fetchReport(selectedYear); }, [selectedYear, viewMode]);
 
   const handleShare = async () => {
     const url = `${window.location.origin}?view=public_risk_report&year=${selectedYear}`;
@@ -982,23 +1077,46 @@ export function RiskReportsView({ initialYear }) {
     alert('Public report link copied to clipboard!');
   };
 
+  const filtered = reportData.filter(r => {
+    if (searchTerm && !r.Risk_Title.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    if (statusFilter === 'Accepted' && r.residual_rating > r.appetite) return false;
+    if (statusFilter === 'Not Accepted' && r.residual_rating <= r.appetite) return false;
+    return true;
+  }).sort((a,b) => (a.Risk_No || '').localeCompare(b.Risk_No || '', undefined, { numeric: true }));
+
+  const maxResidual = Math.max(...filtered.map(r => r.residual_rating), 1);
+  const accepted = filtered.filter(r => r.residual_rating <= r.appetite).length;
+  const notAccepted = filtered.filter(r => r.residual_rating > r.appetite).length;
+  const selectedRisk = reportData.find(r => r.id === selectedRiskId);
+
   return (
     <div className="h-full flex flex-col">
-      {/* Print-hidden controls */}
-      <div className="print:hidden flex justify-between items-center mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      {/* Controls */}
+      <div className="print:hidden flex justify-between items-center mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex-wrap gap-3">
         <div className="flex items-center space-x-3 flex-wrap gap-y-2">
-          <label className="font-semibold text-slate-700 whitespace-nowrap">Filters:</label>
-          <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500">
-            <option>2023-2024</option>
-            <option>2024-2025</option>
-            <option>2025-2026</option>
-          </select>
-          <input type="text" placeholder="Search title..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 w-full sm:w-48" />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500">
-            <option value="All">All Statuses</option>
-            <option value="Accepted">Accepted Only</option>
-            <option value="Not Accepted">Not Accepted Only</option>
-          </select>
+          <div className="flex bg-slate-100 rounded-lg p-0.5">
+            <button onClick={() => setViewMode('year')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'year' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}>Year View</button>
+            <button onClick={() => { setViewMode('trend'); if (!selectedRiskId && reportData.length > 0) fetchTrend(reportData[0].id); }} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'trend' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}>Risk Trend</button>
+          </div>
+          {viewMode === 'year' && (
+            <>
+              <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500">
+                {academicYears.map(y => <option key={y}>{y}</option>)}
+              </select>
+              <input type="text" placeholder="Search title..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 w-full sm:w-48" />
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500">
+                <option value="All">All Statuses</option>
+                <option value="Accepted">Accepted Only</option>
+                <option value="Not Accepted">Not Accepted Only</option>
+              </select>
+            </>
+          )}
+          {viewMode === 'trend' && (
+            <select value={selectedRiskId || ''} onChange={(e) => fetchTrend(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 min-w-[250px]">
+              <option value="">Select Risk...</option>
+              {reportData.map(r => <option key={r.id} value={r.id}>{r.Risk_No ? `${r.Risk_No}: ` : ''}{r.Risk_Title}</option>)}
+            </select>
+          )}
         </div>
         <div className="flex space-x-3">
           <button onClick={handleShare} className="flex items-center px-4 py-2 bg-indigo-50 text-indigo-700 font-medium rounded-lg hover:bg-indigo-100 transition-colors"><Share2 size={16} className="mr-2" /> Share URL</button>
@@ -1006,22 +1124,91 @@ export function RiskReportsView({ initialYear }) {
         </div>
       </div>
 
-      {/* Printable Report Section */}
+      {/* Report Content */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 print:border-none print:shadow-none print:p-0 flex-1 overflow-auto print:overflow-visible">
         <div className="text-center mb-8 pb-6 border-b border-slate-200">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">DMU QA Hub</h1>
-          <h2 className="text-xl font-semibold text-indigo-800">Risk Management Report & Key Risk Indicators</h2>
-          <p className="text-slate-500 font-medium mt-2">Academic Year: {selectedYear}</p>
+          <h2 className="text-xl font-semibold text-indigo-800">
+            {viewMode === 'year' ? `Risk Management Report — ${selectedYear}` : `Risk Trend Analysis — ${selectedRisk?.Risk_Title || ''}`}
+          </h2>
         </div>
 
-        {loading ? <p className="text-center py-10">Compiling report...</p> : (
+        {loading ? <p className="text-center py-10">Compiling report...</p> : viewMode === 'year' ? (
           <div className="space-y-8">
-            {reportData.filter(r => {
-              if (searchTerm && !r.Risk_Title.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-              if (statusFilter === 'Accepted' && r.residual_rating > r.appetite) return false;
-              if (statusFilter === 'Not Accepted' && r.residual_rating <= r.appetite) return false;
-              return true;
-            }).sort((a,b) => (a.Risk_No || '').localeCompare(b.Risk_No || '', undefined, { numeric: true })).map(risk => (
+            {/* Summary Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:grid-cols-3">
+              <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 text-center">
+                <div className="text-3xl font-bold text-slate-800">{filtered.length}</div>
+                <div className="text-sm text-slate-500 mt-1">Total Risks</div>
+              </div>
+              <div className="bg-green-50 rounded-xl p-5 border border-green-200 text-center">
+                <div className="text-3xl font-bold text-green-700">{accepted}</div>
+                <div className="text-sm text-green-600 mt-1">Accepted</div>
+              </div>
+              <div className="bg-red-50 rounded-xl p-5 border border-red-200 text-center">
+                <div className="text-3xl font-bold text-red-700">{notAccepted}</div>
+                <div className="text-sm text-red-600 mt-1">Not Accepted</div>
+              </div>
+            </div>
+
+            {/* Bar Chart */}
+            <div className="border border-slate-200 rounded-xl p-6">
+              <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">Residual Rating vs Appetite</h3>
+              <div className="space-y-3">
+                {filtered.map(r => (
+                  <div key={r.id} className="flex items-center gap-3">
+                    <div className="w-20 text-xs font-bold text-slate-600 text-right truncate flex-shrink-0">{r.Risk_No || '—'}</div>
+                    <div className="flex-1 flex items-center gap-1 h-6">
+                      <div className={`h-full rounded-r-md transition-all ${r.residual_rating > r.appetite ? 'bg-red-400' : 'bg-emerald-400'}`} style={{ width: `${Math.max((r.residual_rating / maxResidual) * 100, 2)}%`, minWidth: '4px' }} />
+                      <span className="text-[10px] font-bold text-slate-500">{r.residual_rating}</span>
+                      <div className="relative" style={{ left: `${Math.max((r.appetite / maxResidual) * 100, 0) - 50}%` }}>
+                        <span className="text-[10px] text-amber-600 font-bold">|{r.appetite}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-6 mt-4 text-[10px] text-slate-500 border-t border-slate-100 pt-3">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-400 inline-block"/> Accepted</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-400 inline-block"/> Not Accepted</span>
+                <span className="flex items-center gap-1"><span className="text-amber-600 font-bold">|</span> Appetite Threshold</span>
+              </div>
+            </div>
+
+            {/* Summary Table */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold text-slate-600">No.</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600">Risk Title</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600 text-center">Impact</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600 text-center">Likelihood</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600 text-center">Residual</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600 text-center">Appetite</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filtered.map(r => (
+                    <tr key={r.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-2.5 font-bold text-slate-600">{r.Risk_No || '-'}</td>
+                      <td className="px-4 py-2.5 font-medium text-slate-800">{r.Risk_Title}</td>
+                      <td className="px-4 py-2.5 text-center">{r.Impact || 0}</td>
+                      <td className="px-4 py-2.5 text-center">{r.calculated_likelihood}</td>
+                      <td className="px-4 py-2.5 text-center font-bold">{r.residual_rating}</td>
+                      <td className="px-4 py-2.5 text-center">{r.appetite}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${r.residual_rating > r.appetite ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{r.residual_rating > r.appetite ? 'Not Accepted' : 'Accepted'}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Detailed Cards */}
+            {filtered.map(risk => (
               <div key={risk.id} className="break-inside-avoid border border-slate-200 rounded-xl overflow-hidden print:border-slate-300">
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 print:bg-slate-100">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1032,7 +1219,6 @@ export function RiskReportsView({ initialYear }) {
                         <span><strong className="text-slate-700">Category:</strong> {risk.Category}</span>
                       </div>
                     </div>
-                    
                     <div className="flex flex-wrap gap-2 items-center">
                        <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 shadow-sm">Impact: {risk.Impact || 0}</span>
                        <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 shadow-sm">Likelihood: {risk.calculated_likelihood}</span>
@@ -1048,31 +1234,17 @@ export function RiskReportsView({ initialYear }) {
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Causes & Consequences</h4>
                     <p className="text-sm text-slate-700 mb-3"><span className="font-semibold text-slate-900">Causes:</span> {risk.Risk_Causes || 'N/A'}</p>
                     <p className="text-sm text-slate-700"><span className="font-semibold text-slate-900">Impact:</span> {risk.Risk_Consequences_ || 'N/A'}</p>
-                    
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4">Mitigating Actions</h4>
                     <p className="text-sm text-slate-700">{risk.Mitigating_Actions || 'N/A'}</p>
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Controls & Indicators</h4>
                     <p className="text-sm text-slate-700 mb-4"><span className="font-semibold text-slate-900">Controls:</span> {risk.Existing_Internal_control_ || 'N/A'}</p>
-                    
                     {risk.kris.length > 0 ? (
                       <table className="w-full text-left text-sm border border-slate-200 rounded-lg overflow-hidden print:border-collapse">
-                        <thead className="bg-slate-50">
-                          <tr>
-                            <th className="px-3 py-2 font-semibold">Key Risk Indicator</th>
-                            <th className="px-3 py-2 font-semibold w-24 text-center">Value</th>
-                            <th className="px-3 py-2 font-semibold w-24 text-center">Likelihood</th>
-                          </tr>
-                        </thead>
+                        <thead className="bg-slate-50"><tr><th className="px-3 py-2 font-semibold">KRI</th><th className="px-3 py-2 font-semibold w-24 text-center">Value</th><th className="px-3 py-2 font-semibold w-24 text-center">Likelihood</th></tr></thead>
                         <tbody className="divide-y divide-slate-100">
-                          {risk.kris.map((kri, i) => (
-                            <tr key={i}>
-                              <td className="px-3 py-2">{kri.name}</td>
-                              <td className="px-3 py-2 text-center font-bold text-indigo-700">{kri.value}</td>
-                              <td className="px-3 py-2 text-center font-bold text-slate-600">{kri.likelihood}</td>
-                            </tr>
-                          ))}
+                          {risk.kris.map((kri, i) => (<tr key={i}><td className="px-3 py-2">{kri.name}</td><td className="px-3 py-2 text-center font-bold text-indigo-700">{kri.value}</td><td className="px-3 py-2 text-center font-bold text-slate-600">{kri.likelihood}</td></tr>))}
                         </tbody>
                       </table>
                     ) : <p className="text-xs text-slate-400 italic">No KRIs defined for this risk.</p>}
@@ -1080,6 +1252,82 @@ export function RiskReportsView({ initialYear }) {
                 </div>
               </div>
             ))}
+          </div>
+        ) : (
+          /* ========== TREND VIEW ========== */
+          <div className="space-y-8">
+            {!selectedRiskId ? <p className="text-center text-slate-400 py-10">Select a risk above to view its trend.</p> : (
+              <>
+                {/* Trend Bar Chart */}
+                <div className="border border-slate-200 rounded-xl p-6">
+                  <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">Residual Rating Trend</h3>
+                  <div className="flex items-end gap-6 justify-center h-48">
+                    {trendData.map(t => {
+                      const maxH = Math.max(...trendData.map(x => x.residual), t.appetite, 1);
+                      const barH = Math.max((t.residual / maxH) * 100, 4);
+                      const appH = (t.appetite / maxH) * 100;
+                      return (
+                        <div key={t.year} className="flex flex-col items-center gap-1 flex-1 max-w-[120px]">
+                          <div className="relative w-full flex items-end justify-center" style={{ height: '160px' }}>
+                            <div className={`w-12 rounded-t-lg transition-all ${t.residual > t.appetite ? 'bg-red-400' : 'bg-emerald-400'}`} style={{ height: `${barH}%` }} />
+                            <div className="absolute w-full border-t-2 border-dashed border-amber-400" style={{ bottom: `${appH}%` }}>
+                              <span className="absolute -top-4 right-0 text-[9px] text-amber-600 font-bold">App:{t.appetite}</span>
+                            </div>
+                          </div>
+                          <span className="text-xs font-bold text-slate-600">{t.residual}</span>
+                          <span className="text-[10px] text-slate-500">{t.year}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Trend Table */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold text-slate-600">Academic Year</th>
+                        <th className="px-4 py-3 font-semibold text-slate-600 text-center">Impact</th>
+                        <th className="px-4 py-3 font-semibold text-slate-600 text-center">Likelihood</th>
+                        <th className="px-4 py-3 font-semibold text-slate-600 text-center">Residual</th>
+                        <th className="px-4 py-3 font-semibold text-slate-600 text-center">Appetite</th>
+                        <th className="px-4 py-3 font-semibold text-slate-600 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {trendData.map(t => (
+                        <tr key={t.year}>
+                          <td className="px-4 py-2.5 font-medium">{t.year}</td>
+                          <td className="px-4 py-2.5 text-center">{t.impact}</td>
+                          <td className="px-4 py-2.5 text-center">{t.likelihood}</td>
+                          <td className="px-4 py-2.5 text-center font-bold">{t.residual}</td>
+                          <td className="px-4 py-2.5 text-center">{t.appetite}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${t.residual > t.appetite ? 'bg-red-100 text-red-700' : t.residual === 0 ? 'bg-slate-100 text-slate-500' : 'bg-green-100 text-green-700'}`}>
+                              {t.residual === 0 ? 'No Data' : t.residual > t.appetite ? 'Not Accepted' : 'Accepted'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* KRI Details per year */}
+                {trendData.filter(t => t.kris.length > 0).map(t => (
+                  <div key={t.year} className="border border-slate-200 rounded-xl overflow-hidden break-inside-avoid">
+                    <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 font-semibold text-sm text-slate-700">{t.year} — KRI Details</div>
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-slate-100"><th className="px-4 py-2 text-left font-semibold text-slate-600">Indicator</th><th className="px-4 py-2 text-center font-semibold text-slate-600">Value</th><th className="px-4 py-2 text-center font-semibold text-slate-600">Likelihood</th></tr></thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {t.kris.map((k,i) => (<tr key={i}><td className="px-4 py-2">{k.name}</td><td className="px-4 py-2 text-center font-bold text-indigo-700">{k.value}</td><td className="px-4 py-2 text-center font-bold">{k.likelihood}</td></tr>))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>
