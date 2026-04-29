@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck } from 'lucide-react';
+import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck, Clock } from 'lucide-react';
 import { FacultyManager } from './FacultyManager';
 import { StudentManager } from './StudentManager';
 import { CourseManager } from './CourseManager';
@@ -188,6 +188,26 @@ function StudentPortal({ session, userMeta }) {
   );
 }
 
+function PendingPortal() {
+  return (
+    <div className="flex h-screen bg-slate-900 font-sans text-white items-center justify-center">
+      <div className="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-700 text-center">
+        <div className="flex justify-center mb-6 text-yellow-400">
+          <Clock size={48} />
+        </div>
+        <h2 className="text-2xl font-bold mb-4">Registration Pending</h2>
+        <p className="text-slate-400 mb-8 leading-relaxed">
+          Your account has been successfully created and a request has been sent to the administrators. 
+          You will be granted access once your account is verified and assigned a role.
+        </p>
+        <button onClick={() => supabase.auth.signOut()} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center">
+          <LogOut size={18} className="mr-2" /> Sign Out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [appRole, setAppRole] = useState(null);
@@ -238,7 +258,7 @@ export default function App() {
         }
       }
 
-      let roleToSet = 'student';
+      let roleToSet = 'pending';
       if (userEmail === 'dribrahimpharmaceutics@gmail.com') roleToSet = 'technical_admin';
       else if (matchedFaculty && matchedFaculty.role) roleToSet = matchedFaculty.role;
       else if (matchedFaculty) roleToSet = 'faculty';
@@ -271,7 +291,8 @@ export default function App() {
       if (location.pathname === '/' || location.pathname === '/login') {
         if (roleToSet === 'technical_admin' || roleToSet === 'academic_admin') navigate('/admin');
         else if (roleToSet === 'faculty') navigate('/faculty');
-        else navigate('/student');
+        else if (roleToSet === 'student') navigate('/student');
+        else navigate('/pending');
       }
 
       setLoading(false);
@@ -362,6 +383,11 @@ export default function App() {
       <Route path="/student/*" element={
         (appRole === 'student') 
           ? <StudentPortal session={session} userMeta={appUserMeta} /> 
+          : <Navigate to="/" replace />
+      } />
+      <Route path="/pending" element={
+        (appRole === 'pending') 
+          ? <PendingPortal /> 
           : <Navigate to="/" replace />
       } />
       <Route path="/login" element={<Navigate to="/" replace />} />
