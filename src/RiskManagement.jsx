@@ -8,6 +8,25 @@ import {
 import { supabase } from './supabase';
 import * as XLSX from 'xlsx';
 
+// Error Boundary to catch render crashes
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error('Component crash:', error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
+          <p className="text-red-700 font-semibold mb-2">Something went wrong loading this section.</p>
+          <p className="text-red-500 text-sm mb-4">{this.state.error?.message}</p>
+          <button onClick={() => this.setState({ hasError: false, error: null })} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Try Again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ============================================================================
 // MOCK DATA (Fallback for UI Preview)
 // ============================================================================
@@ -125,7 +144,7 @@ export function RiskManagement({ session, userMeta, isTechAdmin, allowedSubTabs,
       {activeSubTab === 'dashboard' && <DashboardView categories={categories} />}
       {activeSubTab === 'new_risk' && <NewRiskForm onSuccess={() => setActiveSubTab('register')} session={session} categories={categories} />}
       {activeSubTab === 'register' && <RiskRegister isTechAdmin={isTechAdmin} permissions={permissions} categories={categories} />}
-      {activeSubTab === 'reports' && <RiskReportsView academicYears={academicYears} />}
+      {activeSubTab === 'reports' && <ErrorBoundary><RiskReportsView academicYears={academicYears} /></ErrorBoundary>}
       {activeSubTab === 'categories' && isTechAdmin && <CategoriesManager categories={categories} onRefresh={fetchCategories} />}
       {activeSubTab === 'years' && isTechAdmin && <AcademicYearsManager years={academicYears} onRefresh={fetchAcademicYears} />}
       {activeSubTab === 'mapping' && isTechAdmin && <RiskYearMappingManager academicYears={academicYears} />}
@@ -1189,17 +1208,19 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
     alert('Public report link copied to clipboard!');
   };
 
-  const filtered = reportData.filter(r => {
-    if (searchTerm && !r.Risk_Title.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    if (statusFilter === 'Accepted' && r.residual_rating > r.appetite) return false;
-    if (statusFilter === 'Not Accepted' && r.residual_rating <= r.appetite) return false;
+  const filtered = (reportData || []).filter(r => {
+    if (!r) return false;
+    if (searchTerm && !(r.Risk_Title || '').toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    if (statusFilter === 'Accepted' && (r.residual_rating || 0) > (r.appetite || 0)) return false;
+    if (statusFilter === 'Not Accepted' && (r.residual_rating || 0) <= (r.appetite || 0)) return false;
     return true;
   }).sort((a,b) => (a.Risk_No || '').localeCompare(b.Risk_No || '', undefined, { numeric: true }));
 
-  const maxResidual = Math.max(...filtered.map(r => r.residual_rating), 1);
-  const accepted = filtered.filter(r => r.residual_rating <= r.appetite).length;
-  const notAccepted = filtered.filter(r => r.residual_rating > r.appetite).length;
-  const selectedRisk = reportData.find(r => r.id === selectedRiskId);
+  const residualValues = filtered.map(r => r.residual_rating || 0);
+  const maxResidual = residualValues.length > 0 ? Math.max(...residualValues, 1) : 1;
+  const accepted = filtered.filter(r => (r.residual_rating || 0) <= (r.appetite || 0)).length;
+  const notAccepted = filtered.filter(r => (r.residual_rating || 0) > (r.appetite || 0)).length;
+  const selectedRisk = (reportData || []).find(r => r.id === selectedRiskId);
 
   return (
     <div className="h-full flex flex-col">
@@ -1352,11 +1373,11 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
                   <div>
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Controls & Indicators</h4>
                     <p className="text-sm text-slate-700 mb-4"><span className="font-semibold text-slate-900">Controls:</span> {risk.Existing_Internal_control_ || 'N/A'}</p>
-                    {risk.kris.length > 0 ? (
+                    {(risk.kris || []).length > 0 ? (
                       <table className="w-full text-left text-sm border border-slate-200 rounded-lg overflow-hidden print:border-collapse">
                         <thead className="bg-slate-50"><tr><th className="px-3 py-2 font-semibold">KRI</th><th className="px-3 py-2 font-semibold w-24 text-center">Value</th><th className="px-3 py-2 font-semibold w-24 text-center">Likelihood</th></tr></thead>
                         <tbody className="divide-y divide-slate-100">
-                          {risk.kris.map((kri, i) => (<tr key={i}><td className="px-3 py-2">{kri.name}</td><td className="px-3 py-2 text-center font-bold text-indigo-700">{kri.value}</td><td className="px-3 py-2 text-center font-bold text-slate-600">{kri.likelihood}</td></tr>))}
+                          {(risk.kris || []).map((kri, i) => (<tr key={i}><td className="px-3 py-2">{kri.name}</td><td className="px-3 py-2 text-center font-bold text-indigo-700">{kri.value}</td><td className="px-3 py-2 text-center font-bold text-slate-600">{kri.likelihood}</td></tr>))}
                         </tbody>
                       </table>
                     ) : <p className="text-xs text-slate-400 italic">No KRIs defined for this risk.</p>}
@@ -1427,13 +1448,13 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
                 </div>
 
                 {/* KRI Details per year */}
-                {trendData.filter(t => t.kris.length > 0).map(t => (
+                {trendData.filter(t => (t.kris || []).length > 0).map(t => (
                   <div key={t.year} className="border border-slate-200 rounded-xl overflow-hidden break-inside-avoid">
                     <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 font-semibold text-sm text-slate-700">{t.year} — KRI Details</div>
                     <table className="w-full text-sm">
                       <thead><tr className="border-b border-slate-100"><th className="px-4 py-2 text-left font-semibold text-slate-600">Indicator</th><th className="px-4 py-2 text-center font-semibold text-slate-600">Value</th><th className="px-4 py-2 text-center font-semibold text-slate-600">Likelihood</th></tr></thead>
                       <tbody className="divide-y divide-slate-50">
-                        {t.kris.map((k,i) => (<tr key={i}><td className="px-4 py-2">{k.name}</td><td className="px-4 py-2 text-center font-bold text-indigo-700">{k.value}</td><td className="px-4 py-2 text-center font-bold">{k.likelihood}</td></tr>))}
+                        {(t.kris || []).map((k,i) => (<tr key={i}><td className="px-4 py-2">{k.name}</td><td className="px-4 py-2 text-center font-bold text-indigo-700">{k.value}</td><td className="px-4 py-2 text-center font-bold">{k.likelihood}</td></tr>))}
                       </tbody>
                     </table>
                   </div>
