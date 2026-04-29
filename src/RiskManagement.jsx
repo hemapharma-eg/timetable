@@ -3,7 +3,7 @@ import {
   ShieldAlert, PlusCircle, List as ListIcon, 
   Search, AlertTriangle, CheckCircle, Clock,
   Activity, BookOpen, Stethoscope, Briefcase,
-  Edit, Trash2, X, Target, Download, Share2, Printer
+  Edit, Trash2, X, Target, Download, Share2, Printer, Tags
 } from 'lucide-react';
 import { supabase } from './supabase';
 
@@ -59,11 +59,35 @@ const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab
 
 export function RiskManagement({ session, userMeta, isTechAdmin }) {
   const [activeSubTab, setActiveSubTab] = useState('dashboard');
+  const [categories, setCategories] = useState([]);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase.from('risk_categories').select('*').order('sort_order');
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (e) {
+      console.warn('Using fallback categories:', e.message);
+      setCategories([
+        { id: '1', value: 'Academic', label: 'Academic & Research', sort_order: 1 },
+        { id: '2', value: 'Clinical', label: 'Clinical Operations', sort_order: 2 },
+        { id: '3', value: 'Compliance', label: 'Compliance & Legal', sort_order: 3 },
+        { id: '4', value: 'Financial', label: 'Financial', sort_order: 4 },
+        { id: '5', value: 'IT', label: 'IT & Cybersecurity', sort_order: 5 },
+        { id: '6', value: 'Operational', label: 'Operational / Facilities', sort_order: 6 },
+        { id: '7', value: 'Strategic', label: 'Strategic', sort_order: 7 },
+      ]);
+    }
+  };
+
+  useEffect(() => { fetchCategories(); }, []);
+
   const tabs = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'new_risk', label: 'Report a Risk' },
     { id: 'register', label: 'Risk Register' },
-    { id: 'reports', label: 'Yearly Reports' }
+    { id: 'reports', label: 'Yearly Reports' },
+    ...(isTechAdmin ? [{ id: 'categories', label: 'Manage Categories' }] : [])
   ];
 
   return (
@@ -74,16 +98,17 @@ export function RiskManagement({ session, userMeta, isTechAdmin }) {
       activeSubTab={activeSubTab}
       setActiveSubTab={setActiveSubTab}
     >
-      {activeSubTab === 'dashboard' && <DashboardView />}
-      {activeSubTab === 'new_risk' && <NewRiskForm onSuccess={() => setActiveSubTab('register')} session={session} />}
-      {activeSubTab === 'register' && <RiskRegister isTechAdmin={isTechAdmin} />}
+      {activeSubTab === 'dashboard' && <DashboardView categories={categories} />}
+      {activeSubTab === 'new_risk' && <NewRiskForm onSuccess={() => setActiveSubTab('register')} session={session} categories={categories} />}
+      {activeSubTab === 'register' && <RiskRegister isTechAdmin={isTechAdmin} categories={categories} />}
       {activeSubTab === 'reports' && <RiskReportsView />}
+      {activeSubTab === 'categories' && isTechAdmin && <CategoriesManager categories={categories} onRefresh={fetchCategories} />}
     </PageContainer>
   );
 }
 
 // --- Dashboard View ---
-function DashboardView() {
+function DashboardView({ categories }) {
   const [stats, setStats] = useState({ total: 0, high: 0, clinical: 0 });
 
   useEffect(() => {
@@ -139,11 +164,17 @@ function DashboardView() {
           <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
             <h4 className="font-semibold text-slate-700 mb-2">Primary Categories</h4>
             <ul className="text-sm text-slate-600 space-y-1 list-disc pl-4">
-              <li>Academic & Research</li>
-              <li>Clinical & Patient Safety</li>
-              <li>Financial & Strategic</li>
-              <li>Compliance & Legal</li>
-              <li>IT & Data Security</li>
+              {categories.length > 0 ? categories.map(c => (
+                <li key={c.id}>{c.label}</li>
+              )) : (
+                <>
+                  <li>Academic & Research</li>
+                  <li>Clinical & Patient Safety</li>
+                  <li>Financial & Strategic</li>
+                  <li>Compliance & Legal</li>
+                  <li>IT & Data Security</li>
+                </>
+              )}
             </ul>
           </div>
         </div>
@@ -165,7 +196,7 @@ function StatCard({ title, value, icon, bg }) {
 }
 
 // --- Form Components ---
-function RiskFormFields({ formData, handleChange }) {
+function RiskFormFields({ formData, handleChange, categories = [] }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -181,13 +212,9 @@ function RiskFormFields({ formData, handleChange }) {
           <label className="block text-sm font-semibold text-slate-700 mb-1">Category <span className="text-red-500">*</span></label>
           <select name="Category" required value={formData.Category || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white outline-none">
             <option value="">Select Category...</option>
-            <option value="Academic">Academic & Research</option>
-            <option value="Clinical">Clinical Operations</option>
-            <option value="Compliance">Compliance & Legal</option>
-            <option value="Financial">Financial</option>
-            <option value="IT">IT & Cybersecurity</option>
-            <option value="Operational">Operational / Facilities</option>
-            <option value="Strategic">Strategic</option>
+            {categories.map(c => (
+              <option key={c.id} value={c.value}>{c.label}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -240,7 +267,7 @@ function RiskFormFields({ formData, handleChange }) {
   );
 }
 
-function NewRiskForm({ onSuccess, session }) {
+function NewRiskForm({ onSuccess, session, categories }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ 
     Risk_No: '', Risk_Title: '', Category: '', Risk_Causes: '', 
@@ -281,7 +308,7 @@ function NewRiskForm({ onSuccess, session }) {
         <h3 className="text-lg font-semibold text-indigo-900">Risk Identification Form</h3>
       </div>
       <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6">
-        <RiskFormFields formData={formData} handleChange={handleChange} />
+        <RiskFormFields formData={formData} handleChange={handleChange} categories={categories} />
         <div className="flex justify-end pt-6">
           <button type="submit" disabled={loading} className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 flex items-center shadow-md">
             {loading ? 'Submitting...' : <><CheckCircle className="w-5 h-5 mr-2" /> Submit Risk Assessment</>}
@@ -293,7 +320,7 @@ function NewRiskForm({ onSuccess, session }) {
 }
 
 // --- Risk Register (List View) ---
-function RiskRegister({ isTechAdmin }) {
+function RiskRegister({ isTechAdmin, categories }) {
   const [risks, setRisks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -393,14 +420,14 @@ function RiskRegister({ isTechAdmin }) {
         </div>
       </div>
 
-      {editingRisk && <EditRiskModal risk={editingRisk} onClose={() => setEditingRisk(null)} onRefresh={fetchRisks} />}
+      {editingRisk && <EditRiskModal risk={editingRisk} onClose={() => setEditingRisk(null)} onRefresh={fetchRisks} categories={categories} />}
       {managingKRIsFor && <KRIManagementModal risk={managingKRIsFor} onClose={() => setManagingKRIsFor(null)} />}
     </>
   );
 }
 
 // --- Admin Modals ---
-function EditRiskModal({ risk, onClose, onRefresh }) {
+function EditRiskModal({ risk, onClose, onRefresh, categories }) {
   const [formData, setFormData] = useState({ ...risk });
   const [loading, setLoading] = useState(false);
 
@@ -441,7 +468,7 @@ function EditRiskModal({ risk, onClose, onRefresh }) {
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><X size={20} /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6">
-          <RiskFormFields formData={formData} handleChange={(e) => setFormData({...formData, [e.target.name]: e.target.value})} />
+          <RiskFormFields formData={formData} handleChange={(e) => setFormData({...formData, [e.target.name]: e.target.value})} categories={categories} />
           <div className="mt-8 flex justify-end gap-3">
             <button type="button" onClick={onClose} className="px-6 py-2.5 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50">Cancel</button>
             <button type="submit" disabled={loading} className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">{loading ? 'Saving...' : 'Save Changes'}</button>
@@ -695,6 +722,168 @@ function getLikelihoodForKRI(value, kId, allRubrics) {
   const match = kRubrics.find(r => r.rubric_value.toLowerCase() === String(value).toLowerCase());
   if (match) return Number(match.likelihood);
   return 0; // Default if no match
+}
+
+// --- Categories Manager (Admin Only) ---
+function CategoriesManager({ categories, onRefresh }) {
+  const [newValue, setNewValue] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [editLabel, setEditLabel] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!newValue.trim() || !newLabel.trim()) return;
+    setLoading(true);
+    try {
+      const maxOrder = categories.length > 0 ? Math.max(...categories.map(c => c.sort_order || 0)) : 0;
+      const { error } = await supabase.from('risk_categories').insert([{
+        value: newValue.trim(),
+        label: newLabel.trim(),
+        sort_order: maxOrder + 1
+      }]);
+      if (error) throw error;
+      setNewValue('');
+      setNewLabel('');
+      onRefresh();
+    } catch (err) {
+      alert('Error adding category: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdate = async (id) => {
+    if (!editValue.trim() || !editLabel.trim()) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('risk_categories').update({
+        value: editValue.trim(),
+        label: editLabel.trim()
+      }).eq('id', id);
+      if (error) throw error;
+      setEditingId(null);
+      onRefresh();
+    } catch (err) {
+      alert('Error updating category: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id, label) => {
+    if (!window.confirm(`Delete category "${label}"? Existing risks using this category will keep their value but it will no longer appear in the dropdown.`)) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('risk_categories').delete().eq('id', id);
+      if (error) throw error;
+      onRefresh();
+    } catch (err) {
+      alert('Error deleting category: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMoveUp = async (index) => {
+    if (index === 0) return;
+    const current = categories[index];
+    const above = categories[index - 1];
+    try {
+      await supabase.from('risk_categories').update({ sort_order: above.sort_order }).eq('id', current.id);
+      await supabase.from('risk_categories').update({ sort_order: current.sort_order }).eq('id', above.id);
+      onRefresh();
+    } catch (err) {
+      alert('Error reordering: ' + err.message);
+    }
+  };
+
+  const handleMoveDown = async (index) => {
+    if (index === categories.length - 1) return;
+    const current = categories[index];
+    const below = categories[index + 1];
+    try {
+      await supabase.from('risk_categories').update({ sort_order: below.sort_order }).eq('id', current.id);
+      await supabase.from('risk_categories').update({ sort_order: current.sort_order }).eq('id', below.id);
+      onRefresh();
+    } catch (err) {
+      alert('Error reordering: ' + err.message);
+    }
+  };
+
+  const startEditing = (cat) => {
+    setEditingId(cat.id);
+    setEditValue(cat.value);
+    setEditLabel(cat.label);
+  };
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      {/* Add New Category */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-indigo-50 px-6 py-4 border-b border-indigo-100 flex items-center">
+          <Tags className="w-5 h-5 text-indigo-600 mr-2" />
+          <h3 className="text-lg font-semibold text-indigo-900">Add New Category</h3>
+        </div>
+        <form onSubmit={handleAdd} className="p-6 flex flex-col sm:flex-row gap-3 items-end">
+          <div className="flex-1 min-w-0">
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Short Key <span className="text-slate-400">(stored value)</span></label>
+            <input type="text" value={newValue} onChange={e => setNewValue(e.target.value)} placeholder="e.g. HR" className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Display Label</label>
+            <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. Human Resources" className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-1.5 whitespace-nowrap shadow-sm">
+            <PlusCircle size={16} /> Add
+          </button>
+        </form>
+      </div>
+
+      {/* Categories List */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-slate-800">Existing Categories</h3>
+          <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full font-medium">{categories.length} total</span>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {categories.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-sm">No categories defined yet. Add one above.</div>
+          ) : (
+            categories.map((cat, index) => (
+              <div key={cat.id} className="px-6 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors group">
+                {editingId === cat.id ? (
+                  <>
+                    <input type="text" value={editValue} onChange={e => setEditValue(e.target.value)} className="flex-1 px-3 py-1.5 border border-indigo-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input type="text" value={editLabel} onChange={e => setEditLabel(e.target.value)} className="flex-1 px-3 py-1.5 border border-indigo-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <div className="flex gap-1.5">
+                      <button onClick={() => handleUpdate(cat.id)} disabled={loading} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700">Save</button>
+                      <button onClick={() => setEditingId(null)} className="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-100">Cancel</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                      <span className="text-sm font-semibold text-slate-800">{cat.label}</span>
+                      <span className="text-xs text-slate-400 font-mono">key: {cat.value}</span>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => handleMoveUp(index)} disabled={index === 0} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded disabled:opacity-30" title="Move up">↑</button>
+                      <button onClick={() => handleMoveDown(index)} disabled={index === categories.length - 1} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded disabled:opacity-30" title="Move down">↓</button>
+                      <button onClick={() => startEditing(cat)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded" title="Edit"><Edit size={15} /></button>
+                      <button onClick={() => handleDelete(cat.id, cat.label)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete"><Trash2 size={15} /></button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // --- Reports ---
