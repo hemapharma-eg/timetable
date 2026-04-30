@@ -173,8 +173,24 @@ export const StudentManager = ({ students, setStudents, isReadOnly = false }) =>
   const executeImport = (mode) => {
     if (!pendingImportData) return;
     setImportDialogOpen(false);
-    if (mode === 'replace') setStudents([...pendingImportData]);
-    else setStudents(prev => [...prev, ...pendingImportData]);
+    if (mode === 'replace') {
+      setStudents([...pendingImportData]);
+    } else if (mode === 'update') {
+      setStudents(prev => {
+        const next = [...prev];
+        pendingImportData.forEach(item => {
+          const idx = next.findIndex(s => s.id === item.id);
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], ...item };
+          } else {
+            next.push(item);
+          }
+        });
+        return next;
+      });
+    } else {
+      setStudents(prev => [...prev, ...pendingImportData]);
+    }
     setPendingImportData(null); setImportFileName('');
   };
 
@@ -390,8 +406,10 @@ export const StudentManager = ({ students, setStudents, isReadOnly = false }) =>
         fileName={importFileName}
         recordCount={pendingImportData?.length || 0}
         existingCount={students.length}
+        uniqueFieldLabel="Student ID"
         onReplace={() => executeImport('replace')}
         onAppend={() => executeImport('append')}
+        onUpdate={() => executeImport('update')}
         onCancel={() => { setImportDialogOpen(false); setPendingImportData(null); }}
       />
     </div>

@@ -176,16 +176,29 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
 
     try {
       if (mode === 'replace') {
-        // Delete all existing records first
         const { error: delErr } = await supabase.from('faculty').delete().neq('id', 0);
         if (delErr) { alert('Failed to clear existing records: ' + delErr.message); return; }
+        const { error } = await supabase.from('faculty').insert(pendingImportData);
+        if (error) { alert('Import failed: ' + error.message); return; }
+      } else if (mode === 'update') {
+        // Match by employee_id: update existing, insert new
+        for (const item of pendingImportData) {
+          if (item.employee_id) {
+            const existing = faculty.find(f => f.employee_id === item.employee_id);
+            if (existing) {
+              await supabase.from('faculty').update(item).eq('id', existing.id);
+            } else {
+              await supabase.from('faculty').insert(item);
+            }
+          } else {
+            await supabase.from('faculty').insert(item);
+          }
+        }
+      } else {
+        const { error } = await supabase.from('faculty').insert(pendingImportData);
+        if (error) { alert('Import failed: ' + error.message); return; }
       }
 
-      // Insert new records
-      const { error } = await supabase.from('faculty').insert(pendingImportData);
-      if (error) { alert('Import failed: ' + error.message); return; }
-
-      // Refresh
       const { data: refreshed } = await supabase.from('faculty').select('*');
       if (refreshed) setFaculty(refreshed);
     } catch (err) {
@@ -448,8 +461,10 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
         fileName={importFileName}
         recordCount={pendingImportData?.length || 0}
         existingCount={faculty.length}
+        uniqueFieldLabel="Employee ID"
         onReplace={() => executeImport('replace')}
         onAppend={() => executeImport('append')}
+        onUpdate={() => executeImport('update')}
         onCancel={() => { setImportDialogOpen(false); setPendingImportData(null); }}
       />
     </div>

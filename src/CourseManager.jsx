@@ -110,8 +110,24 @@ export const CourseManager = ({ courses, setCourses, isReadOnly = false }) => {
   const executeImport = (mode) => {
     if (!pendingImportData) return;
     setImportDialogOpen(false);
-    if (mode === 'replace') setCourses([...pendingImportData]);
-    else setCourses(prev => [...prev, ...pendingImportData]);
+    if (mode === 'replace') {
+      setCourses([...pendingImportData]);
+    } else if (mode === 'update') {
+      setCourses(prev => {
+        const next = [...prev];
+        pendingImportData.forEach(item => {
+          const idx = next.findIndex(c => c.code && item.code && c.code === item.code);
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], ...item };
+          } else {
+            next.push(item);
+          }
+        });
+        return next;
+      });
+    } else {
+      setCourses(prev => [...prev, ...pendingImportData]);
+    }
     setPendingImportData(null); setImportFileName('');
   };
 
@@ -316,8 +332,10 @@ export const CourseManager = ({ courses, setCourses, isReadOnly = false }) => {
         fileName={importFileName}
         recordCount={pendingImportData?.length || 0}
         existingCount={courses.length}
+        uniqueFieldLabel="Course Code"
         onReplace={() => executeImport('replace')}
         onAppend={() => executeImport('append')}
+        onUpdate={() => executeImport('update')}
         onCancel={() => { setImportDialogOpen(false); setPendingImportData(null); }}
       />
     </div>

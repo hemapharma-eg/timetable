@@ -9,6 +9,7 @@ import { supabase } from './supabase';
 import * as XLSX from 'xlsx';
 import { createRoot } from 'react-dom/client';
 import RichTextEditor from './RichTextEditor';
+import ImportModeDialog from './ImportModeDialog';
 
 // Error Boundary to catch render crashes
 class ErrorBoundary extends React.Component {
@@ -372,19 +373,6 @@ function RiskRegister({ isTechAdmin, permissions, categories }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this risk?")) return;
-    try {
-      const { error } = await supabase.from('risk_management_plan').delete().eq('id', id);
-      if (error) throw error;
-      setRisks(risks.filter(r => r.id !== id));
-    } catch(err) {
-      alert("Failed to delete from DB, updating local state.");
-      setRisks(risks.filter(r => r.id !== id));
-      mockRisks = mockRisks.filter(r => r.id !== id);
-    }
-  };
-
   const filteredRisks = risks.filter(r => r.Risk_Title.toLowerCase().includes(searchTerm.toLowerCase()) || (r.Category || '').toLowerCase().includes(searchTerm.toLowerCase()));
   const sortedRisks = [...filteredRisks].sort((a, b) => (a.Risk_No || '').localeCompare(b.Risk_No || '', undefined, { numeric: true }));
 
@@ -410,6 +398,10 @@ function RiskRegister({ isTechAdmin, permissions, categories }) {
 
   // --- Excel Import ---
   const fileInputRef = useRef(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [pendingImportData, setPendingImportData] = useState(null);
+  const [importFileName, setImportFileName] = useState('');
+
   const handleImportExcel = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -432,17 +424,51 @@ function RiskRegister({ isTechAdmin, permissions, categories }) {
           Existing_Internal_control_: r.Existing_Controls || r.Existing_Internal_control_ || '',
           Mitigating_Actions: r.Mitigating_Actions || r['Mitigating Actions'] || ''
         }));
-        if (!window.confirm(`Import ${mapped.length} risks from Excel? This will ADD them to the existing register.`)) return;
-        const { error } = await supabase.from('risk_management_plan').insert(mapped);
-        if (error) throw error;
-        alert(`Successfully imported ${mapped.length} risks!`);
-        fetchRisks();
+        setPendingImportData(mapped);
+        setImportFileName(file.name);
+        setImportDialogOpen(true);
       } catch (err) {
         alert('Import error: ' + (err.message || 'Unknown'));
       }
     };
     reader.readAsArrayBuffer(file);
     e.target.value = '';
+  };
+
+  const executeImport = async (mode) => {
+    if (!pendingImportData) return;
+    setImportDialogOpen(false);
+
+    try {
+      if (mode === 'replace') {
+        const { error: delErr } = await supabase.from('risk_management_plan').delete().neq('id', 0);
+        if (delErr) { alert('Failed to clear existing records: ' + delErr.message); return; }
+        const { error } = await supabase.from('risk_management_plan').insert(pendingImportData);
+        if (error) throw error;
+      } else if (mode === 'update') {
+        for (const item of pendingImportData) {
+          if (item.Risk_No) {
+            const existing = risks.find(r => r.Risk_No === item.Risk_No);
+            if (existing) {
+              await supabase.from('risk_management_plan').update(item).eq('id', existing.id);
+            } else {
+              await supabase.from('risk_management_plan').insert(item);
+            }
+          } else {
+            await supabase.from('risk_management_plan').insert(item);
+          }
+        }
+      } else {
+        const { error } = await supabase.from('risk_management_plan').insert(pendingImportData);
+        if (error) throw error;
+      }
+      alert(`Import completed!`);
+      fetchRisks();
+    } catch (err) {
+      alert('Import error: ' + err.message);
+    }
+    setPendingImportData(null);
+    setImportFileName('');
   };
 
   return (
@@ -496,7 +522,6 @@ function RiskRegister({ isTechAdmin, permissions, categories }) {
                       <td className="p-4 text-right space-x-2 whitespace-nowrap">
                         <button onClick={() => setManagingKRIsFor(risk)} className="text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg transition-colors" title="Manage KRIs"><Target size={18} /></button>
                         <button onClick={() => setEditingRisk(risk)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors" title="Edit Risk"><Edit size={18} /></button>
-                        <button onClick={() => handleDelete(risk.id)} className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete Risk"><Trash2 size={18} /></button>
                       </td>
                     )}
                   </tr>
@@ -509,6 +534,18 @@ function RiskRegister({ isTechAdmin, permissions, categories }) {
 
       {editingRisk && <EditRiskModal risk={editingRisk} onClose={() => setEditingRisk(null)} onRefresh={fetchRisks} categories={categories} />}
       {managingKRIsFor && <KRIManagementModal risk={managingKRIsFor} onClose={() => setManagingKRIsFor(null)} />}
+
+      <ImportModeDialog
+        isOpen={importDialogOpen}
+        fileName={importFileName}
+        recordCount={pendingImportData?.length || 0}
+        existingCount={risks.length}
+        uniqueFieldLabel="Risk_No"
+        onReplace={() => executeImport('replace')}
+        onAppend={() => executeImport('append')}
+        onUpdate={() => executeImport('update')}
+        onCancel={() => { setImportDialogOpen(false); setPendingImportData(null); }}
+      />
     </>
   );
 }
