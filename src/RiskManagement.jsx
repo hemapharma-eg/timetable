@@ -78,7 +78,11 @@ const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab
 );
 
 export function RiskManagement({ session, userMeta, isTechAdmin, allowedSubTabs, permissions }) {
-  const [activeSubTab, setActiveSubTab] = useState('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState(() => {
+    if (isTechAdmin) return 'dashboard';
+    if (allowedSubTabs && allowedSubTabs.length > 0) return allowedSubTabs[0];
+    return 'dashboard';
+  });
   const [categories, setCategories] = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
 
@@ -144,7 +148,7 @@ export function RiskManagement({ session, userMeta, isTechAdmin, allowedSubTabs,
       {activeSubTab === 'dashboard' && <DashboardView categories={categories} />}
       {activeSubTab === 'new_risk' && <NewRiskForm onSuccess={() => setActiveSubTab('register')} session={session} categories={categories} />}
       {activeSubTab === 'register' && <RiskRegister isTechAdmin={isTechAdmin} permissions={permissions} categories={categories} />}
-      {activeSubTab === 'reports' && <ErrorBoundary><RiskReportsView academicYears={academicYears} /></ErrorBoundary>}
+      {(activeSubTab === 'reports' || (!isTechAdmin && tabs.length === 1 && tabs[0].id === 'reports')) && <ErrorBoundary><RiskReportsView academicYears={academicYears} /></ErrorBoundary>}
       {activeSubTab === 'categories' && isTechAdmin && <CategoriesManager categories={categories} onRefresh={fetchCategories} />}
       {activeSubTab === 'years' && isTechAdmin && <AcademicYearsManager years={academicYears} onRefresh={fetchAcademicYears} />}
       {activeSubTab === 'mapping' && isTechAdmin && <RiskYearMappingManager academicYears={academicYears} />}
@@ -1223,7 +1227,7 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
   const selectedRisk = (reportData || []).find(r => r.id === selectedRiskId);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full min-h-[500px] w-full flex flex-col">
       {/* Controls */}
       <div className="print:hidden flex justify-between items-center mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex-wrap gap-3">
         <div className="flex items-center space-x-3 flex-wrap gap-y-2">
@@ -1266,7 +1270,12 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
           </h2>
         </div>
 
-        {loading ? <p className="text-center py-10">Compiling report...</p> : viewMode === 'year' ? (
+        {loading ? <p className="text-center py-10">Compiling report...</p> : reportData.length === 0 ? (
+          <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            <h3 className="text-lg font-medium text-slate-800 mb-2">No Data Available or Permission Denied</h3>
+            <p className="text-slate-500 max-w-md mx-auto">Either no risks have been logged for this selection, or your account does not have read access to the database tables required to view this report. Please ensure you ran the sql_fix_report_rls.sql script in Supabase.</p>
+          </div>
+        ) : viewMode === 'year' ? (
           <div className="space-y-8">
             {/* Summary Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:grid-cols-3">

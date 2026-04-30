@@ -188,9 +188,11 @@ function FacultyPortal({ session, userMeta, permissions }) {
                 <div className="text-center">
                   <h2 className="text-2xl font-bold text-slate-800">Welcome to Faculty Portal</h2>
                   <p className="text-slate-500 mt-2">More sections will be added here soon.</p>
+                  <p className="mt-2 text-center max-w-md text-red-500 font-bold">DEBUG INFO: hasRisk is {hasRisk ? 'TRUE' : 'FALSE'}</p>
                 </div>
               </div>
             } />
+            <Route path="*" element={<Navigate to="/faculty/welcome" replace />} />
           </Routes>
         </div>
       </main>
@@ -411,28 +413,30 @@ export default function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/admin/*" element={
-        (appRole === 'technical_admin' || appRole === 'academic_admin') 
-          ? <AdminPortal session={session} userMeta={appUserMeta} permissions={permissions} /> 
-          : <Navigate to="/" replace />
-      } />
-      <Route path="/faculty/*" element={
-        (appRole === 'faculty' || appRole === 'technical_admin') 
-          ? <FacultyPortal session={session} userMeta={appUserMeta} permissions={permissions} /> 
-          : <Navigate to="/" replace />
-      } />
-      <Route path="/student/*" element={
-        (appRole === 'student') 
-          ? <StudentPortal session={session} userMeta={appUserMeta} /> 
-          : <Navigate to="/" replace />
-      } />
-      <Route path="/pending" element={
-        (appRole === 'pending') 
-          ? <PendingPortal /> 
-          : <Navigate to="/" replace />
-      } />
-      <Route path="/login" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/admin/*" element={
+          (appRole === 'technical_admin' || appRole === 'academic_admin') 
+            ? <AdminPortal session={session} userMeta={appUserMeta} permissions={permissions} /> 
+            : <Navigate to="/" replace />
+        } />
+        <Route path="/faculty/*" element={
+          (appRole === 'faculty' || appRole === 'technical_admin') 
+            ? <FacultyPortal session={session} userMeta={appUserMeta} permissions={permissions} /> 
+            : <Navigate to="/" replace />
+        } />
+        <Route path="/student/*" element={
+          (appRole === 'student') 
+            ? <StudentPortal session={session} userMeta={appUserMeta} /> 
+            : <Navigate to="/" replace />
+        } />
+        <Route path="/pending" element={
+          (appRole === 'pending') 
+            ? <PendingPortal /> 
+            : <Navigate to="/" replace />
+        } />
+        <Route path="/login" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
