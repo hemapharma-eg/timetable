@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Download, Upload, Plus, Pencil, Trash2, X, Search, BookOpen } from 'lucide-react';
+import { Upload, Plus, Pencil, Trash2, X, Search, BookOpen, CheckSquare } from 'lucide-react';
+import ImportModeDialog from './ImportModeDialog';
 
 export const COURSE_FIELDS = [
   // General Info
@@ -53,6 +54,10 @@ export const CourseManager = ({ courses, setCourses, isReadOnly = false }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [activeTab, setActiveTab] = useState('General Info');
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [pendingImportData, setPendingImportData] = useState(null);
+  const [importFileName, setImportFileName] = useState('');
   
   const initialForm = COURSE_FIELDS.reduce((acc, f) => ({ ...acc, [f.key]: '' }), {});
   const [form, setForm] = useState(initialForm);
@@ -66,63 +71,48 @@ export const CourseManager = ({ courses, setCourses, isReadOnly = false }) => {
     (c.course_crn || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const allVisibleSelected = filteredCourses.length > 0 && filteredCourses.every(c => selectedIds.has(c.id));
+  const someSelected = selectedIds.size > 0;
+  const toggleSelect = (id) => { setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; }); };
+  const toggleSelectAll = () => { if (allVisibleSelected) setSelectedIds(new Set()); else setSelectedIds(new Set(filteredCourses.map(c => c.id))); };
+  const handleBulkDelete = () => { if (!confirm(`Delete ${selectedIds.size} selected record(s)?`)) return; setCourses(courses.filter(x => !selectedIds.has(x.id))); setSelectedIds(new Set()); };
+
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    if (typeof XLSX === 'undefined') {
-      alert('Excel engine is still loading. Please try again in a moment.');
-      return;
-    }
-
+    if (typeof XLSX === 'undefined') { alert('Excel engine is still loading.'); return; }
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
+        const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-        
-        if (data.length < 2) {
-          alert('File is empty or missing data rows.');
-          return;
-        }
-
+        if (data.length < 2) { alert('File is empty or missing data rows.'); return; }
         const headers = data[0].map(h => h ? h.toString().trim() : '');
         const newItems = [];
-
         for (let i = 1; i < data.length; i++) {
-          const row = data[i];
-          if (!row || row.length === 0) continue;
-          
+          const row = data[i]; if (!row || row.length === 0) continue;
           let item = { id: Date.now().toString() + i };
-          COURSE_FIELDS.forEach((f) => {
-            const hIdx = headers.indexOf(f.key);
-            if (hIdx >= 0 && row[hIdx] !== undefined) {
-              item[f.key] = row[hIdx].toString().trim();
-            }
-          });
-          
-          if (row[headers.indexOf('id')] !== undefined) {
-             item.id = row[headers.indexOf('id')].toString().trim();
-          }
-          
-          if (item.name || item.code) { 
-            newItems.push(item);
-          }
+          COURSE_FIELDS.forEach((f) => { const hIdx = headers.indexOf(f.key); if (hIdx >= 0 && row[hIdx] !== undefined) item[f.key] = row[hIdx].toString().trim(); });
+          if (row[headers.indexOf('id')] !== undefined) item.id = row[headers.indexOf('id')].toString().trim();
+          if (item.name || item.code) newItems.push(item);
         }
-        
-        const newIds = newItems.map(n => n.id);
-        setCourses(prev => [...prev.filter(p => !newIds.includes(p.id)), ...newItems]);
-        e.target.value = ''; 
-      } catch (err) {
-        console.error(err);
-        alert('Failed to parse Excel file.');
-      }
+        if (newItems.length === 0) { alert('No valid records found.'); return; }
+        setPendingImportData(newItems); setImportFileName(file.name); setImportDialogOpen(true);
+        e.target.value = '';
+      } catch (err) { console.error(err); alert('Failed to parse Excel file.'); }
     };
     reader.readAsBinaryString(file);
+  };
+
+  const executeImport = (mode) => {
+    if (!pendingImportData) return;
+    setImportDialogOpen(false);
+    if (mode === 'replace') setCourses([...pendingImportData]);
+    else setCourses(prev => [...prev, ...pendingImportData]);
+    setPendingImportData(null); setImportFileName('');
   };
 
   const openForm = (course = null) => {
@@ -185,13 +175,25 @@ export const CourseManager = ({ courses, setCourses, isReadOnly = false }) => {
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      {!isReadOnly && someSelected && (
+        <div className="px-6 py-3 bg-indigo-50 border-b border-indigo-200 flex items-center justify-between">
+          <span className="text-sm font-medium text-indigo-800 flex items-center gap-2"><CheckSquare size={16} />{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2">
+            <button onClick={handleBulkDelete} className="px-3 py-1.5 text-xs font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1.5"><Trash2 size={14} /> Delete Selected</button>
+            <button onClick={() => setSelectedIds(new Set())} className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50">Clear</button>
+          </div>
+        </div>
+      )}
+
       {/* Main Data Table */}
       <div className="flex-1 overflow-auto bg-slate-50 p-6">
         <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-medium text-sm">
-                <th className="p-3 pl-4 sticky left-0 bg-slate-100 z-10">Code & Name</th>
+                {!isReadOnly && <th className="p-3 pl-4 w-10"><input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" /></th>}
+                <th className={`p-3 ${isReadOnly ? 'pl-4' : ''} sticky left-0 bg-slate-100 z-10`}>Code & Name</th>
                 <th className="p-3">CRN</th>
                 <th className="p-3">Program</th>
                 <th className="p-3">Credits</th>
@@ -200,7 +202,8 @@ export const CourseManager = ({ courses, setCourses, isReadOnly = false }) => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredCourses.map(c => (
-                <tr key={c.id} className="hover:bg-slate-50 transition-colors group">
+                <tr key={c.id} className={`hover:bg-slate-50 transition-colors group ${selectedIds.has(c.id) ? 'bg-indigo-50/50' : ''}`}>
+                  {!isReadOnly && <td className="p-3 pl-4"><input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleSelect(c.id)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" /></td>}
                   <td className="p-3 pl-4 sticky left-0 bg-white group-hover:bg-slate-50 z-10 w-96">
                     <div className="font-medium text-slate-800">{c.code || '-'}</div>
                     <div className="text-sm text-slate-500 font-normal truncate max-w-xs">{c.name || 'Unnamed Course'}</div>
@@ -222,7 +225,7 @@ export const CourseManager = ({ courses, setCourses, isReadOnly = false }) => {
               ))}
               {filteredCourses.length === 0 && (
                 <tr>
-                  <td colSpan={isReadOnly ? 4 : 5} className="p-8 text-center text-slate-500">
+                  <td colSpan={isReadOnly ? 5 : 7} className="p-8 text-center text-slate-500">
                     No courses found in the database.
                   </td>
                 </tr>
@@ -307,6 +310,16 @@ export const CourseManager = ({ courses, setCourses, isReadOnly = false }) => {
           </div>
         </div>
       )}
+
+      <ImportModeDialog
+        isOpen={importDialogOpen}
+        fileName={importFileName}
+        recordCount={pendingImportData?.length || 0}
+        existingCount={courses.length}
+        onReplace={() => executeImport('replace')}
+        onAppend={() => executeImport('append')}
+        onCancel={() => { setImportDialogOpen(false); setPendingImportData(null); }}
+      />
     </div>
   );
 };

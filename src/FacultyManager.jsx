@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Download, Upload, Plus, Pencil, Trash2, X, Search, User } from 'lucide-react';
+import { Upload, Plus, Pencil, Trash2, X, Search, User, CheckSquare } from 'lucide-react';
 import { supabase } from './supabase';
+import ImportModeDialog from './ImportModeDialog';
 
 export const FACULTY_FIELDS = [
   { key: 'category', label: 'Category', group: 'Basic Info' },
@@ -56,6 +57,12 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
   const [editingId, setEditingId] = useState(null);
   const [activeTab, setActiveTab] = useState('Basic Info');
   const [customRoles, setCustomRoles] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // Import dialog state
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [pendingImportData, setPendingImportData] = useState(null);
+  const [importFileName, setImportFileName] = useState('');
   
   useEffect(() => {
     supabase.from('custom_roles').select('*').then(({ data }) => setCustomRoles(data || []));
@@ -73,7 +80,37 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
     (f.employee_id || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // ── Selection helpers ──
+  const allVisibleSelected = filteredFaculty.length > 0 && filteredFaculty.every(f => selectedIds.has(f.id));
+  const someSelected = selectedIds.size > 0;
 
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredFaculty.map(f => f.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selectedIds.size;
+    if (!confirm(`Delete ${count} selected record${count !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    const ids = [...selectedIds];
+    const { error } = await supabase.from('faculty').delete().in('id', ids);
+    if (error) { alert('Bulk delete failed: ' + error.message); return; }
+    setFaculty(faculty.filter(x => !selectedIds.has(x.id)));
+    setSelectedIds(new Set());
+  };
+
+  // ── File Import (parse → show dialog) ──
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -84,7 +121,7 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
     }
 
     const reader = new FileReader();
-    reader.onload = async (evt) => {
+    reader.onload = (evt) => {
       try {
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
@@ -104,7 +141,7 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
           const row = data[i];
           if (!row || row.length === 0) continue;
           
-          let item = { id: Date.now().toString() + i };
+          let item = {};
           FACULTY_FIELDS.forEach((f) => {
             const hIdx = headers.indexOf(f.key);
             if (hIdx >= 0 && row[hIdx] !== undefined) {
@@ -112,17 +149,19 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
             }
           });
           
-          if (item.name) { // Only add if Name is present
-            newItems.push(item);
-          }
+          if (item.name) newItems.push(item);
         }
-        // Insert into Supabase
-        const dbItems = newItems.map(({ id, ...rest }) => rest);
-        const { error } = await supabase.from('faculty').insert(dbItems);
-        if (error) { alert('Import failed: ' + error.message); return; }
-        const { data: refreshed } = await supabase.from('faculty').select('*');
-        if (refreshed) setFaculty(refreshed);
-        e.target.value = ''; 
+
+        if (newItems.length === 0) {
+          alert('No valid records found in the file.');
+          return;
+        }
+
+        // Store parsed data and show the Replace/Append dialog
+        setPendingImportData(newItems);
+        setImportFileName(file.name);
+        setImportDialogOpen(true);
+        e.target.value = '';
       } catch (err) {
         console.error(err);
         alert('Failed to parse Excel file.');
@@ -131,11 +170,38 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
     reader.readAsBinaryString(file);
   };
 
+  const executeImport = async (mode) => {
+    if (!pendingImportData) return;
+    setImportDialogOpen(false);
+
+    try {
+      if (mode === 'replace') {
+        // Delete all existing records first
+        const { error: delErr } = await supabase.from('faculty').delete().neq('id', 0);
+        if (delErr) { alert('Failed to clear existing records: ' + delErr.message); return; }
+      }
+
+      // Insert new records
+      const { error } = await supabase.from('faculty').insert(pendingImportData);
+      if (error) { alert('Import failed: ' + error.message); return; }
+
+      // Refresh
+      const { data: refreshed } = await supabase.from('faculty').select('*');
+      if (refreshed) setFaculty(refreshed);
+    } catch (err) {
+      alert('Import error: ' + err.message);
+    }
+
+    setPendingImportData(null);
+    setImportFileName('');
+  };
+
   const handleDelete = async (id) => {
     if (!confirm('Delete this employee?')) return;
     const { error } = await supabase.from('faculty').delete().eq('id', id);
     if (error) { alert('Delete failed: ' + error.message); return; }
     setFaculty(faculty.filter(x => x.id !== id));
+    setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
   };
 
   const openForm = (facultyMember = null) => {
@@ -217,13 +283,36 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      {!isReadOnly && someSelected && (
+        <div className="px-6 py-3 bg-indigo-50 border-b border-indigo-200 flex items-center justify-between animate-in slide-in-from-top duration-200">
+          <span className="text-sm font-medium text-indigo-800 flex items-center gap-2">
+            <CheckSquare size={16} />
+            {selectedIds.size} record{selectedIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button onClick={handleBulkDelete} className="px-3 py-1.5 text-xs font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1.5">
+              <Trash2 size={14} /> Delete Selected
+            </button>
+            <button onClick={() => setSelectedIds(new Set())} className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+              Clear Selection
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Data Table */}
       <div className="flex-1 overflow-auto bg-slate-50 p-6">
         <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-medium text-sm">
-                <th className="p-3 pl-4 sticky left-0 bg-slate-100 z-10 w-64">Name / Email</th>
+                {!isReadOnly && (
+                  <th className="p-3 pl-4 w-10">
+                    <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                  </th>
+                )}
+                <th className={`p-3 ${isReadOnly ? 'pl-4' : ''} sticky left-0 bg-slate-100 z-10 w-64`}>Name / Email</th>
                 <th className="p-3">ID</th>
                 <th className="p-3">Designation</th>
                 <th className="p-3">College / Dept</th>
@@ -233,8 +322,13 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredFaculty.map(f => (
-                <tr key={f.id} className="hover:bg-slate-50 transition-colors group">
-                  <td className="p-3 pl-4 sticky left-0 bg-white group-hover:bg-slate-50 z-10">
+                <tr key={f.id} className={`hover:bg-slate-50 transition-colors group ${selectedIds.has(f.id) ? 'bg-indigo-50/50' : ''}`}>
+                  {!isReadOnly && (
+                    <td className="p-3 pl-4">
+                      <input type="checkbox" checked={selectedIds.has(f.id)} onChange={() => toggleSelect(f.id)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                    </td>
+                  )}
+                  <td className={`p-3 ${isReadOnly ? 'pl-4' : ''} sticky left-0 bg-white group-hover:bg-slate-50 z-10`}>
                     <div className="font-medium text-slate-800">{f.name || 'Unnamed Employee'}</div>
                     <div className="text-xs text-slate-500">{f.email || 'No email'}</div>
                   </td>
@@ -260,7 +354,7 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
               ))}
               {filteredFaculty.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="p-8 text-center text-slate-500">
+                  <td colSpan={isReadOnly ? 6 : 7} className="p-8 text-center text-slate-500">
                     No faculty or staff members found.
                   </td>
                 </tr>
@@ -347,6 +441,17 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
           </div>
         </div>
       )}
+
+      {/* Import Mode Dialog */}
+      <ImportModeDialog
+        isOpen={importDialogOpen}
+        fileName={importFileName}
+        recordCount={pendingImportData?.length || 0}
+        existingCount={faculty.length}
+        onReplace={() => executeImport('replace')}
+        onAppend={() => executeImport('append')}
+        onCancel={() => { setImportDialogOpen(false); setPendingImportData(null); }}
+      />
     </div>
   );
 };
