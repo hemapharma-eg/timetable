@@ -112,21 +112,45 @@ export const CourseManager = ({ courses, setCourses, isReadOnly = false }) => {
     setImportDialogOpen(false);
     if (mode === 'replace') {
       setCourses([...pendingImportData]);
+      alert(`Imported ${pendingImportData.length} records.`);
     } else if (mode === 'update') {
+      let updatedCount = 0;
+      let insertedCount = 0;
       setCourses(prev => {
         const next = [...prev];
         pendingImportData.forEach(item => {
           const idx = next.findIndex(c => c.code && item.code && c.code === item.code);
           if (idx >= 0) {
             next[idx] = { ...next[idx], ...item };
+            updatedCount++;
           } else {
             next.push(item);
+            insertedCount++;
           }
         });
         return next;
       });
+      alert(`Updated ${updatedCount} existing records and inserted ${insertedCount} new records.`);
     } else {
-      setCourses(prev => [...prev, ...pendingImportData]);
+      const existingCodes = new Set(courses.map(c => c.code).filter(Boolean));
+      const newRecords = [];
+      const rejectedRecords = [];
+      pendingImportData.forEach(item => {
+        if (item.code && existingCodes.has(item.code)) {
+          rejectedRecords.push(item);
+        } else {
+          newRecords.push(item);
+          if (item.code) existingCodes.add(item.code);
+        }
+      });
+      
+      setCourses(prev => [...prev, ...newRecords]);
+      
+      if (rejectedRecords.length > 0) {
+        alert(`Imported ${newRecords.length} new records.\nRejected ${rejectedRecords.length} duplicate records.`);
+      } else {
+        alert(`Successfully imported all ${newRecords.length} records.`);
+      }
     }
     setPendingImportData(null); setImportFileName('');
   };

@@ -175,21 +175,45 @@ export const StudentManager = ({ students, setStudents, isReadOnly = false }) =>
     setImportDialogOpen(false);
     if (mode === 'replace') {
       setStudents([...pendingImportData]);
+      alert(`Imported ${pendingImportData.length} records.`);
     } else if (mode === 'update') {
+      let updatedCount = 0;
+      let insertedCount = 0;
       setStudents(prev => {
         const next = [...prev];
         pendingImportData.forEach(item => {
           const idx = next.findIndex(s => s.id === item.id);
           if (idx >= 0) {
             next[idx] = { ...next[idx], ...item };
+            updatedCount++;
           } else {
             next.push(item);
+            insertedCount++;
           }
         });
         return next;
       });
+      alert(`Updated ${updatedCount} existing records and inserted ${insertedCount} new records.`);
     } else {
-      setStudents(prev => [...prev, ...pendingImportData]);
+      const existingIds = new Set(students.map(s => s.id));
+      const newRecords = [];
+      const rejectedRecords = [];
+      pendingImportData.forEach(item => {
+        if (existingIds.has(item.id)) {
+          rejectedRecords.push(item);
+        } else {
+          newRecords.push(item);
+          existingIds.add(item.id);
+        }
+      });
+      
+      setStudents(prev => [...prev, ...newRecords]);
+      
+      if (rejectedRecords.length > 0) {
+        alert(`Imported ${newRecords.length} new records.\nRejected ${rejectedRecords.length} duplicate records.`);
+      } else {
+        alert(`Successfully imported all ${newRecords.length} records.`);
+      }
     }
     setPendingImportData(null); setImportFileName('');
   };

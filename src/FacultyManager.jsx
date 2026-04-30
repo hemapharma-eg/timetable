@@ -180,23 +180,49 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
         if (delErr) { alert('Failed to clear existing records: ' + delErr.message); return; }
         const { error } = await supabase.from('faculty').insert(pendingImportData);
         if (error) { alert('Import failed: ' + error.message); return; }
+        alert(`Imported ${pendingImportData.length} records.`);
       } else if (mode === 'update') {
-        // Match by employee_id: update existing, insert new
+        let updatedCount = 0;
+        let insertedCount = 0;
         for (const item of pendingImportData) {
           if (item.employee_id) {
             const existing = faculty.find(f => f.employee_id === item.employee_id);
             if (existing) {
               await supabase.from('faculty').update(item).eq('id', existing.id);
+              updatedCount++;
             } else {
               await supabase.from('faculty').insert(item);
+              insertedCount++;
             }
           } else {
             await supabase.from('faculty').insert(item);
+            insertedCount++;
           }
         }
+        alert(`Updated ${updatedCount} existing records and inserted ${insertedCount} new records.`);
       } else {
-        const { error } = await supabase.from('faculty').insert(pendingImportData);
-        if (error) { alert('Import failed: ' + error.message); return; }
+        const existingIds = new Set(faculty.map(f => f.employee_id).filter(Boolean));
+        const newRecords = [];
+        const rejectedRecords = [];
+        pendingImportData.forEach(item => {
+          if (item.employee_id && existingIds.has(item.employee_id)) {
+            rejectedRecords.push(item);
+          } else {
+            newRecords.push(item);
+            if (item.employee_id) existingIds.add(item.employee_id);
+          }
+        });
+        
+        if (newRecords.length > 0) {
+          const { error } = await supabase.from('faculty').insert(newRecords);
+          if (error) { alert('Import failed: ' + error.message); return; }
+        }
+        
+        if (rejectedRecords.length > 0) {
+          alert(`Imported ${newRecords.length} new records.\nRejected ${rejectedRecords.length} duplicate records.`);
+        } else {
+          alert(`Successfully imported all ${newRecords.length} records.`);
+        }
       }
 
       const { data: refreshed } = await supabase.from('faculty').select('*');

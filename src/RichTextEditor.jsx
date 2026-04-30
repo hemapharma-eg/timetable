@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { Bold, Italic, Underline, List, ListOrdered, Undo, Redo } from 'lucide-react';
 
 const ToolbarButton = ({ onClick, icon: Icon, title, active }) => (
@@ -15,9 +15,17 @@ const ToolbarButton = ({ onClick, icon: Icon, title, active }) => (
 export default function RichTextEditor({ value, onChange, className = '' }) {
   const editorRef = useRef(null);
 
+  useEffect(() => {
+    if (editorRef.current && value !== editorRef.current.innerHTML) {
+      editorRef.current.innerHTML = value || '';
+    }
+  }, [value]);
+
   const execCommand = useCallback((command, val = null) => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
     document.execCommand(command, false, val);
-    // Sync HTML back to parent after command
     if (editorRef.current && onChange) {
       onChange(editorRef.current.innerHTML);
     }
@@ -51,7 +59,6 @@ export default function RichTextEditor({ value, onChange, className = '' }) {
         suppressContentEditableWarning
         onInput={handleInput}
         onBlur={handleInput}
-        dangerouslySetInnerHTML={{ __html: value || '' }}
         className="min-h-[120px] px-4 py-3 text-sm text-slate-800 outline-none [&>ul]:list-disc [&>ul]:list-inside [&>ol]:list-decimal [&>ol]:list-inside [&>ul]:ml-2 [&>ol]:ml-2 leading-relaxed"
         style={{ wordBreak: 'break-word' }}
       />

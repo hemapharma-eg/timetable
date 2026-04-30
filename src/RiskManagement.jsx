@@ -445,24 +445,50 @@ function RiskRegister({ isTechAdmin, permissions, categories }) {
         if (delErr) { alert('Failed to clear existing records: ' + delErr.message); return; }
         const { error } = await supabase.from('risk_management_plan').insert(pendingImportData);
         if (error) throw error;
+        alert(`Imported ${pendingImportData.length} records.`);
       } else if (mode === 'update') {
+        let updatedCount = 0;
+        let insertedCount = 0;
         for (const item of pendingImportData) {
           if (item.Risk_No) {
             const existing = risks.find(r => r.Risk_No === item.Risk_No);
             if (existing) {
               await supabase.from('risk_management_plan').update(item).eq('id', existing.id);
+              updatedCount++;
             } else {
               await supabase.from('risk_management_plan').insert(item);
+              insertedCount++;
             }
           } else {
             await supabase.from('risk_management_plan').insert(item);
+            insertedCount++;
           }
         }
+        alert(`Updated ${updatedCount} existing records and inserted ${insertedCount} new records.`);
       } else {
-        const { error } = await supabase.from('risk_management_plan').insert(pendingImportData);
-        if (error) throw error;
+        const existingIds = new Set(risks.map(r => r.Risk_No).filter(Boolean));
+        const newRecords = [];
+        const rejectedRecords = [];
+        pendingImportData.forEach(item => {
+          if (item.Risk_No && existingIds.has(item.Risk_No)) {
+            rejectedRecords.push(item);
+          } else {
+            newRecords.push(item);
+            if (item.Risk_No) existingIds.add(item.Risk_No);
+          }
+        });
+        
+        if (newRecords.length > 0) {
+          const { error } = await supabase.from('risk_management_plan').insert(newRecords);
+          if (error) throw error;
+        }
+        
+        if (rejectedRecords.length > 0) {
+          alert(`Imported ${newRecords.length} new records.\nRejected ${rejectedRecords.length} duplicate records.`);
+        } else {
+          alert(`Successfully imported all ${newRecords.length} records.`);
+        }
       }
-      alert(`Import completed!`);
       fetchRisks();
     } catch (err) {
       alert('Import error: ' + err.message);
