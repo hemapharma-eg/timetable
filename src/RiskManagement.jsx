@@ -8,7 +8,7 @@ import {
 import { supabase } from './supabase';
 import * as XLSX from 'xlsx';
 import { createRoot } from 'react-dom/client';
-import Editor from 'react-simple-wysiwyg';
+import RichTextEditor from './RichTextEditor';
 
 // Error Boundary to catch render crashes
 class ErrorBoundary extends React.Component {
@@ -276,27 +276,19 @@ function RiskFormFields({ formData, handleChange, categories = [] }) {
       <div className="grid grid-cols-1 gap-6">
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Mitigating Actions</label>
-          <div className="bg-white rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
-             <Editor value={formData.Mitigating_Actions || ''} onChange={(e) => handleChange({ target: { name: 'Mitigating_Actions', value: e.target.value } })} className="border-none min-h-[120px]" />
-          </div>
+          <RichTextEditor value={formData.Mitigating_Actions || ''} onChange={(val) => handleChange({ target: { name: 'Mitigating_Actions', value: val } })} />
         </div>
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Causes</label>
-          <div className="bg-white rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
-             <Editor value={formData.Risk_Causes || ''} onChange={(e) => handleChange({ target: { name: 'Risk_Causes', value: e.target.value } })} className="border-none min-h-[120px]" />
-          </div>
+          <RichTextEditor value={formData.Risk_Causes || ''} onChange={(val) => handleChange({ target: { name: 'Risk_Causes', value: val } })} />
         </div>
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Consequences</label>
-          <div className="bg-white rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
-             <Editor value={formData.Risk_Consequences_ || ''} onChange={(e) => handleChange({ target: { name: 'Risk_Consequences_', value: e.target.value } })} className="border-none min-h-[120px]" />
-          </div>
+          <RichTextEditor value={formData.Risk_Consequences_ || ''} onChange={(val) => handleChange({ target: { name: 'Risk_Consequences_', value: val } })} />
         </div>
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Existing Internal Controls</label>
-          <div className="bg-white rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
-             <Editor value={formData.Existing_Internal_control_ || ''} onChange={(e) => handleChange({ target: { name: 'Existing_Internal_control_', value: e.target.value } })} className="border-none min-h-[120px]" />
-          </div>
+          <RichTextEditor value={formData.Existing_Internal_control_ || ''} onChange={(val) => handleChange({ target: { name: 'Existing_Internal_control_', value: val } })} />
         </div>
       </div>
     </div>
