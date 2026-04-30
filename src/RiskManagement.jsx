@@ -7,6 +7,9 @@ import {
 } from 'lucide-react';
 import { supabase } from './supabase';
 import * as XLSX from 'xlsx';
+import { createRoot } from 'react-dom/client';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 // Error Boundary to catch render crashes
 class ErrorBoundary extends React.Component {
@@ -274,19 +277,27 @@ function RiskFormFields({ formData, handleChange, categories = [] }) {
       <div className="grid grid-cols-1 gap-6">
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Mitigating Actions</label>
-          <textarea name="Mitigating_Actions" rows="3" value={formData.Mitigating_Actions || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></textarea>
+          <div className="bg-white rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
+             <ReactQuill theme="snow" value={formData.Mitigating_Actions || ''} onChange={(val) => handleChange({ target: { name: 'Mitigating_Actions', value: val } })} className="border-none" />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Causes</label>
-          <textarea name="Risk_Causes" rows="3" value={formData.Risk_Causes || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></textarea>
+          <div className="bg-white rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
+             <ReactQuill theme="snow" value={formData.Risk_Causes || ''} onChange={(val) => handleChange({ target: { name: 'Risk_Causes', value: val } })} className="border-none" />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Consequences</label>
-          <textarea name="Risk_Consequences_" rows="3" value={formData.Risk_Consequences_ || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></textarea>
+          <div className="bg-white rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
+             <ReactQuill theme="snow" value={formData.Risk_Consequences_ || ''} onChange={(val) => handleChange({ target: { name: 'Risk_Consequences_', value: val } })} className="border-none" />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Existing Internal Controls</label>
-          <textarea name="Existing_Internal_control_" rows="3" value={formData.Existing_Internal_control_ || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></textarea>
+          <div className="bg-white rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500 overflow-hidden">
+             <ReactQuill theme="snow" value={formData.Existing_Internal_control_ || ''} onChange={(val) => handleChange({ target: { name: 'Existing_Internal_control_', value: val } })} className="border-none" />
+          </div>
         </div>
       </div>
     </div>
@@ -1374,14 +1385,23 @@ export function RiskReportsView({ initialYear, academicYears: yearsFromProp }) {
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Causes & Consequences</h4>
-                    <p className="text-sm text-slate-700 mb-3"><span className="font-semibold text-slate-900">Causes:</span> {risk.Risk_Causes || 'N/A'}</p>
-                    <p className="text-sm text-slate-700"><span className="font-semibold text-slate-900">Impact:</span> {risk.Risk_Consequences_ || 'N/A'}</p>
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4">Mitigating Actions</h4>
-                    <p className="text-sm text-slate-700">{risk.Mitigating_Actions || 'N/A'}</p>
+                    <div className="mb-3">
+                      <span className="font-semibold text-slate-900 text-sm block mb-1">Causes:</span>
+                      <div className="text-sm text-slate-700 [&>ul]:list-disc [&>ul]:list-inside [&>ol]:list-decimal [&>ol]:list-inside" dangerouslySetInnerHTML={{ __html: risk.Risk_Causes || 'N/A' }} />
+                    </div>
+                    <div className="mb-4">
+                      <span className="font-semibold text-slate-900 text-sm block mb-1">Impact:</span>
+                      <div className="text-sm text-slate-700 [&>ul]:list-disc [&>ul]:list-inside [&>ol]:list-decimal [&>ol]:list-inside" dangerouslySetInnerHTML={{ __html: risk.Risk_Consequences_ || 'N/A' }} />
+                    </div>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Mitigating Actions</h4>
+                    <div className="text-sm text-slate-700 [&>ul]:list-disc [&>ul]:list-inside [&>ol]:list-decimal [&>ol]:list-inside" dangerouslySetInnerHTML={{ __html: risk.Mitigating_Actions || 'N/A' }} />
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Controls & Indicators</h4>
-                    <p className="text-sm text-slate-700 mb-4"><span className="font-semibold text-slate-900">Controls:</span> {risk.Existing_Internal_control_ || 'N/A'}</p>
+                    <div className="mb-5">
+                      <span className="font-semibold text-slate-900 text-sm block mb-1">Controls:</span>
+                      <div className="text-sm text-slate-700 [&>ul]:list-disc [&>ul]:list-inside [&>ol]:list-decimal [&>ol]:list-inside" dangerouslySetInnerHTML={{ __html: risk.Existing_Internal_control_ || 'N/A' }} />
+                    </div>
                     {(risk.kris || []).length > 0 ? (
                       <table className="w-full text-left text-sm border border-slate-200 rounded-lg overflow-hidden print:border-collapse">
                         <thead className="bg-slate-50"><tr><th className="px-3 py-2 font-semibold">KRI</th><th className="px-3 py-2 font-semibold w-24 text-center">Value</th><th className="px-3 py-2 font-semibold w-24 text-center">Likelihood</th></tr></thead>

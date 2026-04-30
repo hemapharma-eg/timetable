@@ -129,16 +129,6 @@ export const StudentManager = ({ students, setStudents, isReadOnly = false }) =>
     (s.id || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDownloadTemplate = () => {
-    if (typeof XLSX === 'undefined') {
-      alert('Excel engine is still loading. Please try again in a moment.');
-      return;
-    }
-    const ws = XLSX.utils.json_to_sheet([], { header: STUDENT_FIELDS.map(f => f.key) });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Students");
-    XLSX.writeFile(wb, `students_template.xlsx`);
-  };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -247,9 +237,6 @@ export const StudentManager = ({ students, setStudents, isReadOnly = false }) =>
               className="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-64"
             />
           </div>
-          <button onClick={handleDownloadTemplate} className="px-3 py-2 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center text-sm font-medium">
-            <Download size={16} className="mr-1.5" /> Template
-          </button>
           {!isReadOnly && (
             <>
               <label className="px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center text-sm font-medium cursor-pointer">

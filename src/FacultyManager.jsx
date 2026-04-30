@@ -73,16 +73,6 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
     (f.employee_id || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDownloadTemplate = () => {
-    if (typeof XLSX === 'undefined') {
-      alert('Excel engine is still loading. Please try again in a moment.');
-      return;
-    }
-    const ws = XLSX.utils.json_to_sheet([], { header: FACULTY_FIELDS.map(f => f.key) });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Faculty_Staff");
-    XLSX.writeFile(wb, `faculty_staff_template.xlsx`);
-  };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -211,10 +201,6 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
             />
           </div>
           <div className="flex gap-3 mt-4 md:mt-0">
-              <button onClick={handleDownloadTemplate} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm text-sm">
-                <Download size={16} /> Template
-              </button>
-              
               {!isReadOnly && (
                 <>
                   <button onClick={() => fileInputRef.current.click()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm text-sm">
