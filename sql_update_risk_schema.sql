@@ -24,9 +24,13 @@ CREATE TABLE IF NOT EXISTS public.risk_values (
 );
 
 ALTER TABLE public.risk_values ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable read access for all on risk_values" ON public.risk_values;
 CREATE POLICY "Enable read access for all on risk_values" ON public.risk_values FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable insert access for authenticated" ON public.risk_values;
 CREATE POLICY "Enable insert access for authenticated" ON public.risk_values FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Enable update access for authenticated" ON public.risk_values;
 CREATE POLICY "Enable update access for authenticated" ON public.risk_values FOR UPDATE USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Enable delete access for authenticated" ON public.risk_values;
 CREATE POLICY "Enable delete access for authenticated" ON public.risk_values FOR DELETE USING (auth.role() = 'authenticated');
 
 -- 4. Drop old KRI tables

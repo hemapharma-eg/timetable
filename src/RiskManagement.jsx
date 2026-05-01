@@ -717,7 +717,8 @@ function evaluateRubric(valStr, rubricStr) {
   try {
     let expr = rubricStr;
     if (!expr.includes('value') && !expr.includes('val')) {
-      expr = `val ${expr}`;
+      // Prepend 'val' to each part of a compound condition (e.g. "< 80 && >= 70" → "val < 80 && val >= 70")
+      expr = expr.split('&&').map(part => `val ${part.trim()}`).join(' && ');
     } else {
       expr = expr.replace(/value/g, 'val');
     }
