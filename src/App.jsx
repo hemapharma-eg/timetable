@@ -7,6 +7,7 @@ import { CourseManager } from './CourseManager';
 import { RolesManager } from './RolesManager';
 import { supabase } from './supabase';
 import { RiskManagement, PublicRiskReport } from './RiskManagement';
+import { CollegesManager, ProgramsManager, CommitteesManager } from './OrgManager';
 
 // Reusable Layout Components
 const SidebarItem = ({ icon: Icon, label, path, active, onClick }) => (
@@ -90,11 +91,15 @@ function AdminPortal({ session, userMeta, permissions }) {
             <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={true} />} />
             <Route path="databases" element={
               <PageContainer title="Databases" description="Manage core system records" activeSubTab={dbSubTab} setActiveSubTab={setDbSubTab} tabs={[
-                { id: 'faculty', label: 'Faculty & Staff' }, { id: 'students', label: 'Students' }, { id: 'courses', label: 'Courses' }
+                { id: 'faculty', label: 'Faculty & Staff' }, { id: 'students', label: 'Students' }, { id: 'courses', label: 'Courses' },
+                { id: 'colleges', label: 'Colleges' }, { id: 'programs', label: 'Programs' }, { id: 'committees', label: 'Committees' }
               ]}>
                 {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} />}
                 {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} />}
                 {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} />}
+                {dbSubTab === 'colleges' && <CollegesManager />}
+                {dbSubTab === 'programs' && <ProgramsManager />}
+                {dbSubTab === 'committees' && <CommitteesManager />}
               </PageContainer>
             } />
             <Route path="roles" element={<RolesManager />} />
@@ -174,11 +179,17 @@ function FacultyPortal({ session, userMeta, permissions }) {
                 <PageContainer title="Databases" description="Manage core system records" activeSubTab={dbSubTab} setActiveSubTab={setDbSubTab} tabs={[
                   ...(allowedDbTabs.includes('faculty') ? [{ id: 'faculty', label: 'Faculty & Staff' }] : []),
                   ...(allowedDbTabs.includes('students') ? [{ id: 'students', label: 'Students' }] : []),
-                  ...(allowedDbTabs.includes('courses') ? [{ id: 'courses', label: 'Courses' }] : [])
+                  ...(allowedDbTabs.includes('courses') ? [{ id: 'courses', label: 'Courses' }] : []),
+                  ...(allowedDbTabs.includes('colleges') ? [{ id: 'colleges', label: 'Colleges' }] : []),
+                  ...(allowedDbTabs.includes('programs') ? [{ id: 'programs', label: 'Programs' }] : []),
+                  ...(allowedDbTabs.includes('committees') ? [{ id: 'committees', label: 'Committees' }] : [])
                 ]}>
                   {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} isReadOnly={!permissions.some(p => p.module_name === 'db_faculty' && p.can_edit)} />}
                   {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} isReadOnly={!permissions.some(p => p.module_name === 'db_students' && p.can_edit)} />}
                   {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} isReadOnly={!permissions.some(p => p.module_name === 'db_courses' && p.can_edit)} />}
+                  {dbSubTab === 'colleges' && <CollegesManager />}
+                  {dbSubTab === 'programs' && <ProgramsManager />}
+                  {dbSubTab === 'committees' && <CommitteesManager />}
                 </PageContainer>
               } />
             )}

@@ -877,6 +877,7 @@ function RiskReportsView({ initialYear }) {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [scopeFilter, setScopeFilter] = useState('All Scopes');
   const [viewMode, setViewMode] = useState('year');
   const [selectedRiskId, setSelectedRiskId] = useState(null);
   const [trendData, setTrendData] = useState([]);
@@ -951,9 +952,12 @@ function RiskReportsView({ initialYear }) {
     await navigator.clipboard.writeText(url); alert('Public report link copied!');
   };
 
+  const availableScopes = ['All Scopes', 'Institution', ...new Set(reportData.map(r => r.program_name).filter(p => p && p !== 'Institution'))];
+
   const filtered = reportData.filter(r => {
     if (searchTerm && !(r.Risk_Title || '').toLowerCase().includes(searchTerm.toLowerCase())) return false;
     if (statusFilter !== 'All' && r.status.label !== statusFilter) return false;
+    if (scopeFilter !== 'All Scopes' && r.program_name !== scopeFilter) return false;
     return true;
   }).sort((a,b) => (a.Risk_No || '').localeCompare(b.Risk_No || '', undefined, { numeric: true }));
 
@@ -975,6 +979,9 @@ function RiskReportsView({ initialYear }) {
             <input type="text" placeholder="Search title..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 w-full sm:w-48" />
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500">
               <option value="All">All Statuses</option><option value="No Risk">No Risk</option><option value="Low Probability">Low Probability</option><option value="High Probability">High Probability</option><option value="Incident Risk">Incident Risk</option>
+            </select>
+            <select value={scopeFilter} onChange={e => setScopeFilter(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 max-w-[200px] truncate">
+              {availableScopes.map(scope => <option key={scope} value={scope}>{scope}</option>)}
             </select>
           </>)}
           {viewMode === 'trend' && (
