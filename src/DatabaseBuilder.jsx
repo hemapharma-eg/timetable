@@ -27,7 +27,7 @@ export function DatabaseBuilder() {
   const [tableData, setTableData] = useState([]);
   const [rowCount, setRowCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('schema');
+  const [activeTab, setActiveTab] = useState('records');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Add column state
@@ -449,8 +449,8 @@ export function DatabaseBuilder() {
                 <div className="flex items-center gap-2">
                   <div className="flex bg-slate-100 rounded-lg p-0.5">
                     <button onClick={() => setActiveTab('records')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'records' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}>Records</button>
-                    <button onClick={() => setActiveTab('schema')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'schema' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}>Schema</button>
                     <button onClick={() => setActiveTab('data')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'data' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}>Import / Export</button>
+                    <button onClick={() => setActiveTab('schema')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'schema' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}>Schema</button>
                   </div>
                 </div>
               </div>
