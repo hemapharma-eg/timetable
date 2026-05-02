@@ -73,7 +73,6 @@ function AdminPortal({ session, userMeta, permissions }) {
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/admin/risk')} />
-          <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/admin/databases')} />
           <SidebarItem id="db_builder" icon={Settings} label="Database Builder" active={currentTab === 'db_builder'} onClick={() => navigate('/admin/db_builder')} />
           <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/admin/roles')} />
           
@@ -91,19 +90,7 @@ function AdminPortal({ session, userMeta, permissions }) {
           <Routes>
             <Route path="/" element={<Navigate to="/admin/risk" replace />} />
             <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={true} />} />
-            <Route path="databases" element={
-              <PageContainer title="Databases" description="Manage core system records" activeSubTab={dbSubTab} setActiveSubTab={setDbSubTab} tabs={[
-                { id: 'faculty', label: 'Faculty & Staff' }, { id: 'students', label: 'Students' }, { id: 'courses', label: 'Courses' },
-                { id: 'colleges', label: 'Colleges' }, { id: 'programs', label: 'Programs' }, { id: 'committees', label: 'Committees' }
-              ]}>
-                {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} />}
-                {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} />}
-                {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} />}
-                {dbSubTab === 'colleges' && <CollegesManager />}
-                {dbSubTab === 'programs' && <ProgramsManager />}
-                {dbSubTab === 'committees' && <CommitteesManager />}
-              </PageContainer>
-            } />
+
             <Route path="db_builder" element={
               <PageContainer title="Database Builder" description="Create databases, manage schemas, and import/export data">
                 <DatabaseBuilder />

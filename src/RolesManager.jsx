@@ -81,12 +81,7 @@ export function RolesManager() {
     { section: 'Risk Management', key: 'risk_new_risk', label: 'Report a Risk' },
     { section: 'Risk Management', key: 'risk_register', label: 'Risk Register' },
     { section: 'Risk Management', key: 'risk_reports', label: 'Yearly Reports' },
-    { section: 'Databases', key: 'db_faculty', label: 'Faculty & Staff' },
-    { section: 'Databases', key: 'db_students', label: 'Students' },
-    { section: 'Databases', key: 'db_courses', label: 'Courses' },
-    { section: 'Databases', key: 'db_colleges', label: 'Colleges' },
-    { section: 'Databases', key: 'db_programs', label: 'Programs' },
-    { section: 'Databases', key: 'db_committees', label: 'Committees' },
+
     { section: 'Administration', key: 'db_builder', label: 'Database Builder' },
     { section: 'Organization', key: 'org_structure', label: 'Org Structure' },
   ];
