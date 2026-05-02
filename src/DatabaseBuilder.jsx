@@ -4,7 +4,7 @@ import { Database, Plus, Trash2, Edit, Download, Upload, X, Table, Columns, Sear
 import * as XLSX from 'xlsx';
 import ImportModeDialog from './ImportModeDialog';
 
-const SYSTEM_TABLES = ['app_users','custom_roles','role_permissions','risk_year_mapping','risk_values','risk_categories','academic_years','schema_migrations'];
+const SYSTEM_TABLES = ['app_users','custom_roles','role_permissions','risk_year_mapping','risk_categories','academic_years','schema_migrations'];
 const FIELD_TYPES = [
   { value: 'text', label: 'Short Text' },
   { value: 'text_long', label: 'Long Text' },
@@ -676,24 +676,25 @@ function RecordsView({ tableName, columns, onUpdate }) {
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-slate-50 text-slate-600 border-b border-slate-200">
-              <th className="p-3 font-semibold w-16">Actions</th>
+              <th className="p-3 font-semibold w-12 text-center">Edit</th>
               {columns.map(c => <th key={c.column_name} className="p-3 font-semibold whitespace-nowrap">{c.column_name}</th>)}
+              <th className="p-3 font-semibold w-12 text-center">Delete</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
             {data.map(row => (
               <tr key={row.id} className="hover:bg-slate-50 group">
-                <td className="p-3">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => { setEditingRow({...row}); setShowModal(true); }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded" title="Edit"><Edit size={14} /></button>
-                    <button onClick={() => handleDelete(row.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete"><Trash2 size={14} /></button>
-                  </div>
+                <td className="p-3 text-center border-r border-slate-50">
+                  <button onClick={() => { setEditingRow({...row}); setShowModal(true); }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Edit"><Edit size={14} /></button>
                 </td>
                 {columns.map(c => (
                   <td key={c.column_name} className="p-3 whitespace-nowrap overflow-hidden max-w-[200px] truncate">
                     {String(row[c.column_name] ?? '')}
                   </td>
                 ))}
+                <td className="p-3 text-center border-l border-slate-50">
+                  <button onClick={() => handleDelete(row.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete"><Trash2 size={14} /></button>
+                </td>
               </tr>
             ))}
             {data.length === 0 && (
