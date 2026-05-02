@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
-import { Database, Plus, Trash2, Edit, Download, Upload, X, Table, Columns, Search, PlusCircle, Save } from 'lucide-react';
+import { Database, Plus, Trash2, Edit, Download, Upload, X, Table, Columns, Search, PlusCircle, Save, ShieldAlert } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import ImportModeDialog from './ImportModeDialog';
+import RichTextEditor from './RichTextEditor';
 
-const SYSTEM_TABLES = ['app_users','custom_roles','role_permissions','risk_year_mapping','risk_categories','academic_years','schema_migrations'];
+const CORE_TABLES = ['app_users','custom_roles','role_permissions','risk_year_mapping','risk_categories','academic_years','schema_migrations'];
+const SYSTEM_TABLES = []; // Empty to show all tables
 const FIELD_TYPES = [
   { value: 'text', label: 'Short Text' },
   { value: 'text_long', label: 'Long Text' },
@@ -430,9 +432,19 @@ export function DatabaseBuilder() {
           ) : selectedTable ? (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-wrap gap-3">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-800">{selectedTable}</h3>
-                  <p className="text-xs text-slate-400">{columns.length} columns • {rowCount} rows</p>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h2 className="text-lg font-bold text-slate-800">{selectedTable}</h2>
+                    {CORE_TABLES.includes(selectedTable) && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full border border-amber-200 group relative cursor-help">
+                        <ShieldAlert size={12} /> SYSTEM PROTECTED
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-[9px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-normal">
+                          This is a core system table. Schema changes are disabled to protect application logic.
+                        </div>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500">{columns.length} columns • {rowCount} rows</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex bg-slate-100 rounded-lg p-0.5">
@@ -451,7 +463,12 @@ export function DatabaseBuilder() {
                     onUpdate={() => fetchRowCount(selectedTable)}
                   />
                 ) : activeTab === 'schema' ? (
-                  <div className="space-y-6">
+                  <div className={`space-y-6 ${CORE_TABLES.includes(selectedTable) ? 'pointer-events-none opacity-60' : ''}`}>
+                    {CORE_TABLES.includes(selectedTable) && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs flex items-center gap-2">
+                         <ShieldAlert size={16} /> Schema editing is disabled for system tables.
+                      </div>
+                    )}
                     {/* Add column form */}
                     <div className="flex gap-3 items-end p-4 bg-slate-50 rounded-xl border border-slate-200">
                       <div className="flex-1">
@@ -541,10 +558,12 @@ export function DatabaseBuilder() {
                     </table>
 
                     {/* Danger zone */}
-                    <div className="mt-8 p-4 border border-red-200 rounded-xl bg-red-50/50">
-                      <h4 className="text-sm font-bold text-red-700 mb-2">Danger Zone</h4>
-                      <button onClick={handleDeleteTable} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Delete Entire Database</button>
-                    </div>
+                    {!CORE_TABLES.includes(selectedTable) && (
+                      <div className="mt-8 p-4 border border-red-200 rounded-xl bg-red-50/50">
+                        <h4 className="text-sm font-bold text-red-700 mb-2">Danger Zone</h4>
+                        <button onClick={handleDeleteTable} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Delete Entire Database</button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* Import/Export Tab */
@@ -719,6 +738,12 @@ function RecordsView({ tableName, columns, onUpdate }) {
 
 function RecordDetailsModal({ isOpen, onClose, onSave, rowData, columns }) {
   const [formData, setFormData] = useState(rowData || {});
+  const [activePage, setActivePage] = useState(0);
+  
+  const editableCols = columns.filter(c => c.column_name !== 'id' && c.column_name !== 'created_at');
+  const PAGE_SIZE = 8;
+  const pageCount = Math.ceil(editableCols.length / PAGE_SIZE);
+  const currentFields = editableCols.slice(activePage * PAGE_SIZE, (activePage + 1) * PAGE_SIZE);
 
   const renderInput = (col) => {
     let metadata = {};
@@ -734,47 +759,74 @@ function RecordDetailsModal({ isOpen, onClose, onSave, rowData, columns }) {
     if (uiType === 'dropdown') {
       const opts = (metadata.options || '').split(',').map(o => o.trim());
       return (
-        <select value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+        <select value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500">
           <option value="">Select...</option>
           {opts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       );
     }
     if (uiType === 'text_long') {
-      return <textarea value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm min-h-[100px]" />;
+      return <RichTextEditor value={value || ''} onChange={onChange} className="w-full" />;
     }
     if (uiType === 'numeric') {
-      return <input type="number" value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" />;
+      return <input type="number" value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />;
     }
-    return <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" />;
+    return <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />;
   };
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-2xl">
           <h3 className="text-lg font-bold text-slate-800">{rowData.id ? 'Edit Record' : 'Add New Record'}</h3>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={18} /></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {columns.filter(c => c.column_name !== 'id' && c.column_name !== 'created_at').map(col => (
-            <div key={col.column_name} className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">{col.column_name.replace(/_/g, ' ')}</label>
+
+        {pageCount > 1 && (
+          <div className="px-6 py-2 border-b border-slate-100 bg-white flex gap-2 overflow-x-auto no-scrollbar">
+            {Array.from({ length: pageCount }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setActivePage(i)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-full transition-colors whitespace-nowrap ${activePage === i ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+              >
+                Section {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {currentFields.map(col => (
+            <div key={col.column_name} className="space-y-2">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">{col.column_name.replace(/_/g, ' ')}</label>
               {renderInput(col)}
             </div>
           ))}
-          {rowData.id && (
+          
+          {activePage === pageCount - 1 && rowData.id && (
             <div className="pt-4 border-t border-slate-100 text-[10px] text-slate-400">
               <p>ID: {rowData.id}</p>
               <p>Created: {new Date(rowData.created_at).toLocaleString()}</p>
             </div>
           )}
         </div>
-        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800">Cancel</button>
-          <button onClick={() => onSave(formData)} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm flex items-center gap-2">
-            <Save size={16} /> Save Record
-          </button>
+
+        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex justify-between items-center">
+          <div className="flex gap-2">
+            {activePage > 0 && (
+              <button onClick={() => setActivePage(p => p - 1)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">Previous</button>
+            )}
+            {activePage < pageCount - 1 && (
+              <button onClick={() => setActivePage(p => p + 1)} className="px-4 py-2 text-sm font-medium bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-lg transition-colors">Next Section</button>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800">Cancel</button>
+            <button onClick={() => onSave(formData)} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm flex items-center gap-2">
+              <Save size={16} /> Save Record
+            </button>
+          </div>
         </div>
       </div>
     </div>
