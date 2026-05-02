@@ -89,7 +89,7 @@ export function DatabaseBuilder() {
     if (selectedTable) {
       fetchColumns(selectedTable);
       fetchRowCount(selectedTable);
-      setActiveTab('schema');
+      setActiveTab('records');
     }
   }, [selectedTable]);
 
@@ -749,9 +749,18 @@ function RecordDetailsModal({ isOpen, onClose, onSave, rowData, columns }) {
     let metadata = {};
     try { if (col.column_comment) metadata = JSON.parse(col.column_comment); } catch(e){}
     
-    const uiType = metadata.ui_type || col.data_type;
+    let uiType = metadata.ui_type || col.data_type;
     const value = formData[col.column_name];
     const onChange = (v) => setFormData({...formData, [col.column_name]: v});
+
+    // Heuristic: If no UI type is set, but the name implies long text or content starts with HTML tags, treat as long text
+    const lowerName = col.column_name.toLowerCase();
+    const looksLikeLongText = lowerName.includes('causes') || lowerName.includes('consequences') || lowerName.includes('control') || lowerName.includes('action') || lowerName.includes('description') || lowerName.includes('note');
+    const hasHtml = typeof value === 'string' && value.trim().startsWith('<');
+    
+    if (uiType === 'text' && (looksLikeLongText || hasHtml)) {
+      uiType = 'text_long';
+    }
 
     if (uiType === 'boolean') {
       return <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)} className="rounded text-indigo-600 w-5 h-5" />;
