@@ -9,6 +9,7 @@ import { supabase } from './supabase';
 import * as XLSX from 'xlsx';
 import { createRoot } from 'react-dom/client';
 import RichTextEditor from './RichTextEditor';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import ImportModeDialog from './ImportModeDialog';
 
 // Error Boundary to catch render crashes
@@ -357,6 +358,19 @@ function RiskFormFields({ formData, handleChange, categories = [] }) {
         <RubricConditionBuilder colorClass="text-red-700" label="Incident (Red)" value={formData.rubric_red} onChange={v => handleChange({target: {name: 'rubric_red', value: v}})} />
       </div>
       <div className="grid grid-cols-1 gap-6">
+        <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100">
+          <h4 className="text-sm font-bold text-indigo-800 mb-4 flex items-center gap-2"><Target className="w-4 h-4" /> Key Risk Indicator (KRI)</h4>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">KRI Title</label>
+              <input type="text" name="KRI_Title" value={formData.KRI_Title || ''} onChange={handleChange} placeholder="e.g. Student Attrition Rate" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">How the KRI is Calculated</label>
+              <RichTextEditor value={formData.KRI_Calculation || ''} onChange={(val) => handleChange({ target: { name: 'KRI_Calculation', value: val } })} />
+            </div>
+          </div>
+        </div>
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Mitigating Actions</label>
           <RichTextEditor value={formData.Mitigating_Actions || ''} onChange={(val) => handleChange({ target: { name: 'Mitigating_Actions', value: val } })} />
@@ -383,7 +397,8 @@ function NewRiskForm({ onSuccess, session, categories }) {
   const [formData, setFormData] = useState({ 
     Risk_No: '', Risk_Title: '', Category: '', Risk_Causes: '', 
     Risk_Consequences_: '', Existing_Internal_control_: '',
-    Risk_Owner: '', risk_scope: 'Institution', programs: '', rubric_green: '', rubric_yellow: '', rubric_orange: '', rubric_red: '', Mitigating_Actions: ''
+    Risk_Owner: '', risk_scope: 'Institution', programs: '', rubric_green: '', rubric_yellow: '', rubric_orange: '', rubric_red: '', Mitigating_Actions: '',
+    KRI_Title: '', KRI_Calculation: ''
   });
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -465,6 +480,8 @@ function RiskRegister({ isTechAdmin, permissions, categories }) {
       Risk_Title: r.Risk_Title || '',
       Category: r.Category || '',
       Risk_Owner: r.Risk_Owner || '',
+      KRI_Title: r.KRI_Title || '',
+      KRI_Calculation: r.KRI_Calculation || '',
       Scope: r.risk_scope || '', Programs: r.programs || '', Green: r.rubric_green || '', Yellow: r.rubric_yellow || '', Orange: r.rubric_orange || '', Red: r.rubric_red || '',
       Risk_Causes: r.Risk_Causes || '',
       Risk_Consequences: r.Risk_Consequences_ || '',
@@ -498,6 +515,8 @@ function RiskRegister({ isTechAdmin, permissions, categories }) {
           Risk_Title: r.Risk_Title || r['Risk Title'] || '',
           Category: r.Category || '',
           Risk_Owner: r.Risk_Owner || r['Risk Owner'] || '',
+          KRI_Title: r.KRI_Title || r['KRI Title'] || '',
+          KRI_Calculation: r.KRI_Calculation || r['KRI Calculation'] || '',
           risk_scope: r.Scope || r.risk_scope || 'Institution', programs: r.Programs || r.programs || '', rubric_green: r.Green || r.rubric_green || '', rubric_yellow: r.Yellow || r.rubric_yellow || '', rubric_orange: r.Orange || r.rubric_orange || '', rubric_red: r.Red || r.rubric_red || '',
           Risk_Causes: r.Risk_Causes || r['Risk Causes'] || '',
           Risk_Consequences_: r.Risk_Consequences || r.Risk_Consequences_ || '',
@@ -1061,26 +1080,47 @@ function RiskReportsView({ initialYear }) {
               </table>
               <div className="border border-slate-200 rounded-xl p-6">
                 <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">Visual Trend</h3>
-                {trendData[0]?.programs.map(prog => (
-                  <div key={prog.program} className="mb-4">
-                    <div className="text-xs font-bold text-slate-500 mb-2">{prog.program}</div>
-                    <div className="flex items-end gap-2 h-24">
-                      {trendData.map(row => {
-                        const p = row.programs.find(x => x.program === prog.program);
-                        const val = p?.value != null ? Number(p.value) : 0;
-                        const maxVal = Math.max(...trendData.map(r => { const x = r.programs.find(y => y.program === prog.program); return x?.value != null ? Number(x.value) : 0; }), 1);
-                        const pct = Math.max((val / maxVal) * 100, 5);
-                        return (
-                          <div key={row.year} className="flex-1 flex flex-col items-center gap-1">
-                            <div className="text-[10px] font-bold text-slate-500">{val || '-'}</div>
-                            <div className={`w-full rounded-t ${statusColors[p?.status?.label] || 'bg-slate-300'}`} style={{ height: `${pct}%` }} />
-                            <div className="text-[9px] text-slate-400 truncate w-full text-center">{row.year.split('-')[0]}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+                {(() => {
+                  const programs = trendData[0]?.programs.map(p => p.program) || [];
+                  const PROGRAM_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+                  const chartData = trendData.map(row => {
+                    const point = { year: row.year };
+                    row.programs.forEach(p => {
+                      point[p.program] = p.value != null ? Number(p.value) : null;
+                    });
+                    return point;
+                  });
+
+                  return (
+                    <ResponsiveContainer width="100%" height={340}>
+                      <LineChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="year" tick={{ fontSize: 12, fill: '#64748b', fontWeight: 600 }} axisLine={{ stroke: '#cbd5e1' }} tickLine={{ stroke: '#cbd5e1' }} />
+                        <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={{ stroke: '#cbd5e1' }} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '10px', padding: '12px 16px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' }}
+                          labelStyle={{ color: '#f8fafc', fontWeight: 700, marginBottom: 6, fontSize: 13 }}
+                          itemStyle={{ color: '#e2e8f0', fontSize: 12, padding: '2px 0' }}
+                          cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '5 5' }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: 16, fontSize: 13, fontWeight: 600 }} />
+                        {programs.map((prog, i) => (
+                          <Line
+                            key={prog}
+                            type="monotone"
+                            dataKey={prog}
+                            name={prog}
+                            stroke={PROGRAM_COLORS[i % PROGRAM_COLORS.length]}
+                            strokeWidth={2.5}
+                            dot={{ r: 5, fill: '#fff', stroke: PROGRAM_COLORS[i % PROGRAM_COLORS.length], strokeWidth: 2.5 }}
+                            activeDot={{ r: 7, fill: PROGRAM_COLORS[i % PROGRAM_COLORS.length], stroke: '#fff', strokeWidth: 2 }}
+                            connectNulls={false}
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
               </div>
             </div>
           )
