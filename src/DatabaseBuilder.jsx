@@ -628,7 +628,7 @@ function RecordsView({ tableName, columns, onUpdate }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingRow, setEditingRow] = useState(null);
-  const [newRow, setNewRow] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -655,7 +655,7 @@ function RecordsView({ tableName, columns, onUpdate }) {
     }
     if (!error) {
       setEditingRow(null);
-      setNewRow(null);
+      setShowModal(false);
       fetchData();
       onUpdate();
     } else {
@@ -663,38 +663,11 @@ function RecordsView({ tableName, columns, onUpdate }) {
     }
   };
 
-  const renderInput = (col, value, onChange) => {
-    let metadata = {};
-    try { if (col.column_comment) metadata = JSON.parse(col.column_comment); } catch(e){}
-    
-    const uiType = metadata.ui_type || col.data_type;
-
-    if (uiType === 'boolean') {
-      return <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)} className="rounded text-indigo-600" />;
-    }
-    if (uiType === 'dropdown') {
-      const opts = (metadata.options || '').split(',').map(o => o.trim());
-      return (
-        <select value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-2 py-1 border rounded text-xs">
-          <option value="">Select...</option>
-          {opts.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-      );
-    }
-    if (uiType === 'text_long') {
-      return <textarea value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-2 py-1 border rounded text-xs min-h-[60px]" />;
-    }
-    if (uiType === 'numeric') {
-      return <input type="number" value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-2 py-1 border rounded text-xs" />;
-    }
-    return <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-2 py-1 border rounded text-xs" />;
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h4 className="text-sm font-semibold text-slate-700">Recent Records (Last 100)</h4>
-        <button onClick={() => setNewRow({})} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 shadow-sm">
+        <button onClick={() => { setEditingRow({}); setShowModal(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 shadow-sm">
           <Plus size={14} /> Add New Record
         </button>
       </div>
@@ -703,64 +676,105 @@ function RecordsView({ tableName, columns, onUpdate }) {
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-slate-50 text-slate-600 border-b border-slate-200">
+              <th className="p-3 font-semibold w-16">Actions</th>
               {columns.map(c => <th key={c.column_name} className="p-3 font-semibold whitespace-nowrap">{c.column_name}</th>)}
-              <th className="p-3 font-semibold text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {newRow && (
-              <tr className="bg-indigo-50/50">
-                {columns.map(c => (
-                  <td key={c.column_name} className="p-2">
-                    {c.column_name === 'id' || c.column_name === 'created_at' ? 
-                      <span className="text-slate-400 italic">Auto</span> : 
-                      renderInput(c, newRow[c.column_name], (v) => setNewRow({...newRow, [c.column_name]: v}))
-                    }
-                  </td>
-                ))}
-                <td className="p-2 text-right">
-                  <div className="flex justify-end gap-1">
-                    <button onClick={() => handleSave(newRow)} className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700"><Save size={14} /></button>
-                    <button onClick={() => setNewRow(null)} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded"><X size={14} /></button>
-                  </div>
-                </td>
-              </tr>
-            )}
             {data.map(row => (
               <tr key={row.id} className="hover:bg-slate-50 group">
-                {columns.map(c => (
-                  <td key={c.column_name} className="p-3 whitespace-nowrap overflow-hidden max-w-[200px] truncate">
-                    {editingRow?.id === row.id ? (
-                      c.column_name === 'id' || c.column_name === 'created_at' ? 
-                        <span className="text-slate-400">{row[c.column_name]}</span> : 
-                        renderInput(c, editingRow[c.column_name], (v) => setEditingRow({...editingRow, [c.column_name]: v}))
-                    ) : (
-                      String(row[c.column_name] ?? '')
-                    )}
-                  </td>
-                ))}
-                <td className="p-3 text-right">
-                  <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {editingRow?.id === row.id ? (
-                      <>
-                        <button onClick={() => handleSave(editingRow)} className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700"><Save size={14} /></button>
-                        <button onClick={() => setEditingRow(null)} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded"><X size={14} /></button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => setEditingRow({...row})} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded"><Edit size={14} /></button>
-                        <button onClick={() => handleDelete(row.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
-                      </>
-                    )}
+                <td className="p-3">
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => { setEditingRow({...row}); setShowModal(true); }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded" title="Edit"><Edit size={14} /></button>
+                    <button onClick={() => handleDelete(row.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete"><Trash2 size={14} /></button>
                   </div>
                 </td>
+                {columns.map(c => (
+                  <td key={c.column_name} className="p-3 whitespace-nowrap overflow-hidden max-w-[200px] truncate">
+                    {String(row[c.column_name] ?? '')}
+                  </td>
+                ))}
               </tr>
             ))}
-            {data.length === 0 && !newRow && (
+            {data.length === 0 && (
               <tr><td colSpan={columns.length + 1} className="p-8 text-center text-slate-400 italic">No records found</td></tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      {showModal && (
+        <RecordDetailsModal 
+          isOpen={showModal} 
+          onClose={() => setShowModal(false)} 
+          onSave={handleSave} 
+          rowData={editingRow} 
+          columns={columns}
+        />
+      )}
+    </div>
+  );
+}
+
+function RecordDetailsModal({ isOpen, onClose, onSave, rowData, columns }) {
+  const [formData, setFormData] = useState(rowData || {});
+
+  const renderInput = (col) => {
+    let metadata = {};
+    try { if (col.column_comment) metadata = JSON.parse(col.column_comment); } catch(e){}
+    
+    const uiType = metadata.ui_type || col.data_type;
+    const value = formData[col.column_name];
+    const onChange = (v) => setFormData({...formData, [col.column_name]: v});
+
+    if (uiType === 'boolean') {
+      return <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)} className="rounded text-indigo-600 w-5 h-5" />;
+    }
+    if (uiType === 'dropdown') {
+      const opts = (metadata.options || '').split(',').map(o => o.trim());
+      return (
+        <select value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+          <option value="">Select...</option>
+          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      );
+    }
+    if (uiType === 'text_long') {
+      return <textarea value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm min-h-[100px]" />;
+    }
+    if (uiType === 'numeric') {
+      return <input type="number" value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" />;
+    }
+    return <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" />;
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+          <h3 className="text-lg font-bold text-slate-800">{rowData.id ? 'Edit Record' : 'Add New Record'}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {columns.filter(c => c.column_name !== 'id' && c.column_name !== 'created_at').map(col => (
+            <div key={col.column_name} className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">{col.column_name.replace(/_/g, ' ')}</label>
+              {renderInput(col)}
+            </div>
+          ))}
+          {rowData.id && (
+            <div className="pt-4 border-t border-slate-100 text-[10px] text-slate-400">
+              <p>ID: {rowData.id}</p>
+              <p>Created: {new Date(rowData.created_at).toLocaleString()}</p>
+            </div>
+          )}
+        </div>
+        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800">Cancel</button>
+          <button onClick={() => onSave(formData)} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm flex items-center gap-2">
+            <Save size={16} /> Save Record
+          </button>
+        </div>
       </div>
     </div>
   );
