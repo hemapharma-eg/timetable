@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck, Clock } from 'lucide-react';
+import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck, Clock, Settings } from 'lucide-react';
 import { FacultyManager } from './FacultyManager';
 import { StudentManager } from './StudentManager';
 import { CourseManager } from './CourseManager';
@@ -8,6 +8,7 @@ import { RolesManager } from './RolesManager';
 import { supabase } from './supabase';
 import { RiskManagement, PublicRiskReport } from './RiskManagement';
 import { CollegesManager, ProgramsManager, CommitteesManager } from './OrgManager';
+import { DatabaseBuilder } from './DatabaseBuilder';
 
 // Reusable Layout Components
 const SidebarItem = ({ icon: Icon, label, path, active, onClick }) => (
@@ -73,6 +74,7 @@ function AdminPortal({ session, userMeta, permissions }) {
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/admin/risk')} />
           <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/admin/databases')} />
+          <SidebarItem id="db_builder" icon={Settings} label="Database Builder" active={currentTab === 'db_builder'} onClick={() => navigate('/admin/db_builder')} />
           <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/admin/roles')} />
           
           <div className="pt-4 mt-auto pb-4">
@@ -100,6 +102,11 @@ function AdminPortal({ session, userMeta, permissions }) {
                 {dbSubTab === 'colleges' && <CollegesManager />}
                 {dbSubTab === 'programs' && <ProgramsManager />}
                 {dbSubTab === 'committees' && <CommitteesManager />}
+              </PageContainer>
+            } />
+            <Route path="db_builder" element={
+              <PageContainer title="Database Builder" description="Create databases, manage schemas, and import/export data">
+                <DatabaseBuilder />
               </PageContainer>
             } />
             <Route path="roles" element={<RolesManager />} />

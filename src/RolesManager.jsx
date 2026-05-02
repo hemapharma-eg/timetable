@@ -87,6 +87,7 @@ export function RolesManager() {
     { section: 'Databases', key: 'db_colleges', label: 'Colleges' },
     { section: 'Databases', key: 'db_programs', label: 'Programs' },
     { section: 'Databases', key: 'db_committees', label: 'Committees' },
+    { section: 'Administration', key: 'db_builder', label: 'Database Builder' },
     { section: 'Organization', key: 'org_structure', label: 'Org Structure' },
   ];
 
