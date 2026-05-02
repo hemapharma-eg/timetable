@@ -436,6 +436,7 @@ export function DatabaseBuilder() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex bg-slate-100 rounded-lg p-0.5">
+                    <button onClick={() => setActiveTab('records')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'records' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}>Records</button>
                     <button onClick={() => setActiveTab('schema')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'schema' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}>Schema</button>
                     <button onClick={() => setActiveTab('data')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'data' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}>Import / Export</button>
                   </div>
@@ -443,7 +444,13 @@ export function DatabaseBuilder() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6">
-                {activeTab === 'schema' ? (
+                {activeTab === 'records' ? (
+                  <RecordsView 
+                    tableName={selectedTable} 
+                    columns={columns} 
+                    onUpdate={() => fetchRowCount(selectedTable)}
+                  />
+                ) : activeTab === 'schema' ? (
                   <div className="space-y-6">
                     {/* Add column form */}
                     <div className="flex gap-3 items-end p-4 bg-slate-50 rounded-xl border border-slate-200">
@@ -613,6 +620,148 @@ export function DatabaseBuilder() {
         tables={tables}
         currentTableColumns={columns.map(c => c.column_name)}
       />
+    </div>
+  );
+}
+
+function RecordsView({ tableName, columns, onUpdate }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [editingRow, setEditingRow] = useState(null);
+  const [newRow, setNewRow] = useState(null);
+
+  const fetchData = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from(tableName).select('*').order('created_at', { ascending: false }).limit(100);
+    if (!error) setData(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchData(); }, [tableName]);
+
+  const handleDelete = async (id) => {
+    if (!confirm('Are you sure you want to delete this record?')) return;
+    const { error } = await supabase.from(tableName).delete().eq('id', id);
+    if (!error) { fetchData(); onUpdate(); }
+  };
+
+  const handleSave = async (rowData) => {
+    const { id, created_at, ...payload } = rowData;
+    let error;
+    if (id) {
+      ({ error } = await supabase.from(tableName).update(payload).eq('id', id));
+    } else {
+      ({ error } = await supabase.from(tableName).insert(payload));
+    }
+    if (!error) {
+      setEditingRow(null);
+      setNewRow(null);
+      fetchData();
+      onUpdate();
+    } else {
+      alert('Save failed: ' + error.message);
+    }
+  };
+
+  const renderInput = (col, value, onChange) => {
+    let metadata = {};
+    try { if (col.column_comment) metadata = JSON.parse(col.column_comment); } catch(e){}
+    
+    const uiType = metadata.ui_type || col.data_type;
+
+    if (uiType === 'boolean') {
+      return <input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked)} className="rounded text-indigo-600" />;
+    }
+    if (uiType === 'dropdown') {
+      const opts = (metadata.options || '').split(',').map(o => o.trim());
+      return (
+        <select value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-2 py-1 border rounded text-xs">
+          <option value="">Select...</option>
+          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      );
+    }
+    if (uiType === 'text_long') {
+      return <textarea value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-2 py-1 border rounded text-xs min-h-[60px]" />;
+    }
+    if (uiType === 'numeric') {
+      return <input type="number" value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-2 py-1 border rounded text-xs" />;
+    }
+    return <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-2 py-1 border rounded text-xs" />;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h4 className="text-sm font-semibold text-slate-700">Recent Records (Last 100)</h4>
+        <button onClick={() => setNewRow({})} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 shadow-sm">
+          <Plus size={14} /> Add New Record
+        </button>
+      </div>
+
+      <div className="overflow-x-auto border border-slate-200 rounded-xl">
+        <table className="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-50 text-slate-600 border-b border-slate-200">
+              {columns.map(c => <th key={c.column_name} className="p-3 font-semibold whitespace-nowrap">{c.column_name}</th>)}
+              <th className="p-3 font-semibold text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {newRow && (
+              <tr className="bg-indigo-50/50">
+                {columns.map(c => (
+                  <td key={c.column_name} className="p-2">
+                    {c.column_name === 'id' || c.column_name === 'created_at' ? 
+                      <span className="text-slate-400 italic">Auto</span> : 
+                      renderInput(c, newRow[c.column_name], (v) => setNewRow({...newRow, [c.column_name]: v}))
+                    }
+                  </td>
+                ))}
+                <td className="p-2 text-right">
+                  <div className="flex justify-end gap-1">
+                    <button onClick={() => handleSave(newRow)} className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700"><Save size={14} /></button>
+                    <button onClick={() => setNewRow(null)} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded"><X size={14} /></button>
+                  </div>
+                </td>
+              </tr>
+            )}
+            {data.map(row => (
+              <tr key={row.id} className="hover:bg-slate-50 group">
+                {columns.map(c => (
+                  <td key={c.column_name} className="p-3 whitespace-nowrap overflow-hidden max-w-[200px] truncate">
+                    {editingRow?.id === row.id ? (
+                      c.column_name === 'id' || c.column_name === 'created_at' ? 
+                        <span className="text-slate-400">{row[c.column_name]}</span> : 
+                        renderInput(c, editingRow[c.column_name], (v) => setEditingRow({...editingRow, [c.column_name]: v}))
+                    ) : (
+                      String(row[c.column_name] ?? '')
+                    )}
+                  </td>
+                ))}
+                <td className="p-3 text-right">
+                  <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {editingRow?.id === row.id ? (
+                      <>
+                        <button onClick={() => handleSave(editingRow)} className="p-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700"><Save size={14} /></button>
+                        <button onClick={() => setEditingRow(null)} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded"><X size={14} /></button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => setEditingRow({...row})} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded"><Edit size={14} /></button>
+                        <button onClick={() => handleDelete(row.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {data.length === 0 && !newRow && (
+              <tr><td colSpan={columns.length + 1} className="p-8 text-center text-slate-400 italic">No records found</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
