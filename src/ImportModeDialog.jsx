@@ -7,9 +7,16 @@ import { X, RefreshCw, PlusCircle, AlertTriangle, ArrowUpDown } from 'lucide-rea
  * Props:
  *  - isOpen, fileName, recordCount, existingCount
  *  - onReplace, onAppend, onUpdate, onCancel
- *  - uniqueFieldLabel: string|null — if provided, "Update" button is shown
+ *  - columns: array of column names to show in the Update dropdown
  */
-export default function ImportModeDialog({ isOpen, fileName, recordCount, existingCount, onReplace, onAppend, onUpdate, onCancel, uniqueFieldLabel }) {
+export default function ImportModeDialog({ isOpen, fileName, recordCount, existingCount, onReplace, onAppend, onUpdate, onCancel, columns = [] }) {
+  const [matchColumn, setMatchColumn] = React.useState(columns.length > 0 ? columns[0] : '');
+  
+  React.useEffect(() => {
+    if (columns.length > 0 && !matchColumn) {
+      setMatchColumn(columns[0]);
+    }
+  }, [columns]);
   if (!isOpen) return null;
 
   return (
@@ -56,15 +63,27 @@ export default function ImportModeDialog({ isOpen, fileName, recordCount, existi
               </div>
             </button>
 
-            {/* Update — only if uniqueFieldLabel is provided */}
-            {uniqueFieldLabel && onUpdate && (
-              <button onClick={onUpdate} className="flex items-center gap-3 p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:border-blue-400 hover:bg-blue-100 transition-all text-left group">
-                <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors"><ArrowUpDown size={20} className="text-blue-600" /></div>
-                <div>
-                  <div className="font-semibold text-blue-800 text-sm">Update Existing</div>
-                  <div className="text-xs text-blue-600 mt-0.5">Match by <span className="font-semibold">{uniqueFieldLabel}</span> — update if found, insert if new</div>
+            {/* Update — only if columns exist */}
+            {columns.length > 0 && onUpdate && (
+              <div className="flex flex-col gap-2 p-4 rounded-xl border-2 border-blue-200 bg-blue-50 transition-all text-left">
+                <button onClick={() => onUpdate(matchColumn)} className="flex items-center gap-3 group">
+                  <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors"><ArrowUpDown size={20} className="text-blue-600" /></div>
+                  <div className="flex-1 text-left">
+                    <div className="font-semibold text-blue-800 text-sm">Update Existing</div>
+                    <div className="text-xs text-blue-600 mt-0.5">Match by selected field — update if found, insert if new</div>
+                  </div>
+                </button>
+                <div className="mt-2 ml-12">
+                  <label className="block text-xs font-semibold text-blue-700 mb-1">Select Match Field:</label>
+                  <select 
+                    value={matchColumn} 
+                    onChange={e => setMatchColumn(e.target.value)}
+                    className="w-full max-w-[200px] border border-blue-300 rounded px-2 py-1 text-xs outline-none focus:border-blue-500 bg-white"
+                  >
+                    {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
-              </button>
+              </div>
             )}
           </div>
         </div>

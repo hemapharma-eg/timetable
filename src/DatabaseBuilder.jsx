@@ -6,12 +6,16 @@ import ImportModeDialog from './ImportModeDialog';
 
 const SYSTEM_TABLES = ['app_users','custom_roles','role_permissions','risk_year_mapping','risk_values','risk_categories','academic_years','schema_migrations'];
 const FIELD_TYPES = [
-  { value: 'text', label: 'Text' },
-  { value: 'bigint', label: 'Number (Integer)' },
-  { value: 'numeric', label: 'Number (Decimal)' },
-  { value: 'boolean', label: 'Yes/No (Boolean)' },
-  { value: 'date', label: 'Date' },
+  { value: 'text', label: 'Short Text' },
+  { value: 'text_long', label: 'Long Text' },
+  { value: 'numeric', label: 'Number' },
+  { value: 'boolean', label: 'Checkbox' },
   { value: 'timestamp with time zone', label: 'Date & Time' },
+  { value: 'dropdown', label: 'Dropdown' },
+  { value: 'multiselect', label: 'Multiselect' },
+  { value: 'attachment', label: 'Attachment' },
+  { value: 'random_id', label: 'Automatic Random ID' },
+  { value: 'formula', label: 'Calculated Formula' },
 ];
 
 export function DatabaseBuilder() {
@@ -31,17 +35,21 @@ export function DatabaseBuilder() {
   // Edit column state
   const [editingCol, setEditingCol] = useState(null);
   const [editColName, setEditColName] = useState('');
+  const [editColMetadata, setEditColMetadata] = useState({ ui_type: '', options: '', formula: '' });
+  const [showFormulaBuilder, setShowFormulaBuilder] = useState(false);
 
   // Create table state
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTableName, setNewTableName] = useState('');
-  const [newTableFields, setNewTableFields] = useState([{ name: '', type: 'text' }]);
+  const [newTableFields, setNewTableFields] = useState([{ name: '', type: 'text', isUnique: false, options: '', formula: '' }]);
+  const excelCreateRef = useRef(null);
 
   // Import state
   const fileInputRef = useRef(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pendingImportData, setPendingImportData] = useState(null);
   const [importFileName, setImportFileName] = useState('');
+  const [pendingExcelData, setPendingExcelData] = useState(null);
 
   const fetchTables = async () => {
     try {
@@ -99,19 +107,30 @@ export function DatabaseBuilder() {
     finally { setLoading(false); }
   };
 
-  // --- Rename Column ---
-  const handleRenameColumn = async (oldName) => {
+  // --- Rename & Update Metadata ---
+  const handleUpdateColumn = async (oldName) => {
     if (!editColName.trim() || !selectedTable) return;
     const safeName = editColName.trim().replace(/\s+/g, '_').toLowerCase();
     try {
       setLoading(true);
-      const { error } = await supabase.rpc('execute_ddl', {
-        sql_text: `ALTER TABLE public."${selectedTable}" RENAME COLUMN "${oldName}" TO "${safeName}";`
+      // 1. Rename if changed
+      if (oldName !== safeName) {
+        const { error: renameErr } = await supabase.rpc('execute_ddl', {
+          sql_text: `ALTER TABLE public."${selectedTable}" RENAME COLUMN "${oldName}" TO "${safeName}";`
+        });
+        if (renameErr) throw renameErr;
+      }
+      // 2. Update comment/metadata
+      const { error: commentErr } = await supabase.rpc('set_column_comment', {
+        p_table: selectedTable,
+        p_column: safeName,
+        p_comment: JSON.stringify(editColMetadata)
       });
-      if (error) throw error;
-      setEditingCol(null); setEditColName('');
+      if (commentErr) throw commentErr;
+
+      setEditingCol(null);
       await fetchColumns(selectedTable);
-    } catch (e) { alert('Error renaming column: ' + e.message); }
+    } catch (e) { alert('Error updating column: ' + e.message); }
     finally { setLoading(false); }
   };
 
@@ -139,7 +158,18 @@ export function DatabaseBuilder() {
 
     const fieldsDDL = validFields.map(f => {
       const fName = f.name.trim().replace(/\s+/g, '_').toLowerCase();
-      return `"${fName}" ${f.type}`;
+      let dbType = f.type;
+      if (f.type === 'text_long') dbType = 'text';
+      if (f.type === 'dropdown') dbType = 'text';
+      if (f.type === 'multiselect') dbType = 'jsonb';
+      if (f.type === 'attachment') dbType = 'jsonb';
+      if (f.type === 'random_id') dbType = 'text';
+      if (f.type === 'formula') dbType = 'numeric'; // Default formula to numeric for now
+
+      let constraints = f.isUnique ? ' UNIQUE' : '';
+      if (f.type === 'random_id') constraints += " DEFAULT (substring(md5(random()::text),1,8))";
+      
+      return `"${fName}" ${dbType}${constraints}`;
     }).join(', ');
 
     const sql = `
@@ -159,12 +189,57 @@ export function DatabaseBuilder() {
       setLoading(true);
       const { error } = await supabase.rpc('execute_ddl', { sql_text: sql });
       if (error) throw error;
+
+      // Set column comments for metadata
+      for (const f of validFields) {
+        const fName = f.name.trim().replace(/\s+/g, '_').toLowerCase();
+        const metadata = { ui_type: f.type, options: f.options, formula: f.formula };
+        await supabase.rpc('set_column_comment', { p_table: tName, p_column: fName, p_comment: JSON.stringify(metadata) });
+      }
+
       setShowCreateForm(false);
-      setNewTableName(''); setNewTableFields([{ name: '', type: 'text' }]);
+      setNewTableName(''); setNewTableFields([{ name: '', type: 'text', isUnique: false, options: '', formula: '' }]);
       await fetchTables();
       setSelectedTable(tName);
+
+      // If we have pending excel data, import it immediately (Append mode)
+      if (pendingExcelData) {
+        const { error: importErr } = await supabase.from(tName).insert(pendingExcelData);
+        if (importErr) alert('Table created, but initial data import failed: ' + importErr.message);
+        else alert(`Successfully created table "${tName}" and imported ${pendingExcelData.length} records.`);
+        setPendingExcelData(null);
+      }
     } catch (e) { alert('Error creating table: ' + e.message); }
     finally { setLoading(false); }
+  };
+
+  const handleExcelToTable = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws);
+        if (rows.length === 0) return;
+        
+        const headers = Object.keys(rows[0]);
+        const suggestedFields = headers.map(h => ({
+          name: h,
+          type: 'text',
+          isUnique: false,
+          options: '',
+          formula: ''
+        }));
+        
+        setNewTableName(file.name.split('.')[0].replace(/\s+/g, '_').toLowerCase());
+        setNewTableFields(suggestedFields);
+        setPendingExcelData(rows); // Store for later import
+        setShowCreateForm(true);
+      } catch (err) { alert('Import error: ' + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   // --- Delete Table ---
@@ -238,13 +313,12 @@ export function DatabaseBuilder() {
         const { error } = await supabase.from(selectedTable).insert(pendingImportData);
         if (error) throw error;
         alert(`Replaced with ${pendingImportData.length} records.`);
-      } else if (mode === 'update') {
+      } else if (mode === 'update' || typeof mode === 'string') {
+        const matchCol = typeof mode === 'string' ? mode : Object.keys(pendingImportData[0])[0];
         let updated = 0, inserted = 0;
-        // Try to match on first column as unique key
-        const firstCol = Object.keys(pendingImportData[0])[0];
         const { data: existing } = await supabase.from(selectedTable).select('*');
         for (const item of pendingImportData) {
-          const match = (existing || []).find(e => e[firstCol] === item[firstCol]);
+          const match = (existing || []).find(e => e[matchCol] === item[matchCol]);
           if (match) {
             await supabase.from(selectedTable).update(item).eq('id', match.id);
             updated++;
@@ -281,6 +355,11 @@ export function DatabaseBuilder() {
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm">
             <PlusCircle size={16} /> Create New Database
           </button>
+          <button onClick={() => excelCreateRef.current?.click()}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-sm">
+            <Upload size={16} /> Create from Excel
+          </button>
+          <input ref={excelCreateRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelToTable} />
           <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[500px] pr-1">
             {filteredTables.map(t => (
               <button key={t} onClick={() => setSelectedTable(t)}
@@ -310,20 +389,36 @@ export function DatabaseBuilder() {
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Fields</label>
                   <div className="space-y-2">
                     {newTableFields.map((f, i) => (
-                      <div key={i} className="flex gap-2 items-center">
-                        <input type="text" value={f.name} onChange={e => { const nf = [...newTableFields]; nf[i].name = e.target.value; setNewTableFields(nf); }}
-                          placeholder="Field name" className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-                        <select value={f.type} onChange={e => { const nf = [...newTableFields]; nf[i].type = e.target.value; setNewTableFields(nf); }}
-                          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-                          {FIELD_TYPES.map(ft => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
-                        </select>
-                        {newTableFields.length > 1 && (
-                          <button onClick={() => setNewTableFields(newTableFields.filter((_, j) => j !== i))} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                      <div key={i} className="space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div className="flex gap-2 items-center">
+                          <input type="text" value={f.name} onChange={e => { const nf = [...newTableFields]; nf[i].name = e.target.value; setNewTableFields(nf); }}
+                            placeholder="Field name" className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                          <select value={f.type} onChange={e => { const nf = [...newTableFields]; nf[i].type = e.target.value; setNewTableFields(nf); }}
+                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                            {FIELD_TYPES.map(ft => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
+                          </select>
+                          <label className="flex items-center gap-1 text-xs text-slate-600 cursor-pointer">
+                            <input type="checkbox" checked={f.isUnique} onChange={e => { const nf = [...newTableFields]; nf[i].isUnique = e.target.checked; setNewTableFields(nf); }} /> Unique
+                          </label>
+                          {newTableFields.length > 1 && (
+                            <button onClick={() => setNewTableFields(newTableFields.filter((_, j) => j !== i))} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                          )}
+                        </div>
+                        {(f.type === 'dropdown' || f.type === 'multiselect') && (
+                          <input type="text" value={f.options} onChange={e => { const nf = [...newTableFields]; nf[i].options = e.target.value; setNewTableFields(nf); }}
+                            placeholder="Options (comma separated)" className="w-full px-3 py-1.5 border border-slate-200 rounded text-xs outline-none focus:border-indigo-500" />
+                        )}
+                        {f.type === 'formula' && (
+                          <div className="flex flex-col gap-1">
+                            <input type="text" value={f.formula} onChange={e => { const nf = [...newTableFields]; nf[i].formula = e.target.value; setNewTableFields(nf); }}
+                              placeholder="Formula (e.g. {field1} + {field2})" className="w-full px-3 py-1.5 border border-slate-200 rounded text-xs outline-none focus:border-indigo-500" />
+                            <p className="text-[10px] text-slate-400">Use {'{field_name}'} for table fields. Support for simple math + lookups.</p>
+                          </div>
                         )}
                       </div>
                     ))}
                   </div>
-                  <button onClick={() => setNewTableFields([...newTableFields, { name: '', type: 'text' }])}
+                  <button onClick={() => setNewTableFields([...newTableFields, { name: '', type: 'text', isUnique: false, options: '', formula: '' }])}
                     className="mt-2 text-sm text-indigo-600 font-medium hover:text-indigo-800 flex items-center gap-1"><Plus size={14} /> Add Field</button>
                 </div>
                 <button onClick={handleCreateTable} disabled={loading}
@@ -380,31 +475,61 @@ export function DatabaseBuilder() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {columns.map(c => (
-                          <tr key={c.column_name} className="hover:bg-slate-50">
-                            <td className="p-3">
-                              {editingCol === c.column_name ? (
-                                <div className="flex gap-2">
-                                  <input type="text" value={editColName} onChange={e => setEditColName(e.target.value)} className="px-2 py-1 border rounded text-sm w-40 outline-none focus:border-indigo-500" />
-                                  <button onClick={() => handleRenameColumn(c.column_name)} className="text-xs bg-indigo-600 text-white px-2 py-1 rounded">Save</button>
-                                  <button onClick={() => setEditingCol(null)} className="text-xs text-slate-500 px-2 py-1">Cancel</button>
-                                </div>
-                              ) : (
-                                <span className={`font-medium ${c.column_name === 'id' || c.column_name === 'created_at' ? 'text-slate-400' : 'text-slate-800'}`}>{c.column_name}</span>
-                              )}
-                            </td>
-                            <td className="p-3"><span className="px-2 py-0.5 text-xs font-mono bg-slate-100 rounded text-slate-600">{c.data_type}</span></td>
-                            <td className="p-3 text-sm text-slate-500">{c.is_nullable === 'YES' ? 'Yes' : 'No'}</td>
-                            <td className="p-3 text-right">
-                              {c.column_name !== 'id' && c.column_name !== 'created_at' && (
-                                <div className="flex justify-end gap-1">
-                                  <button onClick={() => { setEditingCol(c.column_name); setEditColName(c.column_name); }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded" title="Rename"><Edit size={15} /></button>
-                                  <button onClick={() => handleDeleteColumn(c.column_name)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete"><Trash2 size={15} /></button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                        {columns.map(c => {
+                          let metadata = { ui_type: c.data_type, options: '', formula: '' };
+                          try { if (c.column_comment) metadata = JSON.parse(c.column_comment); } catch(e){}
+                          
+                          return (
+                            <tr key={c.column_name} className="hover:bg-slate-50">
+                              <td className="p-3">
+                                {editingCol === c.column_name ? (
+                                  <div className="flex flex-col gap-2">
+                                    <input type="text" value={editColName} onChange={e => setEditColName(e.target.value)} className="px-2 py-1 border rounded text-sm w-full outline-none focus:border-indigo-500" />
+                                    <div className="flex gap-2">
+                                      <button onClick={() => handleUpdateColumn(c.column_name)} className="text-xs bg-indigo-600 text-white px-2 py-1 rounded">Save</button>
+                                      <button onClick={() => setEditingCol(null)} className="text-xs text-slate-500 px-2 py-1">Cancel</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className={`font-medium ${c.column_name === 'id' || c.column_name === 'created_at' ? 'text-slate-400' : 'text-slate-800'}`}>{c.column_name}</span>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                {editingCol === c.column_name ? (
+                                  <div className="flex flex-col gap-2">
+                                    <select value={editColMetadata.ui_type} onChange={e => setEditColMetadata({...editColMetadata, ui_type: e.target.value})} className="px-2 py-1 border rounded text-xs">
+                                      {FIELD_TYPES.map(ft => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
+                                    </select>
+                                    {(editColMetadata.ui_type === 'dropdown' || editColMetadata.ui_type === 'multiselect') && (
+                                      <input type="text" value={editColMetadata.options} onChange={e => setEditColMetadata({...editColMetadata, options: e.target.value})} placeholder="Options..." className="px-2 py-1 border rounded text-xs" />
+                                    )}
+                                    {editColMetadata.ui_type === 'formula' && (
+                                      <button onClick={() => setShowFormulaBuilder(true)} className="text-[10px] text-indigo-600 border border-indigo-200 rounded px-2 py-1">Edit Formula</button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col">
+                                    <span className="px-2 py-0.5 text-xs font-mono bg-slate-100 rounded text-slate-600 w-fit">{metadata.ui_type || c.data_type}</span>
+                                    {metadata.formula && <span className="text-[10px] text-indigo-500 mt-1 truncate max-w-[150px]">{metadata.formula}</span>}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm text-slate-500">{c.is_nullable === 'YES' ? 'Yes' : 'No'}</td>
+                              <td className="p-3 text-right">
+                                {c.column_name !== 'id' && c.column_name !== 'created_at' && (
+                                  <div className="flex justify-end gap-1">
+                                    <button onClick={() => { 
+                                      setEditingCol(c.column_name); 
+                                      setEditColName(c.column_name);
+                                      setEditColMetadata(metadata);
+                                    }} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded" title="Edit Schema & Metadata"><Edit size={15} /></button>
+                                    <button onClick={() => handleDeleteColumn(c.column_name)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete"><Trash2 size={15} /></button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
 
@@ -464,12 +589,108 @@ export function DatabaseBuilder() {
         fileName={importFileName}
         recordCount={pendingImportData?.length || 0}
         existingCount={rowCount}
-        uniqueFieldLabel="First Column"
         onReplace={() => executeImport('replace')}
         onAppend={() => executeImport('append')}
-        onUpdate={() => executeImport('update')}
+        onUpdate={(matchCol) => executeImport(matchCol)}
         onCancel={() => { setImportDialogOpen(false); setPendingImportData(null); }}
+        columns={columns.map(c => c.column_name).filter(n => n !== 'id' && n !== 'created_at')}
       />
+
+      <FormulaBuilder
+        isOpen={showFormulaBuilder}
+        onClose={() => setShowFormulaBuilder(false)}
+        onSave={(formula) => {
+          if (editingCol) setEditColMetadata({...editColMetadata, formula});
+          else {
+             // Handle new field formula
+             const nf = [...newTableFields];
+             nf[nf.length-1].formula = formula;
+             setNewTableFields(nf);
+          }
+          setShowFormulaBuilder(false);
+        }}
+        initialFormula={editingCol ? editColMetadata.formula : ''}
+        tables={tables}
+        currentTableColumns={columns.map(c => c.column_name)}
+      />
+    </div>
+  );
+}
+
+function FormulaBuilder({ isOpen, onClose, onSave, initialFormula, tables, currentTableColumns }) {
+  const [formula, setFormula] = useState(initialFormula || '');
+  const [selectedTable, setSelectedTable] = useState('');
+  const [tableCols, setTableCols] = useState([]);
+
+  useEffect(() => { if (isOpen) setFormula(initialFormula || ''); }, [isOpen, initialFormula]);
+
+  useEffect(() => {
+    if (selectedTable) {
+      supabase.rpc('get_table_columns', { p_table: selectedTable }).then(({data}) => {
+        setTableCols((data || []).map(c => c.column_name));
+      });
+    }
+  }, [selectedTable]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col">
+        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+          <h3 className="text-lg font-bold text-slate-800">Visual Formula Builder</h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><X size={18} /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Build Your Formula</label>
+            <textarea
+              value={formula}
+              onChange={e => setFormula(e.target.value)}
+              placeholder="e.g. {price} * {quantity}"
+              className="w-full h-32 p-3 border border-slate-300 rounded-lg font-mono text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-2">Current Table Fields</label>
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                {currentTableColumns.map(c => (
+                  <button key={c} onClick={() => setFormula(f => f + ` {${c}}`)}
+                    className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-medium hover:bg-indigo-50 hover:border-indigo-200 transition-colors">
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-2">Cross-Table Lookup</label>
+              <select value={selectedTable} onChange={e => setSelectedTable(e.target.value)}
+                className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white">
+                <option value="">Select Table...</option>
+                {tables.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {tableCols.map(c => (
+                  <button key={c} onClick={() => setFormula(f => f + ` LOOKUP(${selectedTable}, ${c}, id, {id})`)}
+                    className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-medium hover:bg-indigo-50 hover:border-indigo-200 transition-colors">
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4 text-[11px] text-slate-400 italic">
+             <p>Use {'{field}'} for current table. Use LOOKUP(table, target_field, match_field, match_value) for other tables.</p>
+          </div>
+        </div>
+        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800">Cancel</button>
+          <button onClick={() => onSave(formula)} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm">Save Formula</button>
+        </div>
+      </div>
     </div>
   );
 }

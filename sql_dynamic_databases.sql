@@ -16,12 +16,26 @@ CREATE OR REPLACE FUNCTION get_table_columns(p_table text)
 RETURNS json AS $$
   SELECT COALESCE(json_agg(row_to_json(t) ORDER BY t.ordinal_position), '[]'::json)
   FROM (
-    SELECT column_name, data_type, is_nullable, column_default, ordinal_position
-    FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = p_table
-    ORDER BY ordinal_position
+    SELECT 
+      c.column_name, 
+      c.data_type, 
+      c.is_nullable, 
+      c.column_default, 
+      c.ordinal_position,
+      pg_catalog.col_description(format('%I.%I', c.table_schema, c.table_name)::regclass::oid, c.ordinal_position) as column_comment
+    FROM information_schema.columns c
+    WHERE c.table_schema = 'public' AND c.table_name = p_table
+    ORDER BY c.ordinal_position
   ) t;
 $$ LANGUAGE sql SECURITY DEFINER;
+
+-- 2.5 Set column comment (admin-only)
+CREATE OR REPLACE FUNCTION set_column_comment(p_table text, p_column text, p_comment text)
+RETURNS void AS $$
+BEGIN
+  EXECUTE format('COMMENT ON COLUMN public.%I.%I IS %L', p_table, p_column, p_comment);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 3. Execute DDL (admin-only: runs with definer privileges)
 CREATE OR REPLACE FUNCTION execute_ddl(sql_text text)
