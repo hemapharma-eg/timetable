@@ -337,19 +337,19 @@ function RiskFormFields({ formData, handleChange, categories = [] }) {
           <label className="block text-sm font-semibold text-slate-700 mb-1">Risk Owner</label>
           <input type="text" name="Risk_Owner" value={formData.Risk_Owner || ''} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
         </div>
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Scope <span className="text-red-500">*</span></label>
-          <select name="risk_scope" required value={formData.risk_scope || 'Institution'} onChange={handleChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white outline-none">
-            <option value="Institution">Institution</option>
-            <option value="Program Level">Program Level</option>
-          </select>
-        </div>
-        {formData.risk_scope === 'Program Level' && (
-          <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Programs (comma separated) <span className="text-red-500">*</span></label>
-            <input type="text" name="programs" required value={formData.programs || ''} onChange={handleChange} placeholder="e.g. BSc Pharmacy, MSc Pharmacy" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+      </div>
+      <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100">
+        <h4 className="text-sm font-bold text-indigo-800 mb-4 flex items-center gap-2"><Target className="w-4 h-4" /> Key Risk Indicator (KRI)</h4>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">KRI Title</label>
+            <input type="text" name="KRI_Title" value={formData.KRI_Title || ''} onChange={handleChange} placeholder="e.g. Student Attrition Rate" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
           </div>
-        )}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">How the KRI is Calculated</label>
+            <RichTextEditor value={formData.KRI_Calculation || ''} onChange={(val) => handleChange({ target: { name: 'KRI_Calculation', value: val } })} />
+          </div>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
         <RubricConditionBuilder colorClass="text-emerald-700" label="No Risk (Green)" value={formData.rubric_green} onChange={v => handleChange({target: {name: 'rubric_green', value: v}})} />
@@ -358,19 +358,6 @@ function RiskFormFields({ formData, handleChange, categories = [] }) {
         <RubricConditionBuilder colorClass="text-red-700" label="Incident (Red)" value={formData.rubric_red} onChange={v => handleChange({target: {name: 'rubric_red', value: v}})} />
       </div>
       <div className="grid grid-cols-1 gap-6">
-        <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100">
-          <h4 className="text-sm font-bold text-indigo-800 mb-4 flex items-center gap-2"><Target className="w-4 h-4" /> Key Risk Indicator (KRI)</h4>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">KRI Title</label>
-              <input type="text" name="KRI_Title" value={formData.KRI_Title || ''} onChange={handleChange} placeholder="e.g. Student Attrition Rate" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">How the KRI is Calculated</label>
-              <RichTextEditor value={formData.KRI_Calculation || ''} onChange={(val) => handleChange({ target: { name: 'KRI_Calculation', value: val } })} />
-            </div>
-          </div>
-        </div>
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Mitigating Actions</label>
           <RichTextEditor value={formData.Mitigating_Actions || ''} onChange={(val) => handleChange({ target: { name: 'Mitigating_Actions', value: val } })} />
@@ -397,7 +384,7 @@ function NewRiskForm({ onSuccess, session, categories }) {
   const [formData, setFormData] = useState({ 
     Risk_No: '', Risk_Title: '', Category: '', Risk_Causes: '', 
     Risk_Consequences_: '', Existing_Internal_control_: '',
-    Risk_Owner: '', risk_scope: 'Institution', programs: '', rubric_green: '', rubric_yellow: '', rubric_orange: '', rubric_red: '', Mitigating_Actions: '',
+    Risk_Owner: '', rubric_green: '', rubric_yellow: '', rubric_orange: '', rubric_red: '', Mitigating_Actions: '',
     KRI_Title: '', KRI_Calculation: ''
   });
 
@@ -760,7 +747,8 @@ function getRiskStatus(risk, value) {
 function RiskValuesModal({ risk, onClose }) {
   const [values, setValues] = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
-  const [formData, setFormData] = useState({ academic_year: '', program_name: '', value: '' });
+  const [dbPrograms, setDbPrograms] = useState([]);
+  const [formData, setFormData] = useState({ academic_year: '', program_name: 'Institution', value: '' });
 
   useEffect(() => {
     supabase.from('academic_years').select('*').order('sort_order').then(({data}) => {
@@ -768,6 +756,9 @@ function RiskValuesModal({ risk, onClose }) {
         setAcademicYears(data.map(y => y.label));
         if (data.length > 0) setFormData(f => ({...f, academic_year: data[0].label}));
       }
+    });
+    supabase.from('programs').select('id, name, is_active').order('name').then(({data}) => {
+      if(data) setDbPrograms(data.filter(p => p.is_active !== false));
     });
     fetchValues();
   }, []);
@@ -780,13 +771,6 @@ function RiskValuesModal({ risk, onClose }) {
       setValues(mockRiskValues.filter(v => v.risk_id === risk.id));
     }
   };
-
-  const programsList = (risk.programs || '').split(',').map(p => p.trim()).filter(Boolean);
-
-  useEffect(() => {
-    if (risk.risk_scope === 'Institution') setFormData(f => ({...f, program_name: 'Institution'}));
-    else if (programsList.length > 0 && !formData.program_name) setFormData(f => ({...f, program_name: programsList[0]}));
-  }, [risk, programsList.length]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -822,27 +806,21 @@ function RiskValuesModal({ risk, onClose }) {
         </div>
         
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <form onSubmit={handleSubmit} className="flex gap-3 items-end p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <div className="flex-1">
+          <form onSubmit={handleSubmit} className="flex gap-3 items-end p-4 bg-slate-50 rounded-xl border border-slate-200 flex-wrap">
+            <div className="flex-1 min-w-[140px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1">Academic Year</label>
               <select value={formData.academic_year} onChange={e => setFormData({...formData, academic_year: e.target.value})} className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-indigo-500">
                 {academicYears.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
-            {risk.risk_scope === 'Program Level' ? (
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Program</label>
-                <select value={formData.program_name} onChange={e => setFormData({...formData, program_name: e.target.value})} className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-indigo-500">
-                  {programsList.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-            ) : (
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Scope</label>
-                <input type="text" readOnly value="Institution" className="w-full border rounded px-3 py-2 text-sm bg-slate-100 text-slate-500" />
-              </div>
-            )}
-            <div className="flex-1">
+            <div className="flex-1 min-w-[180px]">
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Scope / Program</label>
+              <select value={formData.program_name} onChange={e => setFormData({...formData, program_name: e.target.value})} className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-indigo-500">
+                <option value="Institution">Institution</option>
+                {dbPrograms.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="flex-1 min-w-[120px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1">Value (Numeric)</label>
               <input type="number" step="any" required value={formData.value} onChange={e => setFormData({...formData, value: e.target.value})} className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-indigo-500" />
             </div>
@@ -926,14 +904,16 @@ function RiskReportsView({ initialYear }) {
       const report = [];
       (risks || []).forEach(risk => {
         const riskVals = (values || []).filter(v => v.risk_id === risk.id);
-        if (risk.risk_scope === 'Program Level') {
-          (risk.programs || '').split(',').map(p => p.trim()).filter(Boolean).forEach(prog => {
+        if (riskVals.length > 0) {
+          // Group by program_name from actual values
+          const programNames = [...new Set(riskVals.map(v => v.program_name))];
+          programNames.forEach(prog => {
             const valObj = riskVals.find(v => v.program_name === prog);
             report.push({ ...risk, program_name: prog, value: valObj?.value, status: getRiskStatus(risk, valObj?.value) });
           });
         } else {
-          const valObj = riskVals.find(v => v.program_name === 'Institution');
-          report.push({ ...risk, program_name: 'Institution', value: valObj?.value, status: getRiskStatus(risk, valObj?.value) });
+          // No values entered yet — show as Institution with no data
+          report.push({ ...risk, program_name: 'Institution', value: undefined, status: getRiskStatus(risk, undefined) });
         }
       });
       setReportData(report);
@@ -948,9 +928,9 @@ function RiskReportsView({ initialYear }) {
       const { data: risk } = await supabase.from('risk_management_plan').select('*').eq('id', riskId).single();
       const { data: vals } = await supabase.from('risk_values').select('*').eq('risk_id', riskId).order('academic_year');
       if (!risk) { setTrendData([]); return; }
-      const programs = risk.risk_scope === 'Program Level'
-        ? (risk.programs || '').split(',').map(p => p.trim()).filter(Boolean)
-        : ['Institution'];
+      // Derive programs from actual value entries
+      const allProgNames = [...new Set((vals || []).map(v => v.program_name))];
+      const programs = allProgNames.length > 0 ? allProgNames : ['Institution'];
       const trend = academicYears.map(yr => {
         const yearVals = (vals || []).filter(v => v.academic_year === yr);
         const progData = programs.map(prog => {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
-import { Shield, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Shield, Plus, Pencil, Trash2, Check, X, Search, ChevronDown, ChevronRight, Eye, Edit } from 'lucide-react';
 
 export function RolesManager() {
   const [roles, setRoles] = useState([]);
@@ -10,6 +10,9 @@ export function RolesManager() {
   const [roleForm, setRoleForm] = useState({ name: '', description: '' });
 
   const [selectedRoleId, setSelectedRoleId] = useState(null);
+  const [sectionFilter, setSectionFilter] = useState('All');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [collapsedSections, setCollapsedSections] = useState({});
 
   const fetchRoles = async () => {
     const { data } = await supabase.from('custom_roles').select('*').order('created_at');
@@ -48,27 +51,74 @@ export function RolesManager() {
     fetchRoles();
   };
 
-  const togglePermission = async (role_id, module_name, field, currentValue) => {
+  const setPermissionLevel = async (role_id, module_name, level) => {
+    // level: 'none' | 'view' | 'edit'
     const existing = permissions.find(p => p.role_id === role_id && p.module_name === module_name);
+    const can_view = level === 'view' || level === 'edit';
+    const can_edit = level === 'edit';
+    
     if (existing) {
-      await supabase.from('role_permissions').update({ [field]: !currentValue }).eq('id', existing.id);
-    } else {
-      await supabase.from('role_permissions').insert([{
-        role_id, module_name, [field]: true
-      }]);
+      if (level === 'none') {
+        await supabase.from('role_permissions').delete().eq('id', existing.id);
+      } else {
+        await supabase.from('role_permissions').update({ can_view, can_edit }).eq('id', existing.id);
+      }
+    } else if (level !== 'none') {
+      await supabase.from('role_permissions').insert([{ role_id, module_name, can_view, can_edit }]);
     }
     fetchPermissions();
   };
 
+  const getPermLevel = (role_id, module_name) => {
+    const perm = permissions.find(p => p.role_id === role_id && p.module_name === module_name);
+    if (!perm || (!perm.can_view && !perm.can_edit)) return 'none';
+    if (perm.can_edit) return 'edit';
+    return 'view';
+  };
+
   const MODULES = [
-    { section: 'Risk Management Plan', key: 'risk_dashboard', label: 'Dashboard' },
-    { section: 'Risk Management Plan', key: 'risk_new_risk', label: 'Log New Risk' },
-    { section: 'Risk Management Plan', key: 'risk_register', label: 'Risk Register' },
-    { section: 'Risk Management Plan', key: 'risk_reports', label: 'Yearly Reports' },
+    { section: 'Risk Management', key: 'risk_dashboard', label: 'Dashboard' },
+    { section: 'Risk Management', key: 'risk_new_risk', label: 'Report a Risk' },
+    { section: 'Risk Management', key: 'risk_register', label: 'Risk Register' },
+    { section: 'Risk Management', key: 'risk_reports', label: 'Yearly Reports' },
     { section: 'Databases', key: 'db_faculty', label: 'Faculty & Staff' },
     { section: 'Databases', key: 'db_students', label: 'Students' },
-    { section: 'Databases', key: 'db_courses', label: 'Courses' }
+    { section: 'Databases', key: 'db_courses', label: 'Courses' },
+    { section: 'Databases', key: 'db_colleges', label: 'Colleges' },
+    { section: 'Databases', key: 'db_programs', label: 'Programs' },
+    { section: 'Databases', key: 'db_committees', label: 'Committees' },
+    { section: 'Organization', key: 'org_structure', label: 'Org Structure' },
   ];
+
+  const sections = [...new Set(MODULES.map(m => m.section))];
+
+  const filteredModules = MODULES.filter(m => {
+    if (sectionFilter !== 'All' && m.section !== sectionFilter) return false;
+    if (searchTerm && !m.label.toLowerCase().includes(searchTerm.toLowerCase()) && !m.section.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    return true;
+  });
+
+  const filteredSections = [...new Set(filteredModules.map(m => m.section))];
+
+  const toggleSection = (section) => {
+    setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  // Bulk actions
+  const bulkSetAll = async (level) => {
+    if (!selectedRoleId) return;
+    for (const m of filteredModules) {
+      await setPermissionLevel(selectedRoleId, m.key, level);
+    }
+  };
+
+  const bulkSetSection = async (section, level) => {
+    if (!selectedRoleId) return;
+    const sectionModules = filteredModules.filter(m => m.section === section);
+    for (const m of sectionModules) {
+      await setPermissionLevel(selectedRoleId, m.key, level);
+    }
+  };
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -140,32 +190,91 @@ export function RolesManager() {
                   <h4 className="text-md font-semibold text-slate-800 mb-4 pb-2 border-b border-slate-200">
                     Permissions for: <span className="text-indigo-600">{roles.find(r => r.id === selectedRoleId)?.name}</span>
                   </h4>
-                  <div className="space-y-6">
-                    {Array.from(new Set(MODULES.map(m => m.section))).map(section => (
-                      <div key={section}>
-                        <h5 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 pb-1 border-b border-slate-200">{section}</h5>
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                          {MODULES.filter(m => m.section === section).map(m => {
-                            const perm = permissions.find(p => p.role_id === selectedRoleId && p.module_name === m.key) || {};
-                            return (
-                              <div key={m.key} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors">
-                                <div className="font-medium text-slate-800 mb-3">{m.label}</div>
-                                <div className="flex items-center gap-6 pt-2 border-t border-slate-100">
-                                  <label className="flex items-center cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-                                    <input type="checkbox" className="mr-2 w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" checked={perm.can_view || false} onChange={() => togglePermission(selectedRoleId, m.key, 'can_view', perm.can_view)} />
-                                    View Access
-                                  </label>
-                                  <label className="flex items-center cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-                                    <input type="checkbox" className="mr-2 w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" checked={perm.can_edit || false} onChange={() => togglePermission(selectedRoleId, m.key, 'can_edit', perm.can_edit)} />
-                                    Edit Access
-                                  </label>
-                                </div>
-                              </div>
-                            );
-                          })}
+
+                  {/* Filters & Search */}
+                  <div className="flex flex-wrap gap-3 mb-5 items-center">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search pages..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <select
+                      value={sectionFilter}
+                      onChange={e => setSectionFilter(e.target.value)}
+                      className="px-4 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    >
+                      <option value="All">All Sections</option>
+                      {sections.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Global bulk actions */}
+                  <div className="flex items-center gap-2 mb-5 p-3 bg-white rounded-lg border border-slate-200">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-auto">Set All Visible Pages:</span>
+                    <button onClick={() => bulkSetAll('none')} className="px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-300 text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors">No Access</button>
+                    <button onClick={() => bulkSetAll('view')} className="px-3 py-1.5 text-xs font-semibold rounded-md border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1"><Eye size={12}/> View Only</button>
+                    <button onClick={() => bulkSetAll('edit')} className="px-3 py-1.5 text-xs font-semibold rounded-md border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors flex items-center gap-1"><Edit size={12}/> View & Edit</button>
+                  </div>
+
+                  {/* Sections */}
+                  <div className="space-y-4">
+                    {filteredSections.map(section => {
+                      const sectionModules = filteredModules.filter(m => m.section === section);
+                      const isCollapsed = collapsedSections[section];
+                      return (
+                        <div key={section} className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                          <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
+                            <button onClick={() => toggleSection(section)} className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wider hover:text-slate-900">
+                              {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                              {section}
+                              <span className="text-xs font-normal text-slate-400 lowercase tracking-normal">({sectionModules.length} pages)</span>
+                            </button>
+                            <div className="flex gap-1.5">
+                              <button onClick={() => bulkSetSection(section, 'none')} className="px-2.5 py-1 text-[11px] font-semibold rounded border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors">None</button>
+                              <button onClick={() => bulkSetSection(section, 'view')} className="px-2.5 py-1 text-[11px] font-semibold rounded border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors">All View</button>
+                              <button onClick={() => bulkSetSection(section, 'edit')} className="px-2.5 py-1 text-[11px] font-semibold rounded border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors">All Edit</button>
+                            </div>
+                          </div>
+                          {!isCollapsed && (
+                            <div className="divide-y divide-slate-100">
+                              {sectionModules.map(m => {
+                                const level = getPermLevel(selectedRoleId, m.key);
+                                return (
+                                  <div key={m.key} className="px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                    <div className="font-medium text-sm text-slate-800">{m.label}</div>
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        onClick={() => setPermissionLevel(selectedRoleId, m.key, 'none')}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-md border transition-all ${level === 'none' ? 'bg-slate-700 text-white border-slate-700 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                                      >
+                                        No Access
+                                      </button>
+                                      <button
+                                        onClick={() => setPermissionLevel(selectedRoleId, m.key, 'view')}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-md border transition-all flex items-center gap-1 ${level === 'view' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-blue-50'}`}
+                                      >
+                                        <Eye size={12}/> View Only
+                                      </button>
+                                      <button
+                                        onClick={() => setPermissionLevel(selectedRoleId, m.key, 'edit')}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-md border transition-all flex items-center gap-1 ${level === 'edit' ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-emerald-50'}`}
+                                      >
+                                        <Edit size={12}/> View & Edit
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               ) : (
