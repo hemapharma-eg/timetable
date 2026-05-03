@@ -911,15 +911,12 @@ const DataEntryPage = ({ benchmarkingData, selectedYearId, setSelectedYearId, ac
                   </div>
                   
                   <div className="flex-1 flex items-center justify-end">
-                    <div className="flex items-center gap-6 bg-slate-50/50 px-8 py-4 rounded-[28px] border border-slate-50 shadow-sm">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] whitespace-nowrap">Value Entry</span>
-                      <input 
-                        className="w-32 bg-white border border-slate-200 px-6 py-3 rounded-2xl text-xl font-black text-indigo-600 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-right shadow-sm" 
-                        value={activeDataEntry.values[uni.id] || ''} 
-                        onChange={e => handleUpdateValue(activeDataEntry.kpiId, activeDataEntry.yearId, uni.id, e.target.value)}
-                        placeholder="0.00"
-                      />
-                    </div>
+                    <input 
+                      className="w-40 bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl text-2xl font-black text-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-right shadow-sm" 
+                      value={activeDataEntry.values[uni.id] || ''} 
+                      onChange={e => handleUpdateValue(activeDataEntry.kpiId, activeDataEntry.yearId, uni.id, e.target.value)}
+                      placeholder="0.00"
+                    />
                   </div>
                 </div>
               ))}
