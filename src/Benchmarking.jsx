@@ -6,14 +6,14 @@ import {
   LayoutDashboard, Database, ShieldAlert, ShieldCheck, 
   Plus, Trash2, Edit2, Save, X, Building2, ListTree,
   Share2, Printer, CheckCircle, ChevronRight, Settings,
-  Activity, Users, Info
+  Activity, Users, Info, Calendar, Filter, ArrowLeft, Check
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { supabase } from './supabase';
 
-// --- FIREBASE INIT ---
+// --- FIREBASE INIT (Optional fallback) ---
 let app, auth, db, appId;
 try {
   const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
@@ -27,86 +27,86 @@ try {
   console.warn("Firebase not configured", e);
 }
 
-// --- INITIAL DATA ---
-const initialUniversities = [
-  { name: "Gulf Medical University (GMU)", abbr: "GMU", active: true },
-  { name: "Mohammed Bin Rashid University (MBRU)", abbr: "MBRU", active: true },
-  { name: "Dubai Medical University", abbr: "DMU", active: true },
-  { name: "RAKMHSU", abbr: "RAK", active: true },
-  { name: "Battejee Medical College", abbr: "BMC", active: true },
-  { name: "Royal College of Surgeons in Ireland (RCSI)", abbr: "RCSI", active: true }
-];
-
+// --- INITIAL DATA & UTILS ---
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-const initialKpis = [
-  { id: generateId(), active: true, year: '2025', category: 'Students', kpi: 'Total Enrolled Students', actionPlan: '', values: { "Gulf Medical University (GMU)": "2824", "Mohammed Bin Rashid University (MBRU)": "551", "Dubai Medical University": "828", "RAKMHSU": "1700", "Battejee Medical College": "1820", "Royal College of Surgeons in Ireland (RCSI)": "5267" } },
-  { id: generateId(), active: true, year: '2025', category: 'Students', kpi: '% National Students', actionPlan: '', values: { "Gulf Medical University (GMU)": "9.8", "Mohammed Bin Rashid University (MBRU)": "27.2", "Dubai Medical University": "13.8", "RAKMHSU": "21.1", "Battejee Medical College": "81.59", "Royal College of Surgeons in Ireland (RCSI)": "32" } },
-  { id: generateId(), active: true, year: '2025', category: 'Students', kpi: 'Student Nationalities', actionPlan: 'Increase marketing efforts in North Africa and South Asia.', values: { "Gulf Medical University (GMU)": "105", "Mohammed Bin Rashid University (MBRU)": "50", "Dubai Medical University": "52", "RAKMHSU": "48", "Battejee Medical College": "52", "Royal College of Surgeons in Ireland (RCSI)": "103" } },
-  { id: generateId(), active: true, year: '2025', category: 'Students', kpi: 'Student-to-Faculty Ratio', actionPlan: '', values: { "Gulf Medical University (GMU)": "11", "Mohammed Bin Rashid University (MBRU)": "5", "Dubai Medical University": "12", "RAKMHSU": "11", "Battejee Medical College": "9", "Royal College of Surgeons in Ireland (RCSI)": "24" } },
-  { id: generateId(), active: true, year: '2025', category: 'Research', kpi: 'Research Publications', actionPlan: 'Provide additional grants for faculty publishing in top journals.', values: { "Gulf Medical University (GMU)": "519", "Mohammed Bin Rashid University (MBRU)": "401", "Dubai Medical University": "162", "RAKMHSU": "441", "Battejee Medical College": "322", "Royal College of Surgeons in Ireland (RCSI)": "1923" } },
-  { id: generateId(), active: true, year: '2025', category: 'Research', kpi: 'Publication in top 10% journals', actionPlan: '', values: { "Gulf Medical University (GMU)": "14.1", "Mohammed Bin Rashid University (MBRU)": "26.6", "Dubai Medical University": "16.2", "RAKMHSU": "11.4", "Battejee Medical College": "10.5", "Royal College of Surgeons in Ireland (RCSI)": "30" } },
-  { id: generateId(), active: true, year: '2025', category: 'Research', kpi: 'Research with International Collaboration', actionPlan: '', values: { "Gulf Medical University (GMU)": "83.4", "Mohammed Bin Rashid University (MBRU)": "79.3", "Dubai Medical University": "72.8", "RAKMHSU": "87.8", "Battejee Medical College": "76.7", "Royal College of Surgeons in Ireland (RCSI)": "63.2" } },
-  { id: generateId(), active: true, year: '2025', category: 'Graduates', kpi: 'Total Graduates (Latest)', actionPlan: '', values: { "Gulf Medical University (GMU)": "561", "Mohammed Bin Rashid University (MBRU)": "99", "Dubai Medical University": "114", "RAKMHSU": "247", "Battejee Medical College": "232", "Royal College of Surgeons in Ireland (RCSI)": "1780" } },
-  { id: generateId(), active: true, year: '2025', category: 'Graduates', kpi: 'Employability', actionPlan: 'Establish a new alumni network to improve career placement tracking.', values: { "Gulf Medical University (GMU)": "", "Mohammed Bin Rashid University (MBRU)": "", "Dubai Medical University": "67", "RAKMHSU": "48", "Battejee Medical College": "64", "Royal College of Surgeons in Ireland (RCSI)": "90" } },
-  { id: generateId(), active: true, year: '2025', category: 'Ranking', kpi: 'THE World (2025)', actionPlan: '', values: { "Gulf Medical University (GMU)": "NR", "Mohammed Bin Rashid University (MBRU)": "NR", "Dubai Medical University": "NR", "RAKMHSU": "NR", "Battejee Medical College": "NR", "Royal College of Surgeons in Ireland (RCSI)": "251-300" } },
-  { id: generateId(), active: true, year: '2025', category: 'Ranking', kpi: 'THE Arab Region', actionPlan: '', values: { "Gulf Medical University (GMU)": "101-125", "Mohammed Bin Rashid University (MBRU)": "NR", "Dubai Medical University": "NR", "RAKMHSU": "151-175", "Battejee Medical College": "NR", "Royal College of Surgeons in Ireland (RCSI)": "NA" } },
+const initialUniversities = [
+  { id: 'uni1', name: "Gulf Medical University (GMU)", abbr: "GMU", active: true },
+  { id: 'uni2', name: "Mohammed Bin Rashid University (MBRU)", abbr: "MBRU", active: true },
+  { id: 'uni3', name: "Dubai Medical University", abbr: "DMU", active: true },
+  { id: 'uni4', name: "RAKMHSU", abbr: "RAK", active: true },
+  { id: 'uni5', name: "Battejee Medical College", abbr: "BMC", active: true },
+  { id: 'uni6', name: "Royal College of Surgeons in Ireland (RCSI)", abbr: "RCSI", active: true }
 ];
 
-// --- UTILITY COMPONENTS ---
-const Modal = ({ isOpen, onClose, title, children }) => {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-        <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-          <h3 className="text-xl font-bold text-gray-800">{title}</h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400">
-            <X size={20} />
-          </button>
-        </div>
-        <div className="p-8 overflow-y-auto">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-};
+const initialYears = [
+  { id: 'y1', name: '2024-2025', active: true },
+  { id: 'y2', name: '2023-2024', active: true }
+];
+
+const initialKpiDefinitions = [
+  { id: 'k1', category: 'Students', name: 'Total Enrolled Students', active: true },
+  { id: 'k2', category: 'Students', name: '% National Students', active: true },
+  { id: 'k3', category: 'Students', name: 'Student Nationalities', active: true },
+  { id: 'k4', category: 'Students', name: 'Student-to-Faculty Ratio', active: true },
+  { id: 'k5', category: 'Research', name: 'Research Publications', active: true },
+  { id: 'k6', category: 'Research', name: 'Publication in top 10% journals', active: true },
+  { id: 'k7', category: 'Research', name: 'Research with International Collaboration', active: true },
+  { id: 'k8', category: 'Graduates', name: 'Total Graduates (Latest)', active: true },
+  { id: 'k9', category: 'Graduates', name: 'Employability', active: true },
+  { id: 'k10', category: 'Ranking', name: 'THE World', active: true },
+  { id: 'k11', category: 'Ranking', name: 'THE Arab Region', active: true },
+];
+
+// Initial data points for 2024-2025
+const initialData = [
+  { id: generateId(), kpiId: 'k1', yearId: 'y1', actionPlan: '', values: { "uni1": "2824", "uni2": "551", "uni3": "828", "uni4": "1700", "uni5": "1820", "uni6": "5267" } },
+  { id: generateId(), kpiId: 'k2', yearId: 'y1', actionPlan: '', values: { "uni1": "9.8", "uni2": "27.2", "uni3": "13.8", "uni4": "21.1", "uni5": "81.59", "uni6": "32" } },
+  { id: generateId(), kpiId: 'k3', yearId: 'y1', actionPlan: 'Increase marketing efforts in North Africa and South Asia.', values: { "uni1": "105", "uni2": "50", "uni3": "52", "uni4": "48", "uni5": "52", "uni6": "103" } },
+  { id: generateId(), kpiId: 'k4', yearId: 'y1', actionPlan: '', values: { "uni1": "11", "uni2": "5", "uni3": "12", "uni4": "11", "uni5": "9", "uni6": "24" } },
+  { id: generateId(), kpiId: 'k5', yearId: 'y1', actionPlan: 'Provide additional grants for faculty publishing in top journals.', values: { "uni1": "519", "uni2": "401", "uni3": "162", "uni4": "441", "uni5": "322", "uni6": "1923" } },
+  { id: generateId(), kpiId: 'k6', yearId: 'y1', actionPlan: '', values: { "uni1": "14.1", "uni2": "26.6", "uni3": "16.2", "uni4": "11.4", "uni5": "10.5", "uni6": "30" } },
+  { id: generateId(), kpiId: 'k7', yearId: 'y1', actionPlan: '', values: { "uni1": "83.4", "uni2": "79.3", "uni3": "72.8", "uni4": "87.8", "uni5": "76.7", "uni6": "63.2" } },
+  { id: generateId(), kpiId: 'k8', yearId: 'y1', actionPlan: '', values: { "uni1": "561", "uni2": "99", "uni3": "114", "uni4": "247", "uni5": "232", "uni6": "1780" } },
+  { id: generateId(), kpiId: 'k9', yearId: 'y1', actionPlan: 'Establish a new alumni network to improve career placement tracking.', values: { "uni1": "", "uni2": "", "uni3": "67", "uni4": "48", "uni5": "64", "uni6": "90" } },
+  { id: generateId(), kpiId: 'k10', yearId: 'y1', actionPlan: '', values: { "uni1": "NR", "uni2": "NR", "uni3": "NR", "uni4": "NR", "uni5": "NR", "uni6": "251-300" } },
+  { id: generateId(), kpiId: 'k11', yearId: 'y1', actionPlan: '', values: { "uni1": "101-125", "uni2": "NR", "uni3": "NR", "uni4": "151-175", "uni5": "NR", "uni6": "NA" } },
+];
 
 // --- MAIN COMPONENT ---
 export function Benchmarking({ initialPage = 'dashboard' }) {
   const [currentPage, setCurrentPage] = useState(initialPage);
-  const [adminTab, setAdminTab] = useState('universities'); // 'universities' | 'kpis' | 'data'
+  const [adminTab, setAdminTab] = useState('universities'); // 'universities' | 'kpis' | 'years' | 'mapping' | 'data'
+  const [adminSubMode, setAdminSubMode] = useState('list'); // 'list' | 'add' | 'edit'
   
+  // Data State
   const [universities, setUniversities] = useState(initialUniversities);
-  const [kpis, setKpis] = useState(initialKpis);
+  const [years, setYears] = useState(initialYears);
+  const [kpiDefinitions, setKpiDefinitions] = useState(initialKpiDefinitions);
+  const [benchmarkingData, setBenchmarkingData] = useState(initialData);
 
-  // Toast & Firebase State
+  // Filters
+  const [selectedYearId, setSelectedYearId] = useState(initialYears[0]?.id || '');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedKpiId, setSelectedKpiId] = useState('All');
+
+  // Selection for editing
+  const [editingItem, setEditingItem] = useState(null);
+  const [activeDataKpiId, setActiveDataKpiId] = useState(null);
+
+  // Feedback State
   const [toast, setToast] = useState({ visible: false, message: '' });
   const [user, setUser] = useState(null);
 
-  // Dashboard specific states
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedKpi, setSelectedKpi] = useState('All');
+  useEffect(() => { setCurrentPage(initialPage); }, [initialPage]);
 
-  // Admin Data Entry state
-  const [activeDataKpi, setActiveDataKpi] = useState(null);
-
-  // Update currentPage if initialPage changes
-  useEffect(() => {
-    setCurrentPage(initialPage);
-  }, [initialPage]);
-
-  // --- EFFECTS FOR FIREBASE & URL DATA ---
+  // --- AUTH & SYNC ---
   useEffect(() => {
     if (!auth) return;
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+        else await signInAnonymously(auth);
       } catch(e) { console.error(e); }
     };
     initAuth();
@@ -116,448 +116,410 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const encodedData = urlParams.get('data');
     const reportId = urlParams.get('report');
-
-    if (encodedData) {
-      try {
-         const parsed = JSON.parse(atob(decodeURIComponent(encodedData)));
-         if (parsed.universities) setUniversities(parsed.universities);
-         if (parsed.kpis) setKpis(parsed.kpis);
-      } catch(e) { console.error("Failed to parse URL data"); }
-    } else if (reportId) {
+    if (reportId) {
        const fetchReport = async () => {
           try {
-             // Try Supabase first
-             const { data: report, error } = await supabase
-               .from('benchmarking_reports')
-               .select('data')
-               .eq('id', reportId)
-               .maybeSingle();
-
+             const { data: report, error } = await supabase.from('benchmarking_reports').select('data').eq('id', reportId).maybeSingle();
              if (!error && report) {
-                const data = report.data;
-                if (data.universities) setUniversities(data.universities);
-                if (data.kpis) setKpis(data.kpis);
-                return;
+                const d = report.data;
+                if (d.universities) setUniversities(d.universities);
+                if (d.years) setYears(d.years);
+                if (d.kpiDefinitions) setKpiDefinitions(d.kpiDefinitions);
+                if (d.benchmarkingData) setBenchmarkingData(d.benchmarkingData);
              }
-
-             // Fallback to Firebase for legacy reports
-             if (db) {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', reportId);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                   const data = docSnap.data();
-                   if (data.universities) setUniversities(data.universities);
-                   if (data.kpis) setKpis(data.kpis);
-                }
-             }
-          } catch(e) { console.error("Failed to fetch report:", e); }
+          } catch(e) { console.error(e); }
        };
        fetchReport();
     }
-  }, [user, db]);
+  }, [user]);
 
-  // --- SHARE CAPABILITY ---
   const showToast = (message) => {
     setToast({ visible: true, message });
     setTimeout(() => setToast({ visible: false, message: '' }), 3000);
   };
 
   const handleShare = async () => {
-    let shareUrl = window.location.href;
     showToast('Generating short link...');
-
     try {
-       // Always prefer Supabase for sharing now
-       const { data, error } = await supabase
-         .from('benchmarking_reports')
-         .insert([{ data: { universities, kpis } }])
-         .select()
-         .single();
-
+       const payload = { universities, years, kpiDefinitions, benchmarkingData };
+       const { data, error } = await supabase.from('benchmarking_reports').insert([{ data: payload }]).select().single();
        if (error) throw error;
-
-       const reportId = data.id;
-       const newUrl = new URL(window.location.origin + window.location.pathname);
-       newUrl.searchParams.set('view', 'benchmarking');
-       newUrl.searchParams.set('report', reportId);
-       shareUrl = newUrl.toString();
-       window.history.pushState({}, '', shareUrl);
+       const shareUrl = `${window.location.origin}${window.location.pathname}?view=benchmarking&report=${data.id}`;
+       navigator.clipboard.writeText(shareUrl);
+       showToast('Share link copied!');
     } catch (e) {
-       console.error("Supabase share failed, falling back to Firebase or URL", e);
-       if (db && appId) {
-          try {
-             const reportId = new URLSearchParams(window.location.search).get('report') || generateId();
-             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', reportId);
-             await setDoc(docRef, { universities, kpis });
-             
-             const newUrl = new URL(window.location.origin + window.location.pathname);
-             newUrl.searchParams.set('view', 'benchmarking');
-             newUrl.searchParams.set('report', reportId);
-             shareUrl = newUrl.toString();
-             window.history.pushState({}, '', shareUrl);
-          } catch (fireErr) {
-             shareUrl = createBase64Url();
-          }
-       } else {
-          shareUrl = createBase64Url();
-       }
+       console.error(e);
+       showToast('Share failed. Run the SQL script!');
     }
-
-    const textArea = document.createElement("textarea");
-    textArea.value = shareUrl;
-    textArea.style.top = "0";
-    textArea.style.left = "0";
-    textArea.style.position = "fixed";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-      document.execCommand('copy');
-      showToast('Share link copied to clipboard!');
-    } catch (e) {
-      showToast('Failed to copy link.');
-    }
-    document.body.removeChild(textArea);
   };
+
+  // --- CRUD HELPERS ---
+  const handleAddUniversity = (u) => {
+    setUniversities([...universities, { ...u, id: generateId(), active: true }]);
+    setAdminSubMode('list');
+    showToast('University added');
+  };
+  const handleUpdateUniversity = (u) => {
+    setUniversities(universities.map(item => item.id === u.id ? u : item));
+    setAdminSubMode('list');
+    setEditingItem(null);
+    showToast('University updated');
+  };
+  const handleDeleteUniversity = (id) => {
+    if (!window.confirm('Delete this university? All associated data will be lost.')) return;
+    setUniversities(universities.filter(u => u.id !== id));
+    showToast('University deleted');
+  };
+
+  const handleAddYear = (y) => {
+    setYears([...years, { ...y, id: generateId(), active: true }]);
+    setAdminSubMode('list');
+    showToast('Academic year added');
+  };
+  const handleUpdateYear = (y) => {
+    setYears(years.map(item => item.id === y.id ? y : item));
+    setAdminSubMode('list');
+    setEditingItem(null);
+    showToast('Year updated');
+  };
+  const handleDeleteYear = (id) => {
+    if (!window.confirm('Delete this year and all its benchmarking data?')) return;
+    setYears(years.filter(y => y.id !== id));
+    setBenchmarkingData(benchmarkingData.filter(d => d.yearId !== id));
+    showToast('Year deleted');
+  };
+
+  const handleAddKpiDef = (k) => {
+    setKpiDefinitions([...kpiDefinitions, { ...k, id: generateId(), active: true }]);
+    setAdminSubMode('list');
+    showToast('KPI definition added');
+  };
+  const handleUpdateKpiDef = (k) => {
+    setKpiDefinitions(kpiDefinitions.map(item => item.id === k.id ? k : item));
+    setAdminSubMode('list');
+    setEditingItem(null);
+    showToast('KPI updated');
+  };
+  const handleDeleteKpiDef = (id) => {
+    if (!window.confirm('Delete this KPI and all its values across all years?')) return;
+    setKpiDefinitions(kpiDefinitions.filter(k => k.id !== id));
+    setBenchmarkingData(benchmarkingData.filter(d => d.kpiId !== id));
+    showToast('KPI deleted');
+  };
+
+  const handleToggleMapping = (kpiId, yearId) => {
+    const exists = benchmarkingData.find(d => d.kpiId === kpiId && d.yearId === yearId);
+    if (exists) {
+      if (window.confirm('Remove this KPI from this year? This will delete entered values.')) {
+        setBenchmarkingData(benchmarkingData.filter(d => !(d.kpiId === kpiId && d.yearId === yearId)));
+      }
+    } else {
+      setBenchmarkingData([...benchmarkingData, { id: generateId(), kpiId, yearId, actionPlan: '', values: {} }]);
+    }
+  };
+
+  const handleUpdateValue = (kpiId, yearId, uniId, value) => {
+    setBenchmarkingData(benchmarkingData.map(d => {
+      if (d.kpiId === kpiId && d.yearId === yearId) {
+        return { ...d, values: { ...d.values, [uniId]: value } };
+      }
+      return d;
+    }));
+  };
+
+  const handleUpdateActionPlan = (kpiId, yearId, plan) => {
+    setBenchmarkingData(benchmarkingData.map(d => {
+      if (d.kpiId === kpiId && d.yearId === yearId) return { ...d, actionPlan: plan };
+      return d;
+    }));
+  };
+
+  // --- DERIVED VIEW DATA ---
+  const activeUniversities = useMemo(() => universities.filter(u => u.active), [universities]);
+  const activeYears = useMemo(() => years.filter(y => y.active), [years]);
+  const categories = useMemo(() => Array.from(new Set(kpiDefinitions.map(k => k.category))), [kpiDefinitions]);
   
-  const createBase64Url = () => {
-     const encoded = encodeURIComponent(btoa(JSON.stringify({ universities, kpis })));
-     const newUrl = new URL(window.location.origin + window.location.pathname);
-     newUrl.searchParams.set('view', 'benchmarking');
-     newUrl.searchParams.set('data', encoded);
-     window.history.pushState({}, '', newUrl.toString());
-     return newUrl.toString();
-  };
+  const currentYear = useMemo(() => years.find(y => y.id === selectedYearId), [years, selectedYearId]);
+  
+  const dashboardData = useMemo(() => {
+    return benchmarkingData
+      .filter(d => d.yearId === selectedYearId)
+      .map(d => {
+        const def = kpiDefinitions.find(k => k.id === d.kpiId);
+        if (!def || !def.active) return null;
+        if (selectedCategory !== 'All' && def.category !== selectedCategory) return null;
+        if (selectedKpiId !== 'All' && d.kpiId !== selectedKpiId) return null;
+        return { ...d, definition: def };
+      })
+      .filter(Boolean);
+  }, [benchmarkingData, selectedYearId, selectedCategory, selectedKpiId, kpiDefinitions]);
 
-  // --- DERIVED STATE ---
-  const uniqueCategories = useMemo(() => {
-    const cats = new Set(kpis.map(k => k.category));
-    return Array.from(cats);
-  }, [kpis]);
-
-  const availableKpis = useMemo(() => {
-    return kpis.filter(k => (selectedCategory === 'All' || k.category === selectedCategory) && (currentPage === 'admin' || k.active !== false));
-  }, [kpis, selectedCategory, currentPage]);
-
-  const kpisToRender = useMemo(() => {
-    return kpis.filter(k => {
-      const matchCategory = selectedCategory === 'All' || k.category === selectedCategory;
-      const matchKpi = selectedKpi === 'All' || k.id === selectedKpi;
-      const matchActive = currentPage === 'admin' || k.active !== false;
-      return matchCategory && matchKpi && matchActive;
-    });
-  }, [kpis, selectedCategory, selectedKpi, currentPage]);
-
-  // --- CRUD OPERATIONS ---
-  const handleAddUniversity = (name, abbr) => {
-    if (!name.trim() || universities.find(u => u.name === name.trim())) return;
-    const newName = name.trim();
-    const newAbbr = abbr.trim() || newName.substring(0, 4).toUpperCase();
-    setUniversities([...universities, { name: newName, abbr: newAbbr, active: true }]);
-    setKpis(kpis.map(k => ({ ...k, values: { ...k.values, [newName]: "" } })));
-  };
-
-  const handleEditUniversity = (oldName, newName, newAbbr) => {
-    const cleanNewName = newName.trim();
-    if (!cleanNewName) return;
-    setUniversities(universities.map(u => u.name === oldName ? { ...u, name: cleanNewName, abbr: newAbbr.trim() } : u));
-    if (oldName !== cleanNewName) {
-      setKpis(kpis.map(k => {
-        const newValues = { ...k.values };
-        newValues[cleanNewName] = newValues[oldName];
-        delete newValues[oldName];
-        return { ...k, values: newValues };
-      }));
-    }
-  };
-
-  const handleToggleUniversityActive = (name) => {
-    setUniversities(universities.map(u => u.name === name ? { ...u, active: !u.active } : u));
-  };
-
-  const handleAddKpi = () => {
-    const newKpi = {
-      id: generateId(),
-      active: true,
-      year: new Date().getFullYear().toString(),
-      category: 'General',
-      kpi: 'New Indicator Name',
-      actionPlan: '',
-      values: universities.reduce((acc, uni) => ({ ...acc, [uni.name]: "" }), {})
-    };
-    setKpis([newKpi, ...kpis]);
-  };
-
-  const handleUpdateKpiInfo = (id, field, value) => {
-    setKpis(kpis.map(k => k.id === id ? { ...k, [field]: value } : k));
-  };
-
-  const handleUpdateKpiValue = (id, uniName, value) => {
-    setKpis(kpis.map(k => k.id === id ? { ...k, values: { ...k.values, [uniName]: value } } : k));
-  };
-
-  const handleToggleKpiActive = (id) => {
-    setKpis(kpis.map(k => k.id === id ? { ...k, active: !k.active } : k));
-  };
-
-  // --- CHARTING HELPERS ---
   const parseForChart = (val) => {
-    if (val === undefined || val === null || val === "") return null;
-    const strVal = String(val).trim();
-    if (strVal.toUpperCase() === 'NR' || strVal.toUpperCase() === 'NA') return null;
-    if (strVal.includes('-')) {
-      const parts = strVal.split('-');
-      const num = parseFloat(parts[0]);
-      return isNaN(num) ? null : num;
-    }
-    const cleanStr = strVal.replace(/,/g, '').replace(/%/g, '');
-    const num = parseFloat(cleanStr);
+    if (!val) return null;
+    const str = String(val).trim().toUpperCase();
+    if (str === 'NR' || str === 'NA') return null;
+    const clean = str.replace(/[^0-9.-]/g, '');
+    const num = parseFloat(clean);
     return isNaN(num) ? null : num;
   };
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-4 border border-gray-100 shadow-xl rounded-lg">
-          <p className="font-semibold text-gray-800 mb-1">{payload[0].payload.name}</p>
-          <p className="text-blue-600 font-medium">
-            Value: {payload[0].payload.originalValue || 'N/A'}
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
+  // --- ADMIN SUB-PAGES ---
+  
+  const ListView = ({ items, columns, onEdit, onDelete, onAdd }) => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+        <h3 className="text-xl font-black text-gray-800">Management List</h3>
+        <button onClick={onAdd} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all">
+          <Plus size={20} /> Add New
+        </button>
+      </div>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              {columns.map(col => <th key={col.key} className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{col.label}</th>)}
+              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {items.map(item => (
+              <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                {columns.map(col => <td key={col.key} className="px-6 py-4 text-sm font-medium text-gray-700">{item[col.key]}</td>)}
+                <td className="px-6 py-4 text-right">
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => onEdit(item)} className="p-2 text-indigo-400 hover:bg-indigo-50 rounded-xl"><Edit2 size={16} /></button>
+                    <button onClick={() => onDelete(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
-  // --- SUB-COMPONENTS ---
-  const UniversityManager = () => {
-    const [newUniName, setNewUniName] = useState('');
-    const [newUniAbbr, setNewUniAbbr] = useState('');
-    const [editingUni, setEditingUni] = useState(null);
-
+  const UniversityPage = () => {
+    const [form, setForm] = useState(editingItem || { name: '', abbr: '' });
+    if (adminSubMode === 'list') return (
+      <ListView 
+        items={universities} 
+        columns={[{key:'name', label:'Name'}, {key:'abbr', label:'Abbr'}]}
+        onAdd={() => setAdminSubMode('add')}
+        onEdit={(item) => { setEditingItem(item); setAdminSubMode('edit'); }}
+        onDelete={handleDeleteUniversity}
+      />
+    );
     return (
-      <div className="space-y-6">
-        <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 flex flex-col sm:flex-row gap-4 items-end">
-          <div className="flex-1 space-y-1.5">
-            <label className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Full University Name</label>
-            <input 
-              type="text" value={newUniName} onChange={(e) => setNewUniName(e.target.value)}
-              placeholder="e.g. Dubai Medical University"
-              className="w-full px-4 py-2.5 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-            />
+      <div className="max-w-2xl mx-auto bg-white p-10 rounded-[40px] shadow-xl shadow-indigo-100/20 border border-indigo-50">
+        <button onClick={() => setAdminSubMode('list')} className="flex items-center gap-2 text-indigo-600 font-bold mb-8 hover:underline"><ArrowLeft size={18}/> Back to List</button>
+        <h2 className="text-3xl font-black text-gray-800 mb-2">{adminSubMode === 'add' ? 'Add University' : 'Edit University'}</h2>
+        <p className="text-gray-400 mb-10">Configure the institution details for benchmarking comparisons.</p>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Full Name</label>
+            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. Gulf Medical University" />
           </div>
-          <div className="w-full sm:w-40 space-y-1.5">
-            <label className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Abbreviation</label>
-            <input 
-              type="text" value={newUniAbbr} onChange={(e) => setNewUniAbbr(e.target.value)}
-              placeholder="e.g. DMU"
-              className="w-full px-4 py-2.5 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-            />
+          <div className="space-y-2">
+            <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Abbreviation</label>
+            <input value={form.abbr} onChange={e => setForm({...form, abbr: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. GMU" />
           </div>
-          <button 
-            onClick={() => { handleAddUniversity(newUniName, newUniAbbr); setNewUniName(''); setNewUniAbbr(''); }}
-            disabled={!newUniName.trim()}
-            className="h-[46px] bg-indigo-600 hover:bg-indigo-700 text-white px-6 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50"
-          >
-            <Plus size={18} /> Add University
+          <button onClick={() => adminSubMode === 'add' ? handleAddUniversity(form) : handleUpdateUniversity(form)} className="w-full bg-indigo-600 text-white py-5 rounded-3xl font-black text-lg shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
+            <Save size={24} /> {adminSubMode === 'add' ? 'Create University' : 'Save Changes'}
           </button>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {universities.map(uni => (
-            <div key={uni.name} className={`bg-white p-5 rounded-2xl border transition-all ${uni.active ? 'border-gray-100 shadow-sm' : 'border-dashed border-gray-200 opacity-60'}`}>
-              {editingUni === uni.name ? (
-                 <div className="space-y-3">
-                    <input value={uni.name} onChange={(e) => handleEditUniversity(uni.name, e.target.value, uni.abbr)} className="w-full p-2 border rounded-lg text-sm" />
-                    <input value={uni.abbr} onChange={(e) => handleEditUniversity(uni.name, uni.name, e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
-                    <div className="flex justify-end gap-2">
-                       <button onClick={() => setEditingUni(null)} className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold">Done</button>
-                    </div>
-                 </div>
-              ) : (
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-bold text-gray-800">{uni.name}</h4>
-                    <span className="text-xs font-bold text-indigo-600 uppercase mt-1 inline-block">{uni.abbr}</span>
-                  </div>
-                  <div className="flex gap-1">
-                    <button onClick={() => setEditingUni(uni.name)} className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg"><Edit2 size={16}/></button>
-                    <button 
-                      onClick={() => handleToggleUniversityActive(uni.name)} 
-                      className={`p-2 rounded-lg transition-colors ${uni.active ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50'}`}
-                    >
-                      {uni.active ? <ShieldAlert size={16}/> : <ShieldCheck size={16}/>}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
       </div>
     );
   };
 
-  const KpiManager = () => {
+  const YearPage = () => {
+    const [form, setForm] = useState(editingItem || { name: '' });
+    if (adminSubMode === 'list') return (
+      <ListView 
+        items={years} 
+        columns={[{key:'name', label:'Academic Year'}]}
+        onAdd={() => setAdminSubMode('add')}
+        onEdit={(item) => { setEditingItem(item); setAdminSubMode('edit'); }}
+        onDelete={handleDeleteYear}
+      />
+    );
     return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center bg-indigo-600 p-6 rounded-2xl text-white shadow-lg shadow-indigo-200">
-           <div>
-              <h3 className="text-xl font-bold">Indicator Definitions</h3>
-              <p className="text-indigo-100 text-sm">Manage the list of metrics used for benchmarking</p>
-           </div>
-           <button onClick={handleAddKpi} className="bg-white text-indigo-600 px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-50 transition-all">
-              <Plus size={20} /> Add New Indicator
-           </button>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Year</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-40">Category</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Indicator (KPI)</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {kpis.map(kpi => (
-                <tr key={kpi.id} className={`hover:bg-gray-50 transition-colors ${kpi.active ? '' : 'bg-gray-50/50 grayscale-[0.5] opacity-60'}`}>
-                  <td className="px-6 py-4">
-                    <input 
-                      className="w-full bg-transparent border-0 focus:ring-0 font-medium text-gray-800"
-                      value={kpi.year} onChange={(e) => handleUpdateKpiInfo(kpi.id, 'year', e.target.value)}
-                    />
-                  </td>
-                  <td className="px-6 py-4">
-                    <select 
-                      className="w-full bg-transparent border-0 focus:ring-0 font-medium text-gray-600"
-                      value={kpi.category} onChange={(e) => handleUpdateKpiInfo(kpi.id, 'category', e.target.value)}
-                    >
-                      <option value="Students">Students</option>
-                      <option value="Research">Research</option>
-                      <option value="Graduates">Graduates</option>
-                      <option value="Ranking">Ranking</option>
-                      <option value="General">General</option>
-                    </select>
-                  </td>
-                  <td className="px-6 py-4">
-                    <input 
-                      className="w-full bg-transparent border-0 focus:ring-0 font-bold text-gray-700"
-                      value={kpi.kpi} onChange={(e) => handleUpdateKpiInfo(kpi.id, 'kpi', e.target.value)}
-                    />
-                  </td>
-                  <td className="px-6 py-4 flex justify-center gap-2">
-                    <button 
-                      onClick={() => handleToggleKpiActive(kpi.id)}
-                      className={`p-2 rounded-xl transition-colors ${kpi.active ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50'}`}
-                      title={kpi.active ? "Deactivate" : "Activate"}
-                    >
-                      {kpi.active ? <ShieldAlert size={18}/> : <ShieldCheck size={18}/>}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="max-w-2xl mx-auto bg-white p-10 rounded-[40px] shadow-xl shadow-indigo-100/20 border border-indigo-50">
+        <button onClick={() => setAdminSubMode('list')} className="flex items-center gap-2 text-indigo-600 font-bold mb-8 hover:underline"><ArrowLeft size={18}/> Back to List</button>
+        <h2 className="text-3xl font-black text-gray-800 mb-2">{adminSubMode === 'add' ? 'Add Academic Year' : 'Edit Year'}</h2>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Year Name</label>
+            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. 2025-2026" />
+          </div>
+          <button onClick={() => adminSubMode === 'add' ? handleAddYear(form) : handleUpdateYear(form)} className="w-full bg-indigo-600 text-white py-5 rounded-3xl font-black text-lg shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
+            <Save size={24} /> Save Year
+          </button>
         </div>
       </div>
     );
   };
 
-  const DataEntryManager = () => {
-    const filteredKpis = kpis.filter(k => k.active);
+  const KpiDefPage = () => {
+    const [form, setForm] = useState(editingItem || { name: '', category: 'Students' });
+    if (adminSubMode === 'list') return (
+      <ListView 
+        items={kpiDefinitions} 
+        columns={[{key:'category', label:'Category'}, {key:'name', label:'Indicator Name'}]}
+        onAdd={() => setAdminSubMode('add')}
+        onEdit={(item) => { setEditingItem(item); setAdminSubMode('edit'); }}
+        onDelete={handleDeleteKpiDef}
+      />
+    );
+    return (
+      <div className="max-w-2xl mx-auto bg-white p-10 rounded-[40px] shadow-xl shadow-indigo-100/20 border border-indigo-50">
+        <button onClick={() => setAdminSubMode('list')} className="flex items-center gap-2 text-indigo-600 font-bold mb-8 hover:underline"><ArrowLeft size={18}/> Back to List</button>
+        <h2 className="text-3xl font-black text-gray-800 mb-2">{adminSubMode === 'add' ? 'Add Indicator' : 'Edit Indicator'}</h2>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Category</label>
+            <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold">
+               {['Students', 'Research', 'Graduates', 'Ranking', 'General'].map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Indicator Name</label>
+            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. Student-to-Faculty Ratio" />
+          </div>
+          <button onClick={() => adminSubMode === 'add' ? handleAddKpiDef(form) : handleUpdateKpiDef(form)} className="w-full bg-indigo-600 text-white py-5 rounded-3xl font-black text-lg shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
+            <Save size={24} /> Save Indicator
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const MappingPage = () => {
+    return (
+      <div className="space-y-8">
+        <div className="flex flex-col md:flex-row justify-between items-center bg-white p-8 rounded-3xl shadow-sm border border-indigo-50 gap-6">
+           <div>
+              <h3 className="text-2xl font-black text-gray-800">Indicator Mapping</h3>
+              <p className="text-gray-400 text-sm mt-1">Select which indicators are active for each academic year</p>
+           </div>
+           <div className="w-full md:w-64">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block text-center md:text-left">Target Year</label>
+              <select 
+                value={selectedYearId} onChange={e => setSelectedYearId(e.target.value)}
+                className="w-full p-4 bg-indigo-50 border-0 rounded-2xl font-bold text-indigo-700 focus:ring-4 focus:ring-indigo-100 outline-none"
+              >
+                {years.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
+              </select>
+           </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+           {kpiDefinitions.map(def => {
+             const isMapped = benchmarkingData.some(d => d.kpiId === def.id && d.yearId === selectedYearId);
+             return (
+               <button 
+                key={def.id} 
+                onClick={() => handleToggleMapping(def.id, selectedYearId)}
+                className={`p-6 rounded-3xl border text-left transition-all flex justify-between items-start group ${isMapped ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-200' : 'bg-white border-gray-100 text-gray-700 hover:border-indigo-200 shadow-sm'}`}
+               >
+                 <div>
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${isMapped ? 'text-indigo-200' : 'text-indigo-500'}`}>{def.category}</span>
+                    <h4 className="font-bold mt-1 text-lg leading-tight">{def.name}</h4>
+                 </div>
+                 <div className={`p-2 rounded-xl ${isMapped ? 'bg-white/20' : 'bg-gray-50 group-hover:bg-indigo-50'}`}>
+                    {isMapped ? <Check size={20} /> : <Plus size={20} className="text-gray-300 group-hover:text-indigo-400" />}
+                 </div>
+               </button>
+             );
+           })}
+        </div>
+      </div>
+    );
+  };
+
+  const DataEntryPage = () => {
+    const yearMappedKpis = benchmarkingData.filter(d => d.yearId === selectedYearId);
+    const activeDataEntry = benchmarkingData.find(d => d.kpiId === activeDataKpiId && d.yearId === selectedYearId);
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* KPI Selector Sidebar */}
-        <div className="lg:col-span-4 space-y-4">
-           <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-              <ListTree size={20} className="text-indigo-600" /> Select Indicator
-           </h3>
-           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col max-h-[600px]">
-              <div className="p-4 bg-gray-50 border-b border-gray-100">
-                 <input 
-                  type="text" placeholder="Search KPI..." 
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm"
-                 />
+        <div className="lg:col-span-4 space-y-6">
+           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Active Year</label>
+              <select value={selectedYearId} onChange={e => setSelectedYearId(e.target.value)} className="w-full p-4 bg-gray-50 border-0 rounded-2xl font-bold">
+                 {years.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
+              </select>
+           </div>
+           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col max-h-[600px]">
+              <div className="p-5 bg-indigo-600 text-white font-black flex justify-between items-center">
+                 <span>Mapped Indicators</span>
+                 <span className="bg-white/20 px-2 py-0.5 rounded text-xs">{yearMappedKpis.length}</span>
               </div>
               <div className="overflow-y-auto divide-y divide-gray-50">
-                 {filteredKpis.map(k => (
-                   <button 
-                    key={k.id} 
-                    onClick={() => setActiveDataKpi(k)}
-                    className={`w-full p-4 text-left hover:bg-indigo-50 transition-all flex justify-between items-center group ${activeDataKpi?.id === k.id ? 'bg-indigo-50 border-r-4 border-indigo-600' : ''}`}
-                   >
-                     <div className="flex-1">
-                        <p className="text-xs font-bold text-indigo-500 uppercase tracking-tighter">{k.category}</p>
-                        <p className={`font-bold mt-0.5 ${activeDataKpi?.id === k.id ? 'text-indigo-700' : 'text-gray-700'}`}>{k.kpi}</p>
-                     </div>
-                     <ChevronRight size={16} className={`transition-transform ${activeDataKpi?.id === k.id ? 'translate-x-1 text-indigo-600' : 'text-gray-300'}`} />
-                   </button>
-                 ))}
+                 {yearMappedKpis.map(d => {
+                   const def = kpiDefinitions.find(k => k.id === d.kpiId);
+                   return (
+                     <button 
+                        key={d.id} 
+                        onClick={() => setActiveDataKpiId(d.kpiId)}
+                        className={`w-full p-5 text-left hover:bg-indigo-50 transition-all flex justify-between items-center group ${activeDataKpiId === d.kpiId ? 'bg-indigo-50 border-r-4 border-indigo-600' : ''}`}
+                     >
+                       <div>
+                          <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{def?.category}</p>
+                          <p className={`font-bold mt-1 ${activeDataKpiId === d.kpiId ? 'text-indigo-700' : 'text-gray-700'}`}>{def?.name}</p>
+                       </div>
+                       <ChevronRight size={18} className={`${activeDataKpiId === d.kpiId ? 'translate-x-1 text-indigo-600' : 'text-gray-300'}`} />
+                     </button>
+                   );
+                 })}
               </div>
            </div>
         </div>
 
-        {/* Values Editor */}
-        <div className="lg:col-span-8 space-y-6">
-           {activeDataKpi ? (
-             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                <div className="bg-white p-8 rounded-3xl border border-indigo-100 shadow-xl shadow-indigo-50/50 mb-8">
-                   <div className="flex justify-between items-start mb-8">
-                      <div>
-                        <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest">{activeDataKpi.category}</span>
-                        <h2 className="text-2xl font-black text-gray-800 mt-2">{activeDataKpi.kpi}</h2>
-                        <p className="text-gray-400 text-sm mt-1">Editing values for year {activeDataKpi.year}</p>
-                      </div>
-                      <div className="bg-emerald-50 text-emerald-700 p-3 rounded-2xl flex items-center gap-2">
-                        <CheckCircle size={20} />
-                        <span className="text-sm font-bold">Auto-saved</span>
-                      </div>
+        <div className="lg:col-span-8">
+           {activeDataEntry ? (
+             <div className="bg-white p-10 rounded-[40px] border border-indigo-50 shadow-2xl shadow-indigo-100/30 animate-in fade-in slide-in-from-right-8">
+                <div className="flex justify-between items-start mb-12">
+                   <div>
+                      <h2 className="text-3xl font-black text-gray-800">{kpiDefinitions.find(k => k.id === activeDataKpiId)?.name}</h2>
+                      <p className="text-gray-400 font-bold mt-1">Data entry for Academic Year {currentYear?.name}</p>
                    </div>
-
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {universities.filter(u => u.active).map(uni => (
-                        <div key={uni.name} className="space-y-2">
-                           <div className="flex justify-between">
-                              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{uni.name}</label>
-                              <span className="text-[10px] font-bold text-indigo-400">{uni.abbr}</span>
-                           </div>
-                           <input 
-                              type="text"
-                              value={activeDataKpi.values[uni.name] || ''}
-                              onChange={(e) => handleUpdateKpiValue(activeDataKpi.id, uni.name, e.target.value)}
-                              placeholder="Enter value..."
-                              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-bold text-gray-700"
-                           />
+                   <div className="flex gap-2 items-center text-emerald-600 bg-emerald-50 px-4 py-2 rounded-2xl font-black text-xs uppercase tracking-widest">
+                      <CheckCircle size={16}/> Auto-saved
+                   </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   {universities.filter(u => u.active).map(uni => (
+                     <div key={uni.id} className="space-y-3">
+                        <div className="flex justify-between items-end">
+                           <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{uni.name}</label>
+                           <span className="text-[10px] font-black text-indigo-300">{uni.abbr}</span>
                         </div>
-                      ))}
-                   </div>
-
-                   <div className="mt-10 pt-8 border-t border-gray-50 space-y-3">
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                         <Info size={14} className="text-indigo-400" /> Dubai Medical University - Action Plan
-                      </label>
-                      <textarea 
-                        value={activeDataKpi.actionPlan}
-                        onChange={(e) => handleUpdateKpiInfo(activeDataKpi.id, 'actionPlan', e.target.value)}
-                        placeholder="Define strategic steps based on these metrics..."
-                        className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all min-h-[120px] resize-none text-gray-700 leading-relaxed"
-                      />
-                   </div>
+                        <input 
+                           value={activeDataEntry.values[uni.id] || ''}
+                           onChange={e => handleUpdateValue(activeDataKpiId, selectedYearId, uni.id, e.target.value)}
+                           className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-3xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 outline-none font-black text-gray-700 transition-all text-lg"
+                           placeholder="0.00"
+                        />
+                     </div>
+                   ))}
+                </div>
+                <div className="mt-12 pt-10 border-t border-gray-100 space-y-4">
+                   <label className="text-xs font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><Info size={16} className="text-indigo-400" /> Strategic Action Plan</label>
+                   <textarea 
+                      value={activeDataEntry.actionPlan}
+                      onChange={e => handleUpdateActionPlan(activeDataKpiId, selectedYearId, e.target.value)}
+                      className="w-full p-6 bg-gray-50 border-2 border-transparent rounded-3xl focus:bg-white focus:border-indigo-500 outline-none min-h-[150px] font-medium text-gray-700 leading-relaxed transition-all"
+                      placeholder="Enter the proposed actions for institutional improvement..."
+                   />
                 </div>
              </div>
            ) : (
-             <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-center bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100 p-12">
-                <div className="bg-white p-6 rounded-3xl shadow-sm mb-6 text-indigo-400">
-                   <Activity size={48} />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800">No Indicator Selected</h3>
-                <p className="text-gray-400 max-w-xs mx-auto mt-2 leading-relaxed">Select an indicator from the left to start entering benchmarking data across all universities.</p>
+             <div className="h-full min-h-[500px] flex flex-col items-center justify-center text-center bg-white rounded-[40px] border-2 border-dashed border-gray-200 p-20">
+                <div className="bg-indigo-50 p-8 rounded-full text-indigo-400 mb-8"><ListTree size={64}/></div>
+                <h3 className="text-2xl font-black text-gray-800">Select an Indicator</h3>
+                <p className="text-gray-400 max-w-sm mx-auto mt-4 leading-relaxed font-medium">Choose an indicator from the sidebar to begin data entry for the academic year {currentYear?.name}.</p>
              </div>
            )}
         </div>
@@ -568,250 +530,129 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   return (
     <div className="min-h-full bg-transparent font-sans text-gray-900 flex flex-col print:bg-white animate-in fade-in duration-500">
       
-      {/* Print-specific Styles */}
+      {/* Print Styles (Portrait Fix) */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          @page { size: A4 landscape; margin: 1cm; }
+          @page { size: portrait; margin: 10mm; }
           body { background: white !important; }
+          .print-shrink { zoom: 0.8; }
+          .print-table { font-size: 8px !important; width: 100% !important; table-layout: fixed !important; }
+          .print-table th, .print-table td { padding: 4px !important; word-wrap: break-word !important; }
           .print-no-break { break-inside: avoid; }
-          .print-table-container { 
-            width: 100% !important; 
-            overflow: visible !important; 
-            font-size: 9px !important;
-          }
-          .print-table-container table { 
-            table-layout: auto !important; 
-            width: 100% !important; 
-          }
-          .print-table-container th, .print-table-container td { 
-            padding: 4px 8px !important; 
-          }
-          .print-chart-container {
-            height: 350px !important;
-            page-break-inside: avoid;
-          }
+          .print-hide { display: none !important; }
         }
       `}} />
-
-      {/* Toast Notification */}
-      {toast.visible && (
-        <div className="fixed bottom-6 right-6 z-[200] bg-gray-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-6">
-          <CheckCircle size={20} className="text-emerald-400" />
-          <span className="font-bold text-sm">{toast.message}</span>
-        </div>
-      )}
 
       {/* Internal Toolbar */}
       <div className="mb-8 flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm print:hidden">
         <div className="flex items-center gap-4">
-           <div className="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg shadow-indigo-100">
-              <LayoutDashboard size={24} />
-           </div>
+           <div className="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg shadow-indigo-100"><LayoutDashboard size={24} /></div>
            <div>
               <h2 className="text-xl font-black text-slate-800 tracking-tight">Benchmarking Studio</h2>
-              <p className="text-sm font-medium text-slate-400 uppercase tracking-widest text-[10px]">Institutional Effectiveness</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Institutional Effectiveness</p>
            </div>
         </div>
         <div className="flex items-center gap-3">
-            <button 
-              onClick={handleShare}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100"
-            >
-              <Share2 size={18} /> Share Result
-            </button>
-            <button 
-              onClick={() => window.print()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100"
-            >
-              <Printer size={18} /> Print
-            </button>
-            
-            {/* Only show Admin Studio if we are NOT in a public shared view */}
+            <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition-all"><Share2 size={18} /> Share Result</button>
+            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition-all"><Printer size={18} /> Print</button>
             {currentPage === 'admin' ? (
-               <button 
-                onClick={() => setCurrentPage('dashboard')}
-                className="ml-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2"
-               >
-                 <BarChart size={18} /> View Dashboard
-               </button>
+               <button onClick={() => setCurrentPage('dashboard')} className="ml-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 flex items-center gap-2"><BarChart size={18} /> Dashboard</button>
             ) : (
-               !new URLSearchParams(window.location.search).get('report') && !new URLSearchParams(window.location.search).get('data') && (
-                 <button 
-                  onClick={() => setCurrentPage('admin')}
-                  className="ml-2 bg-white text-indigo-600 border border-indigo-100 px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-indigo-50 transition-all flex items-center gap-2"
-                 >
-                   <Settings size={18} /> Admin Studio
-                 </button>
+               !new URLSearchParams(window.location.search).get('report') && (
+                 <button onClick={() => {setCurrentPage('admin'); setAdminTab('universities'); setAdminSubMode('list');}} className="ml-2 bg-white text-indigo-600 border border-indigo-100 px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2"><Settings size={18} /> Admin Studio</button>
                )
             )}
         </div>
       </div>
 
-      {/* Main Content Area */}
       <div className="flex-1">
-        
-        {/* --- VIEW: DASHBOARD --- */}
         {currentPage === 'dashboard' && (
-          <div className="space-y-8">
-            
-            {/* Header / Selectors */}
+          <div className="space-y-8 print-shrink">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 bg-white p-8 rounded-3xl shadow-sm border border-slate-50">
               <div className="flex-1">
                 <h1 className="text-3xl font-black text-gray-800">Performance Matrix</h1>
-                <p className="text-gray-400 mt-2 font-medium max-w-xl leading-relaxed">Analyze institutional performance indicators across regional medical universities.</p>
+                <p className="text-gray-400 mt-2 font-medium max-w-xl leading-relaxed">Comparative performance indicators for Regional Medical Universities.</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto print:hidden">
+                <div className="w-full sm:w-44">
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Academic Year</label>
+                  <select className="w-full p-3.5 bg-gray-50 border-0 rounded-2xl text-sm font-bold" value={selectedYearId} onChange={e => setSelectedYearId(e.target.value)}>
+                    {years.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
+                  </select>
+                </div>
                 <div className="w-full sm:w-56">
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Category Filter</label>
-                  <select 
-                    className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 outline-none"
-                    value={selectedCategory}
-                    onChange={(e) => { setSelectedCategory(e.target.value); setSelectedKpi('All'); }}
-                  >
+                  <select className="w-full p-3.5 bg-gray-50 border-0 rounded-2xl text-sm font-bold" value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}>
                     <option value="All">All Categories</option>
-                    {uniqueCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                  </select>
-                </div>
-                <div className="w-full sm:w-80">
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Specific Indicator</label>
-                  <select 
-                    className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 outline-none"
-                    value={selectedKpi}
-                    onChange={(e) => setSelectedKpi(e.target.value)}
-                  >
-                    <option value="All">All Indicators</option>
-                    {availableKpis.map(k => <option key={k.id} value={k.id}>{k.kpi}</option>)}
+                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                   </select>
                 </div>
               </div>
             </div>
 
-            {/* Chart Rendering Area */}
             <div className="grid grid-cols-1 gap-10">
-              {kpisToRender.length === 0 ? (
-                <div className="bg-white p-20 text-center rounded-3xl border border-gray-100 shadow-inner">
-                  <Info size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-400 font-bold">No active indicators match your current selection.</p>
-                </div>
-              ) : (
-                kpisToRender.map((kpi) => {
-                  const chartData = universities.filter(u => u.active).map(uni => ({
-                    name: uni.name,
-                    shortName: uni.abbr,
-                    value: parseForChart(kpi.values[uni.name]),
-                    originalValue: kpi.values[uni.name]
-                  }));
-
-                  return (
-                    <div key={kpi.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-50 flex flex-col group print:break-inside-avoid print:shadow-none print:border-gray-200">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10">
-                        <div>
-                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full mb-3 inline-block tracking-widest uppercase">
-                            {kpi.category}
-                          </span>
-                          <h2 className="text-2xl font-black text-gray-800 group-hover:text-indigo-600 transition-colors">{kpi.kpi}</h2>
-                          <p className="text-gray-400 text-sm mt-1 font-medium">Measurement Period: Academic Year {kpi.year}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
-                          {chartData.map((d, i) => (
-                            <span key={i} className="text-[10px] font-bold text-gray-400 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">{d.shortName}</span>
-                          ))}
-                        </div>
+              {dashboardData.map((d) => {
+                const chartData = universities.filter(u => u.active).map(uni => ({
+                  name: uni.abbr,
+                  value: parseForChart(d.values[uni.id]),
+                  fullName: uni.name,
+                  originalValue: d.values[uni.id]
+                }));
+                return (
+                  <div key={d.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-50 print-no-break">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10">
+                      <div>
+                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full mb-3 inline-block tracking-widest uppercase">{d.definition.category}</span>
+                        <h2 className="text-2xl font-black text-gray-800">{d.definition.name}</h2>
+                        <p className="text-gray-400 text-sm mt-1 font-medium">Measurement Period: {currentYear?.name}</p>
                       </div>
-                      
-                      <div className="h-[400px] w-full relative print-chart-container">
-                        {chartData.every(d => d.value === null) ? (
-                          <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
-                            <Activity size={40} className="mb-4 opacity-20" />
-                            <p className="font-bold">Comparative data pending for this indicator.</p>
-                          </div>
-                        ) : (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                              <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f8fafc" />
-                              <XAxis 
-                                dataKey="shortName" 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{ fill: '#64748b', fontSize: 12, fontWeight: 700 }}
-                                dy={15}
-                              />
-                              <YAxis 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                              />
-                              <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f1f5f9', radius: 10 }} />
-                              <Bar 
-                                dataKey="value" 
-                                fill="#4f46e5" 
-                                radius={[12, 12, 4, 4]} 
-                                animationDuration={1200}
-                                barSize={50}
-                              >
-                                <LabelList 
-                                  dataKey="originalValue" 
-                                  position="top" 
-                                  offset={15} 
-                                  fill="#1e293b" 
-                                  fontSize={12} 
-                                  fontWeight={900} 
-                                />
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        )}
-                      </div>
-
-                      {kpi.actionPlan && (
-                        <div className="mt-10 p-6 bg-emerald-50/50 border border-emerald-100/50 rounded-3xl flex gap-5 items-start">
-                          <div className="bg-emerald-600 text-white p-2.5 rounded-2xl shadow-lg shadow-emerald-100">
-                            <ShieldCheck size={20} />
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-black text-emerald-900 uppercase tracking-widest mb-1">Dubai Medical University - Strategic Action</h4>
-                            <p className="text-emerald-800 leading-relaxed font-medium">{kpi.actionPlan}</p>
-                          </div>
-                        </div>
-                      )}
                     </div>
-                  );
-                })
-              )}
+                    <div className="h-[350px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData}>
+                          <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill:'#64748b', fontSize:12, fontWeight:700}} dy={10}/>
+                          <YAxis axisLine={false} tickLine={false} tick={{fill:'#94a3b8', fontSize:11}}/>
+                          <Tooltip content={<CustomTooltip />} />
+                          <Bar dataKey="value" fill="#4f46e5" radius={[10, 10, 4, 4]} barSize={50}>
+                            <LabelList dataKey="originalValue" position="top" offset={10} fill="#1e293b" fontSize={11} fontWeight={900} />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    {d.actionPlan && (
+                      <div className="mt-8 p-6 bg-emerald-50 rounded-3xl flex gap-4 items-start">
+                        <CheckCircle size={20} className="text-emerald-600 mt-1" />
+                        <div>
+                           <p className="text-[10px] font-black text-emerald-900 uppercase tracking-widest mb-1">DMU Action Plan</p>
+                           <p className="text-emerald-800 font-medium leading-relaxed">{d.actionPlan}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Read-only Data Table */}
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-50 overflow-hidden print:break-inside-avoid print-table-container">
-              <div className="p-8 border-b border-gray-50 bg-gray-50/30">
-                <h3 className="text-xl font-black text-gray-800">Indicator Summary Table</h3>
-              </div>
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-50 overflow-hidden print-no-break">
+              <div className="p-8 border-b border-gray-50 bg-gray-50/30 font-black text-xl text-gray-800">Indicator Summary Table</div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-gray-50 text-gray-400 font-black uppercase tracking-widest text-[10px]">
+                <table className="w-full text-sm text-left print-table">
+                  <thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400">
                     <tr>
                       <th className="px-8 py-5">Category</th>
                       <th className="px-8 py-5 border-r border-gray-100">Indicator</th>
-                      {universities.filter(u => u.active).map(uni => (
-                        <th key={uni.name} className="px-8 py-5 font-black text-indigo-600">
-                          {uni.abbr}
-                        </th>
-                      ))}
-                      <th className="px-8 py-5 border-l border-gray-100 bg-emerald-50/50 text-emerald-800">Action Plan</th>
+                      {activeUniversities.map(uni => <th key={uni.id} className="px-8 py-5 text-indigo-600">{uni.abbr}</th>)}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {kpisToRender.map((kpi) => (
-                      <tr key={kpi.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-8 py-4 font-bold text-gray-500">{kpi.category}</td>
-                        <td className="px-8 py-4 border-r border-gray-50 text-gray-800 font-black max-w-xs">{kpi.kpi}</td>
-                        {universities.filter(u => u.active).map(uni => (
-                          <td key={uni.name} className="px-8 py-4 font-bold text-gray-600">
-                            {kpi.values[uni.name] || <span className="text-gray-200">—</span>}
-                          </td>
+                    {dashboardData.map((d) => (
+                      <tr key={d.id}>
+                        <td className="px-8 py-4 font-bold text-gray-500">{d.definition.category}</td>
+                        <td className="px-8 py-4 font-black text-gray-800 border-r border-gray-50">{d.definition.name}</td>
+                        {activeUniversities.map(uni => (
+                          <td key={uni.id} className="px-8 py-4 font-bold text-gray-600">{d.values[uni.id] || "—"}</td>
                         ))}
-                        <td className="px-8 py-4 border-l border-gray-50 text-emerald-700 italic text-xs font-medium max-w-xs truncate">
-                          {kpi.actionPlan || <span className="text-emerald-100">—</span>}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -821,56 +662,61 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
           </div>
         )}
 
-        {/* --- VIEW: ADMIN STUDIO (RE-STRUCTURED) --- */}
         {currentPage === 'admin' && (
-          <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in duration-500">
-            
-            {/* Admin Sub-Navigation Sidebar */}
-            <aside className="lg:w-64 flex-shrink-0 space-y-2">
-               <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Management Modes</p>
-               <button 
-                  onClick={() => setAdminTab('universities')}
-                  className={`w-full flex items-center gap-3 px-4 py-4 rounded-2xl transition-all font-bold text-sm ${adminTab === 'universities' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-gray-500 hover:bg-white hover:text-indigo-600 shadow-sm border border-transparent hover:border-indigo-100'}`}
-               >
-                  <Building2 size={20} /> Universities
-               </button>
-               <button 
-                  onClick={() => setAdminTab('kpis')}
-                  className={`w-full flex items-center gap-3 px-4 py-4 rounded-2xl transition-all font-bold text-sm ${adminTab === 'kpis' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-gray-500 hover:bg-white hover:text-indigo-600 shadow-sm border border-transparent hover:border-indigo-100'}`}
-               >
-                  <ShieldCheck size={20} /> Indicators List
-               </button>
-               <button 
-                  onClick={() => setAdminTab('data')}
-                  className={`w-full flex items-center gap-3 px-4 py-4 rounded-2xl transition-all font-bold text-sm ${adminTab === 'data' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-gray-500 hover:bg-white hover:text-indigo-600 shadow-sm border border-transparent hover:border-indigo-100'}`}
-               >
-                  <Edit2 size={20} /> Value Entry
-               </button>
-
-               <div className="mt-8 p-6 bg-white rounded-3xl border border-slate-100 shadow-sm">
-                  <h4 className="text-xs font-black text-gray-800 uppercase mb-3">Admin Statistics</h4>
-                  <div className="space-y-4">
-                     <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Entities</p>
-                        <p className="text-2xl font-black text-indigo-600">{universities.length}</p>
-                     </div>
-                     <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Indicators</p>
-                        <p className="text-2xl font-black text-indigo-600">{kpis.length}</p>
-                     </div>
-                  </div>
-               </div>
+          <div className="flex flex-col lg:flex-row gap-8">
+            <aside className="lg:w-72 flex-shrink-0 space-y-3">
+               <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Master Configuration</p>
+               <AdminNavItem id="universities" icon={Building2} label="Universities" active={adminTab === 'universities'} onClick={() => {setAdminTab('universities'); setAdminSubMode('list'); setEditingItem(null);}} />
+               <AdminNavItem id="years" icon={Calendar} label="Academic Years" active={adminTab === 'years'} onClick={() => {setAdminTab('years'); setAdminSubMode('list'); setEditingItem(null);}} />
+               <AdminNavItem id="kpis" icon={ShieldCheck} label="Indicators List" active={adminTab === 'kpis'} onClick={() => {setAdminTab('kpis'); setAdminSubMode('list'); setEditingItem(null);}} />
+               <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest my-6">Data & Mapping</p>
+               <AdminNavItem id="mapping" icon={Activity} label="KPI-Year Mapping" active={adminTab === 'mapping'} onClick={() => setAdminTab('mapping')} />
+               <AdminNavItem id="data" icon={Edit2} label="Value Entry" active={adminTab === 'data'} onClick={() => setAdminTab('data')} />
             </aside>
-
-            {/* Sub-Page Content */}
             <main className="flex-1 min-w-0">
-               {adminTab === 'universities' && <UniversityManager />}
-               {adminTab === 'kpis' && <KpiManager />}
-               {adminTab === 'data' && <DataEntryManager />}
+               {adminTab === 'universities' && <UniversityPage />}
+               {adminTab === 'years' && <YearPage />}
+               {adminTab === 'kpis' && <KpiDefPage />}
+               {adminTab === 'mapping' && <MappingPage />}
+               {adminTab === 'data' && <DataEntryPage />}
             </main>
           </div>
         )}
       </div>
+
+      {toast.visible && (
+        <div className="fixed bottom-10 right-10 z-[200] bg-gray-900 text-white px-8 py-5 rounded-3xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-10">
+          <CheckCircle size={24} className="text-emerald-400" />
+          <span className="font-black text-sm tracking-wide">{toast.message}</span>
+        </div>
+      )}
     </div>
   );
 }
+
+function AdminNavItem({ icon: Icon, label, active, onClick }) {
+  return (
+    <button onClick={onClick} className={`w-full flex items-center justify-between px-6 py-4 rounded-[24px] transition-all group ${active ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-gray-500 hover:bg-white hover:shadow-sm border border-transparent hover:border-indigo-100 hover:text-indigo-600'}`}>
+      <div className="flex items-center gap-3">
+        <Icon size={20} className={active ? 'text-white' : 'text-gray-400 group-hover:text-indigo-600'} />
+        <span className="font-black text-sm">{label}</span>
+      </div>
+      <ChevronRight size={16} className={active ? 'text-white/50' : 'text-gray-300'} />
+    </button>
+  );
+}
+
+const CustomTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-5 rounded-3xl shadow-2xl border border-gray-100 animate-in zoom-in-95">
+        <p className="font-black text-gray-800 text-lg mb-1">{payload[0].payload.fullName}</p>
+        <div className="flex items-center gap-2">
+           <div className="w-3 h-3 rounded-full bg-indigo-600"></div>
+           <p className="text-indigo-600 font-black">Value: {payload[0].payload.originalValue || 'N/A'}</p>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
