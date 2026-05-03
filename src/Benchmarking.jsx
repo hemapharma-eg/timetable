@@ -44,6 +44,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   const [kpiDefinitions, setKpiDefinitions] = useState([]);
   const [benchmarkingCategories, setBenchmarkingCategories] = useState([]);
   const [benchmarkingData, setBenchmarkingData] = useState([]);
+  const [benchmarkingActionPlans, setBenchmarkingActionPlans] = useState([]);
 
   // Filters
   const [selectedYearId, setSelectedYearId] = useState('');
@@ -88,12 +89,13 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
       
       // Always fetch Live Data to ensure link is 'Live'
       try {
-        const [resUni, resYears, resCats, resKpis, resData] = await Promise.all([
+        const [resUni, resYears, resCats, resKpis, resData, resPlans] = await Promise.all([
           supabase.from('benchmarking_universities').select('*').order('name'),
           supabase.from('benchmarking_years').select('*').order('name', { ascending: false }),
           supabase.from('benchmarking_categories').select('*').order('name'),
           supabase.from('benchmarking_kpis').select('*').order('category'),
-          supabase.from('benchmarking_values').select('*')
+          supabase.from('benchmarking_values').select('*'),
+          supabase.from('benchmarking_action_plans').select('*').order('created_at')
         ]);
 
         if (resUni.data) setUniversities(resUni.data);
@@ -112,6 +114,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
              actionPlan: d.action_plan || ''
           })));
         }
+        if (resPlans.data) setBenchmarkingActionPlans(resPlans.data);
       } catch(e) { console.error(e); }
       setLoading(false);
     };
@@ -300,21 +303,35 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   };
 
   const handleUpdateActionPlan = async (kpiId, yearId, plan) => {
-    // Optimistic Update
-    const prevData = [...benchmarkingData];
-    const newData = benchmarkingData.map(d => {
-      if (d.kpiId === kpiId && d.yearId === yearId) return { ...d, actionPlan: plan };
-      return d;
-    });
-    setBenchmarkingData(newData);
+    // Deprecated for structured plans
+  };
 
+  const handleAddActionItem = async (item) => {
     try {
-      const { error } = await supabase.from('benchmarking_values').update({ action_plan: plan }).eq('kpi_id', kpiId).eq('year_id', yearId);
+      const { data, error } = await supabase.from('benchmarking_action_plans').insert([item]).select().single();
       if (error) throw error;
-    } catch(e) {
-       setBenchmarkingData(prevData);
-       showToast('Failed to save action plan');
-    }
+      setBenchmarkingActionPlans([...benchmarkingActionPlans, data]);
+      showToast('Action item added');
+    } catch(e) { showToast('Failed to add action'); }
+  };
+
+  const handleUpdateActionItem = async (item) => {
+    try {
+      const { error } = await supabase.from('benchmarking_action_plans').update(item).eq('id', item.id);
+      if (error) throw error;
+      setBenchmarkingActionPlans(benchmarkingActionPlans.map(i => i.id === item.id ? item : i));
+      showToast('Action item updated');
+    } catch(e) { showToast('Update failed'); }
+  };
+
+  const handleDeleteActionItem = async (id) => {
+    if (!window.confirm('Delete this action item?')) return;
+    try {
+      const { error } = await supabase.from('benchmarking_action_plans').delete().eq('id', id);
+      if (error) throw error;
+      setBenchmarkingActionPlans(benchmarkingActionPlans.filter(i => i.id !== id));
+      showToast('Action item deleted');
+    } catch(e) { showToast('Delete failed'); }
   };
 
   // --- DERIVED VIEW DATA ---
@@ -460,12 +477,36 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                    {d.actionPlan && (
-                      <div className="mt-8 p-6 bg-emerald-50 rounded-3xl flex gap-4 items-start">
-                        <CheckCircle size={20} className="text-emerald-600 mt-1" />
-                        <div>
-                           <p className="text-[10px] font-black text-emerald-900 uppercase tracking-widest mb-1">DMU Action Plan</p>
-                           <div className="text-emerald-800 font-medium leading-relaxed prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: d.actionPlan }} />
+                    {benchmarkingActionPlans.filter(p => p.kpi_id === d.kpiId && p.year_id === d.yearId).length > 0 && (
+                      <div className="mt-8 space-y-4">
+                        <div className="flex items-center gap-2 mb-2">
+                           <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><ShieldCheck size={18} /></div>
+                           <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Strategic Action Plan</h3>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3">
+                          {benchmarkingActionPlans
+                            .filter(p => p.kpi_id === d.kpiId && p.year_id === d.yearId)
+                            .map(plan => (
+                              <div key={plan.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="flex-1">
+                                  <p className="text-sm font-bold text-slate-700 mb-1">{plan.action_text}</p>
+                                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resp: <span className="text-indigo-600">{plan.responsibility || 'TBD'}</span></span>
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Deadline: <span className="text-indigo-600">{plan.deadline_month} {plan.deadline_year}</span></span>
+                                  </div>
+                                </div>
+                                <div className="flex-shrink-0">
+                                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                    plan.status === 'achieved' ? 'bg-emerald-100 text-emerald-600' : 
+                                    plan.status === 'in process' ? 'bg-amber-100 text-amber-600' : 
+                                    'bg-slate-200 text-slate-500'
+                                  }`}>
+                                    {plan.status}
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          }
                         </div>
                       </div>
                     )}
@@ -513,6 +554,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest my-6">Data & Mapping</p>
                <AdminNavItem id="mapping" icon={Activity} label="KPI-Year Mapping" active={adminTab === 'mapping'} onClick={() => setAdminTab('mapping')} />
                <AdminNavItem id="data" icon={Edit2} label="Value Entry" active={adminTab === 'data'} onClick={() => setAdminTab('data')} />
+               <AdminNavItem id="actions" icon={CheckCircle} label="Action Plans" active={adminTab === 'actions'} onClick={() => setAdminTab('actions')} />
             </aside>
             <main className="flex-1 min-w-0">
                {adminTab === 'universities' && (
@@ -569,26 +611,23 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                  <MappingPage 
                    years={years} 
                    selectedYearId={selectedYearId} 
-                   setSelectedYearId={setSelectedYearId} 
+                 setSelectedYearId={setSelectedYearId} 
                    kpiDefinitions={kpiDefinitions} 
                    benchmarkingData={benchmarkingData} 
                    handleToggleMapping={handleToggleMapping} 
                  />
                )}
-               {adminTab === 'data' && (
-                 <DataEntryPage 
-                   benchmarkingData={benchmarkingData} 
-                   selectedYearId={selectedYearId} 
-                   setSelectedYearId={setSelectedYearId} 
-                   activeDataKpiId={activeDataKpiId} 
-                   setActiveDataKpiId={setActiveDataKpiId} 
-                   kpiDefinitions={kpiDefinitions} 
-                   years={years} 
-                   currentYear={currentYear} 
-                   universities={universities} 
-                   handleUpdateValue={handleUpdateValue} 
-                   handleUpdateActionPlan={handleUpdateActionPlan} 
-                 />
+               {adminTab === 'actions' && (
+                  <ActionPlanManager 
+                    years={years}
+                    selectedYearId={selectedYearId}
+                    setSelectedYearId={setSelectedYearId}
+                    kpiDefinitions={kpiDefinitions}
+                    actionPlans={benchmarkingActionPlans}
+                    handleAddActionItem={handleAddActionItem}
+                    handleUpdateActionItem={handleUpdateActionItem}
+                    handleDeleteActionItem={handleDeleteActionItem}
+                  />
                )}
             </main>
           </div>
@@ -906,23 +945,158 @@ const DataEntryPage = ({ benchmarkingData, selectedYearId, setSelectedYearId, ac
               ))}
             </div>
 
-            <div className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm">
-               <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl"><ShieldCheck size={24} /></div>
-                  <h3 className="text-xl font-black text-slate-800">Strategic Action Plan</h3>
-               </div>
-               <RichTextEditor 
-                 value={activeDataEntry.actionPlan} 
-                 onChange={val => handleUpdateActionPlan(activeDataEntry.kpiId, activeDataEntry.yearId, val)}
-                 placeholder="Outline the steps to maintain or improve this indicator's performance..."
-                 className="min-h-[200px]"
-               />
-            </div>
           </div>
         ) : (
           <div className="h-[500px] bg-slate-50/50 rounded-[40px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 gap-4">
              <Activity size={64} strokeWidth={1} />
              <p className="font-black text-lg">Select an indicator from the list to enter values</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ActionPlanManager = ({ years, selectedYearId, setSelectedYearId, kpiDefinitions, actionPlans, handleAddActionItem, handleUpdateActionItem, handleDeleteActionItem }) => {
+  const [activeKpiId, setActiveKpiId] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  
+  const initialForm = {
+    action_text: '',
+    responsibility: '',
+    deadline_month: 'September',
+    deadline_year: new Date().getFullYear().toString(),
+    status: 'pending',
+    kpi_id: activeKpiId,
+    year_id: selectedYearId
+  };
+  
+  const [form, setForm] = useState(initialForm);
+
+  useEffect(() => {
+    if (editingItem) setForm(editingItem);
+    else setForm({ ...initialForm, kpi_id: activeKpiId, year_id: selectedYearId });
+  }, [editingItem, activeKpiId, selectedYearId]);
+
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const statusOptions = ['pending', 'in process', 'achieved'];
+
+  const filteredPlans = actionPlans.filter(p => p.kpi_id === activeKpiId && p.year_id === selectedYearId);
+
+  return (
+    <div className="flex flex-col xl:flex-row gap-8">
+      <div className="xl:w-80 flex-shrink-0 space-y-4">
+        <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Reporting Year</label>
+          <select className="w-full p-4 bg-slate-50 border-0 rounded-2xl font-bold text-slate-700 outline-none" value={selectedYearId} onChange={e => setSelectedYearId(e.target.value)}>
+            {years.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Target Indicators</p>
+          <div className="space-y-1.5 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
+            {kpiDefinitions.filter(k => k.active).map(k => (
+              <button key={k.id} onClick={() => { setActiveKpiId(k.id); setShowForm(false); setEditingItem(null); }} className={`w-full text-left p-4 rounded-2xl text-xs font-bold transition-all border ${activeKpiId === k.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'}`}>
+                 {k.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1">
+        {!activeKpiId ? (
+          <div className="h-[500px] bg-slate-50/50 rounded-[40px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 gap-4">
+             <ShieldCheck size={64} strokeWidth={1} />
+             <p className="font-black text-lg">Select an indicator to manage its action plan</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+              <div>
+                <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full mb-2 inline-block tracking-widest uppercase">
+                   {kpiDefinitions.find(k => k.id === activeKpiId)?.category}
+                </span>
+                <h2 className="text-2xl font-black text-slate-800">{kpiDefinitions.find(k => k.id === activeKpiId)?.name}</h2>
+              </div>
+              <button onClick={() => { setShowForm(true); setEditingItem(null); }} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-lg shadow-indigo-100">
+                <Plus size={20} /> Add Action Item
+              </button>
+            </div>
+
+            {showForm && (
+              <div className="bg-white p-8 rounded-[40px] border-2 border-indigo-100 shadow-xl animate-in zoom-in-95 duration-200">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-xl font-black text-slate-800">{editingItem ? 'Edit Action Item' : 'New Action Item'}</h3>
+                  <button onClick={() => setShowForm(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl"><X size={20}/></button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Action Description</label>
+                    <textarea value={form.action_text} onChange={e => setForm({...form, action_text: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold min-h-[100px]" placeholder="What needs to be done?" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsibility</label>
+                    <input value={form.responsibility} onChange={e => setForm({...form, responsibility: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="Department / Individual" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Status</label>
+                    <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl outline-none font-bold">
+                      {statusOptions.map(opt => <option key={opt} value={opt}>{opt.toUpperCase()}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Deadline Month</label>
+                    <select value={form.deadline_month} onChange={e => setForm({...form, deadline_month: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl outline-none font-bold">
+                      {months.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Deadline Year</label>
+                    <input value={form.deadline_year} onChange={e => setForm({...form, deadline_year: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. 2025" />
+                  </div>
+                </div>
+                <button onClick={() => { editingItem ? handleUpdateActionItem(form) : handleAddActionItem(form); setShowForm(false); }} className="w-full mt-8 bg-indigo-600 text-white py-5 rounded-3xl font-black text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
+                  <Save size={24} /> {editingItem ? 'Update Action Item' : 'Save Action Item'}
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {filteredPlans.length === 0 ? (
+                <div className="p-12 text-center bg-white rounded-[40px] border border-slate-100 text-slate-400">
+                  <p className="font-bold">No action items defined for this KPI in {years.find(y => y.id === selectedYearId)?.name}</p>
+                </div>
+              ) : (
+                filteredPlans.map(item => (
+                  <div key={item.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:border-indigo-100 transition-all group">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${
+                            item.status === 'achieved' ? 'bg-emerald-100 text-emerald-600' : 
+                            item.status === 'in process' ? 'bg-amber-100 text-amber-600' : 
+                            'bg-slate-100 text-slate-500'
+                          }`}>
+                            {item.status}
+                          </span>
+                          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
+                            Target: {item.deadline_month} {item.deadline_year}
+                          </span>
+                        </div>
+                        <p className="text-base font-bold text-slate-800 leading-relaxed mb-1">{item.action_text}</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsibility: <span className="text-indigo-600">{item.responsibility || 'Not Assigned'}</span></p>
+                      </div>
+                      <div className="flex gap-2 self-end md:self-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => { setEditingItem(item); setShowForm(true); }} className="p-3 text-indigo-400 hover:bg-indigo-50 rounded-2xl"><Edit2 size={18} /></button>
+                        <button onClick={() => handleDeleteActionItem(item.id)} className="p-3 text-red-400 hover:bg-red-50 rounded-2xl"><Trash2 size={18} /></button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>
