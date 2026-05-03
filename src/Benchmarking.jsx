@@ -5,7 +5,8 @@ import {
 import { 
   LayoutDashboard, Database, ShieldAlert, ShieldCheck, 
   Plus, Trash2, Edit2, Save, X, Building2, ListTree,
-  Share2, Printer, CheckCircle
+  Share2, Printer, CheckCircle, ChevronRight, Settings,
+  Activity, Users, Info
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -55,15 +56,15 @@ const initialKpis = [
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+        <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <h3 className="text-xl font-bold text-gray-800">{title}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400">
             <X size={20} />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto">
+        <div className="p-8 overflow-y-auto">
           {children}
         </div>
       </div>
@@ -74,6 +75,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 // --- MAIN COMPONENT ---
 export function Benchmarking({ initialPage = 'dashboard' }) {
   const [currentPage, setCurrentPage] = useState(initialPage);
+  const [adminTab, setAdminTab] = useState('universities'); // 'universities' | 'kpis' | 'data'
   
   const [universities, setUniversities] = useState(initialUniversities);
   const [kpis, setKpis] = useState(initialKpis);
@@ -82,13 +84,12 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   const [toast, setToast] = useState({ visible: false, message: '' });
   const [user, setUser] = useState(null);
 
-  // Modal states
-  const [isUniModalOpen, setIsUniModalOpen] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, itemType: '', itemId: null, message: '' });
-
   // Dashboard specific states
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedKpi, setSelectedKpi] = useState('All');
+
+  // Admin Data Entry state
+  const [activeDataKpi, setActiveDataKpi] = useState(null);
 
   // Update currentPage if initialPage changes
   useEffect(() => {
@@ -137,7 +138,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
        };
        fetchReport();
     }
-  }, [user, db]); // Watch db as well
+  }, [user, db]);
 
   // --- SHARE CAPABILITY ---
   const showToast = (message) => {
@@ -212,30 +213,19 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     });
   }, [kpis, selectedCategory, selectedKpi, currentPage]);
 
-  // --- CRUD OPERATIONS: UNIVERSITIES ---
+  // --- CRUD OPERATIONS ---
   const handleAddUniversity = (name, abbr) => {
     if (!name.trim() || universities.find(u => u.name === name.trim())) return;
     const newName = name.trim();
     const newAbbr = abbr.trim() || newName.substring(0, 4).toUpperCase();
-    
     setUniversities([...universities, { name: newName, abbr: newAbbr, active: true }]);
-    // Add empty value for this new university to all KPIs
-    setKpis(kpis.map(k => ({
-      ...k,
-      values: { ...k.values, [newName]: "" }
-    })));
+    setKpis(kpis.map(k => ({ ...k, values: { ...k.values, [newName]: "" } })));
   };
 
   const handleEditUniversity = (oldName, newName, newAbbr) => {
     const cleanNewName = newName.trim();
-    if (!cleanNewName || (oldName !== cleanNewName && universities.find(u => u.name === cleanNewName))) return;
-    
-    // Update list
-    setUniversities(universities.map(u => 
-      u.name === oldName ? { name: cleanNewName, abbr: newAbbr.trim() } : u
-    ));
-    
-    // If the name actually changed, migrate the keys in all KPI values
+    if (!cleanNewName) return;
+    setUniversities(universities.map(u => u.name === oldName ? { ...u, name: cleanNewName, abbr: newAbbr.trim() } : u));
     if (oldName !== cleanNewName) {
       setKpis(kpis.map(k => {
         const newValues = { ...k.values };
@@ -247,39 +237,32 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   };
 
   const handleToggleUniversityActive = (name) => {
-    setUniversities(universities.map(u => 
-      u.name === name ? { ...u, active: !u.active } : u
-    ));
+    setUniversities(universities.map(u => u.name === name ? { ...u, active: !u.active } : u));
   };
 
-  // --- CRUD OPERATIONS: KPIs ---
   const handleAddKpi = () => {
     const newKpi = {
       id: generateId(),
       active: true,
-      year: '2025',
-      category: 'New Category',
-      kpi: 'New KPI Name',
+      year: new Date().getFullYear().toString(),
+      category: 'General',
+      kpi: 'New Indicator Name',
       actionPlan: '',
       values: universities.reduce((acc, uni) => ({ ...acc, [uni.name]: "" }), {})
     };
-    setKpis([newKpi, ...kpis]); // Add to top for visibility
+    setKpis([newKpi, ...kpis]);
+  };
+
+  const handleUpdateKpiInfo = (id, field, value) => {
+    setKpis(kpis.map(k => k.id === id ? { ...k, [field]: value } : k));
+  };
+
+  const handleUpdateKpiValue = (id, uniName, value) => {
+    setKpis(kpis.map(k => k.id === id ? { ...k, values: { ...k.values, [uniName]: value } } : k));
   };
 
   const handleToggleKpiActive = (id) => {
     setKpis(kpis.map(k => k.id === id ? { ...k, active: !k.active } : k));
-  };
-
-  // --- CONFIRMATION HELPER ---
-  const requestDelete = (type, id, message) => {
-    setConfirmDelete({ isOpen: true, itemType: type, itemId: id, message });
-  };
-  const closeConfirmDelete = () => {
-    setConfirmDelete({ isOpen: false, itemType: '', itemId: null, message: '' });
-  };
-  const executeDelete = () => {
-    // No longer doing hard deletes
-    closeConfirmDelete();
   };
 
   // --- CHARTING HELPERS ---
@@ -287,13 +270,11 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     if (val === undefined || val === null || val === "") return null;
     const strVal = String(val).trim();
     if (strVal.toUpperCase() === 'NR' || strVal.toUpperCase() === 'NA') return null;
-    
     if (strVal.includes('-')) {
       const parts = strVal.split('-');
       const num = parseFloat(parts[0]);
       return isNaN(num) ? null : num;
     }
-
     const cleanStr = strVal.replace(/,/g, '').replace(/%/g, '');
     const num = parseFloat(cleanStr);
     return isNaN(num) ? null : num;
@@ -313,109 +294,235 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     return null;
   };
 
+  // --- SUB-COMPONENTS ---
   const UniversityManager = () => {
     const [newUniName, setNewUniName] = useState('');
     const [newUniAbbr, setNewUniAbbr] = useState('');
-    
-    const [editingUni, setEditingUni] = useState(null); // stores oldName
-    const [editUniName, setEditUniName] = useState('');
-    const [editUniAbbr, setEditUniAbbr] = useState('');
-
-    const add = () => {
-      handleAddUniversity(newUniName, newUniAbbr);
-      setNewUniName('');
-      setNewUniAbbr('');
-    };
-
-    const saveEdit = () => {
-      handleEditUniversity(editingUni, editUniName, editUniAbbr);
-      setEditingUni(null);
-    };
+    const [editingUni, setEditingUni] = useState(null);
 
     return (
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
-          <div className="flex-1 flex gap-2">
+      <div className="space-y-6">
+        <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 flex flex-col sm:flex-row gap-4 items-end">
+          <div className="flex-1 space-y-1.5">
+            <label className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Full University Name</label>
             <input 
-              type="text" 
-              placeholder="University Name..." 
-              value={newUniName} 
-              onChange={(e) => setNewUniName(e.target.value)}
-              className="flex-[2] px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="text" value={newUniName} onChange={(e) => setNewUniName(e.target.value)}
+              placeholder="e.g. Dubai Medical University"
+              className="w-full px-4 py-2.5 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
             />
+          </div>
+          <div className="w-full sm:w-40 space-y-1.5">
+            <label className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Abbreviation</label>
             <input 
-              type="text" 
-              placeholder="Abbr (e.g. DMU)" 
-              value={newUniAbbr} 
-              onChange={(e) => setNewUniAbbr(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && add()}
-              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="text" value={newUniAbbr} onChange={(e) => setNewUniAbbr(e.target.value)}
+              placeholder="e.g. DMU"
+              className="w-full px-4 py-2.5 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
           <button 
-            onClick={add}
+            onClick={() => { handleAddUniversity(newUniName, newUniAbbr); setNewUniName(''); setNewUniAbbr(''); }}
             disabled={!newUniName.trim()}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+            className="h-[46px] bg-indigo-600 hover:bg-indigo-700 text-white px-6 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50"
           >
-            <Plus size={16} /> Add
+            <Plus size={18} /> Add University
           </button>
         </div>
-        
-        <div className="border border-gray-100 rounded-lg divide-y divide-gray-100 max-h-96 overflow-y-auto">
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {universities.map(uni => (
-            <div key={uni.name} className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors">
+            <div key={uni.name} className={`bg-white p-5 rounded-2xl border transition-all ${uni.active ? 'border-gray-100 shadow-sm' : 'border-dashed border-gray-200 opacity-60'}`}>
               {editingUni === uni.name ? (
-                <div className="flex gap-2 flex-1 mr-4">
-                  <input 
-                    type="text" 
-                    value={editUniName} 
-                    onChange={(e) => setEditUniName(e.target.value)}
-                    className="flex-[2] px-3 py-1.5 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Name"
-                    autoFocus
-                  />
-                  <input 
-                    type="text" 
-                    value={editUniAbbr} 
-                    onChange={(e) => setEditUniAbbr(e.target.value)}
-                    className="flex-1 px-3 py-1.5 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Abbr"
-                  />
-                  <div className="flex items-center">
-                    <button onClick={saveEdit} className="text-green-600 hover:text-green-700 p-1.5 bg-green-50 rounded mx-1"><Save size={16} /></button>
-                    <button onClick={() => setEditingUni(null)} className="text-gray-500 hover:text-gray-700 p-1.5 bg-gray-100 rounded"><X size={16} /></button>
-                  </div>
-                </div>
+                 <div className="space-y-3">
+                    <input value={uni.name} onChange={(e) => handleEditUniversity(uni.name, e.target.value, uni.abbr)} className="w-full p-2 border rounded-lg text-sm" />
+                    <input value={uni.abbr} onChange={(e) => handleEditUniversity(uni.name, uni.name, e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+                    <div className="flex justify-end gap-2">
+                       <button onClick={() => setEditingUni(null)} className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold">Done</button>
+                    </div>
+                 </div>
               ) : (
-                <div className="flex flex-col">
-                  <span className="font-medium text-gray-700">{uni.name}</span>
-                  <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded w-fit mt-1">Abbr: {uni.abbr}</span>
-                </div>
-              )}
-              
-              {editingUni !== uni.name && (
-                <div className="flex items-center gap-1 ml-4">
-                  <button 
-                    onClick={() => { setEditingUni(uni.name); setEditUniName(uni.name); setEditUniAbbr(uni.abbr); }}
-                    className="p-2 text-gray-400 hover:text-blue-600 rounded-lg transition-colors"
-                    title="Edit Name & Abbreviation"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button 
-                    onClick={() => handleToggleUniversityActive(uni.name)}
-                    className={`p-2 rounded-lg transition-colors ${uni.active !== false ? 'text-gray-400 hover:text-blue-600' : 'text-blue-600 hover:text-blue-700 bg-blue-50'}`}
-                    title={uni.active !== false ? "Hide from Dashboard" : "Show in Dashboard"}
-                  >
-                    {uni.active !== false ? <ShieldCheck size={16} /> : <ShieldAlert size={16} />}
-                  </button>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="font-bold text-gray-800">{uni.name}</h4>
+                    <span className="text-xs font-bold text-indigo-600 uppercase mt-1 inline-block">{uni.abbr}</span>
+                  </div>
+                  <div className="flex gap-1">
+                    <button onClick={() => setEditingUni(uni.name)} className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg"><Edit2 size={16}/></button>
+                    <button 
+                      onClick={() => handleToggleUniversityActive(uni.name)} 
+                      className={`p-2 rounded-lg transition-colors ${uni.active ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50'}`}
+                    >
+                      {uni.active ? <ShieldAlert size={16}/> : <ShieldCheck size={16}/>}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           ))}
-          {universities.length === 0 && (
-            <div className="p-4 text-center text-gray-500 italic">No universities added yet.</div>
-          )}
+        </div>
+      </div>
+    );
+  };
+
+  const KpiManager = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center bg-indigo-600 p-6 rounded-2xl text-white shadow-lg shadow-indigo-200">
+           <div>
+              <h3 className="text-xl font-bold">Indicator Definitions</h3>
+              <p className="text-indigo-100 text-sm">Manage the list of metrics used for benchmarking</p>
+           </div>
+           <button onClick={handleAddKpi} className="bg-white text-indigo-600 px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-50 transition-all">
+              <Plus size={20} /> Add New Indicator
+           </button>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Year</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-40">Category</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Indicator (KPI)</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {kpis.map(kpi => (
+                <tr key={kpi.id} className={`hover:bg-gray-50 transition-colors ${kpi.active ? '' : 'bg-gray-50/50 grayscale-[0.5] opacity-60'}`}>
+                  <td className="px-6 py-4">
+                    <input 
+                      className="w-full bg-transparent border-0 focus:ring-0 font-medium text-gray-800"
+                      value={kpi.year} onChange={(e) => handleUpdateKpiInfo(kpi.id, 'year', e.target.value)}
+                    />
+                  </td>
+                  <td className="px-6 py-4">
+                    <select 
+                      className="w-full bg-transparent border-0 focus:ring-0 font-medium text-gray-600"
+                      value={kpi.category} onChange={(e) => handleUpdateKpiInfo(kpi.id, 'category', e.target.value)}
+                    >
+                      <option value="Students">Students</option>
+                      <option value="Research">Research</option>
+                      <option value="Graduates">Graduates</option>
+                      <option value="Ranking">Ranking</option>
+                      <option value="General">General</option>
+                    </select>
+                  </td>
+                  <td className="px-6 py-4">
+                    <input 
+                      className="w-full bg-transparent border-0 focus:ring-0 font-bold text-gray-700"
+                      value={kpi.kpi} onChange={(e) => handleUpdateKpiInfo(kpi.id, 'kpi', e.target.value)}
+                    />
+                  </td>
+                  <td className="px-6 py-4 flex justify-center gap-2">
+                    <button 
+                      onClick={() => handleToggleKpiActive(kpi.id)}
+                      className={`p-2 rounded-xl transition-colors ${kpi.active ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50'}`}
+                      title={kpi.active ? "Deactivate" : "Activate"}
+                    >
+                      {kpi.active ? <ShieldAlert size={18}/> : <ShieldCheck size={18}/>}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const DataEntryManager = () => {
+    const filteredKpis = kpis.filter(k => k.active);
+
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* KPI Selector Sidebar */}
+        <div className="lg:col-span-4 space-y-4">
+           <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <ListTree size={20} className="text-indigo-600" /> Select Indicator
+           </h3>
+           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col max-h-[600px]">
+              <div className="p-4 bg-gray-50 border-b border-gray-100">
+                 <input 
+                  type="text" placeholder="Search KPI..." 
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm"
+                 />
+              </div>
+              <div className="overflow-y-auto divide-y divide-gray-50">
+                 {filteredKpis.map(k => (
+                   <button 
+                    key={k.id} 
+                    onClick={() => setActiveDataKpi(k)}
+                    className={`w-full p-4 text-left hover:bg-indigo-50 transition-all flex justify-between items-center group ${activeDataKpi?.id === k.id ? 'bg-indigo-50 border-r-4 border-indigo-600' : ''}`}
+                   >
+                     <div className="flex-1">
+                        <p className="text-xs font-bold text-indigo-500 uppercase tracking-tighter">{k.category}</p>
+                        <p className={`font-bold mt-0.5 ${activeDataKpi?.id === k.id ? 'text-indigo-700' : 'text-gray-700'}`}>{k.kpi}</p>
+                     </div>
+                     <ChevronRight size={16} className={`transition-transform ${activeDataKpi?.id === k.id ? 'translate-x-1 text-indigo-600' : 'text-gray-300'}`} />
+                   </button>
+                 ))}
+              </div>
+           </div>
+        </div>
+
+        {/* Values Editor */}
+        <div className="lg:col-span-8 space-y-6">
+           {activeDataKpi ? (
+             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="bg-white p-8 rounded-3xl border border-indigo-100 shadow-xl shadow-indigo-50/50 mb-8">
+                   <div className="flex justify-between items-start mb-8">
+                      <div>
+                        <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest">{activeDataKpi.category}</span>
+                        <h2 className="text-2xl font-black text-gray-800 mt-2">{activeDataKpi.kpi}</h2>
+                        <p className="text-gray-400 text-sm mt-1">Editing values for year {activeDataKpi.year}</p>
+                      </div>
+                      <div className="bg-emerald-50 text-emerald-700 p-3 rounded-2xl flex items-center gap-2">
+                        <CheckCircle size={20} />
+                        <span className="text-sm font-bold">Auto-saved</span>
+                      </div>
+                   </div>
+
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {universities.filter(u => u.active).map(uni => (
+                        <div key={uni.name} className="space-y-2">
+                           <div className="flex justify-between">
+                              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{uni.name}</label>
+                              <span className="text-[10px] font-bold text-indigo-400">{uni.abbr}</span>
+                           </div>
+                           <input 
+                              type="text"
+                              value={activeDataKpi.values[uni.name] || ''}
+                              onChange={(e) => handleUpdateKpiValue(activeDataKpi.id, uni.name, e.target.value)}
+                              placeholder="Enter value..."
+                              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-bold text-gray-700"
+                           />
+                        </div>
+                      ))}
+                   </div>
+
+                   <div className="mt-10 pt-8 border-t border-gray-50 space-y-3">
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                         <Info size={14} className="text-indigo-400" /> Dubai Medical University - Action Plan
+                      </label>
+                      <textarea 
+                        value={activeDataKpi.actionPlan}
+                        onChange={(e) => handleUpdateKpiInfo(activeDataKpi.id, 'actionPlan', e.target.value)}
+                        placeholder="Define strategic steps based on these metrics..."
+                        className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all min-h-[120px] resize-none text-gray-700 leading-relaxed"
+                      />
+                   </div>
+                </div>
+             </div>
+           ) : (
+             <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-center bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100 p-12">
+                <div className="bg-white p-6 rounded-3xl shadow-sm mb-6 text-indigo-400">
+                   <Activity size={48} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800">No Indicator Selected</h3>
+                <p className="text-gray-400 max-w-xs mx-auto mt-2 leading-relaxed">Select an indicator from the left to start entering benchmarking data across all universities.</p>
+             </div>
+           )}
         </div>
       </div>
     );
@@ -426,36 +533,52 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
       
       {/* Toast Notification */}
       {toast.visible && (
-        <div className="fixed bottom-6 right-6 z-50 bg-gray-800 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4">
-          <CheckCircle size={18} className="text-green-400" />
-          <span className="text-sm font-medium">{toast.message}</span>
+        <div className="fixed bottom-6 right-6 z-[200] bg-gray-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-6">
+          <CheckCircle size={20} className="text-emerald-400" />
+          <span className="font-bold text-sm">{toast.message}</span>
         </div>
       )}
 
-      {/* Internal Toolbar (Replacing the top nav) */}
-      <div className="mb-6 flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm print:hidden">
-        <div className="flex items-center gap-3">
-           <div className="bg-indigo-600 p-2 rounded-lg text-white">
-              <LayoutDashboard size={20} />
+      {/* Internal Toolbar */}
+      <div className="mb-8 flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm print:hidden">
+        <div className="flex items-center gap-4">
+           <div className="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg shadow-indigo-100">
+              <LayoutDashboard size={24} />
            </div>
            <div>
-              <h2 className="text-lg font-bold text-slate-800">Benchmarking Analysis</h2>
-              <p className="text-xs text-slate-500">Comparative performance metrics across universities</p>
+              <h2 className="text-xl font-black text-slate-800 tracking-tight">Benchmarking Studio</h2>
+              <p className="text-sm font-medium text-slate-400 uppercase tracking-widest text-[10px]">Institutional Effectiveness</p>
            </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
             <button 
               onClick={handleShare}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100"
             >
-              <Share2 size={16} /> <span className="hidden lg:inline">Share</span>
+              <Share2 size={18} /> Share Result
             </button>
             <button 
               onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100"
             >
-              <Printer size={16} /> <span className="hidden lg:inline">Print</span>
+              <Printer size={18} /> Print
             </button>
+            
+            {currentPage === 'admin' ? (
+               <button 
+                onClick={() => setCurrentPage('dashboard')}
+                className="ml-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2"
+               >
+                 <BarChart size={18} /> View Dashboard
+               </button>
+            ) : (
+               <button 
+                onClick={() => setCurrentPage('admin')}
+                className="ml-2 bg-white text-indigo-600 border border-indigo-100 px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-indigo-50 transition-all flex items-center gap-2"
+               >
+                 <Settings size={18} /> Admin Studio
+               </button>
+            )}
         </div>
       </div>
 
@@ -464,56 +587,50 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
         
         {/* --- VIEW: DASHBOARD --- */}
         {currentPage === 'dashboard' && (
-          <div className="space-y-6">
+          <div className="space-y-8">
             
             {/* Header / Selectors */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 bg-white p-8 rounded-3xl shadow-sm border border-slate-50">
               <div className="flex-1">
-                <h1 className="text-2xl font-bold text-gray-800">Performance Overview</h1>
-                <p className="text-gray-500 mt-1 print:hidden">Filter by category to view all corresponding metrics, or select a specific KPI.</p>
+                <h1 className="text-3xl font-black text-gray-800">Performance Matrix</h1>
+                <p className="text-gray-400 mt-2 font-medium max-w-xl leading-relaxed">Analyze institutional performance indicators across regional medical universities.</p>
               </div>
-              <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto print:hidden">
-                <div className="w-full sm:w-48">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
+              <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto print:hidden">
+                <div className="w-full sm:w-56">
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Category Filter</label>
                   <select 
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 outline-none"
                     value={selectedCategory}
-                    onChange={(e) => {
-                      setSelectedCategory(e.target.value);
-                      setSelectedKpi('All'); // Reset KPI when category changes
-                    }}
+                    onChange={(e) => { setSelectedCategory(e.target.value); setSelectedKpi('All'); }}
                   >
                     <option value="All">All Categories</option>
-                    {uniqueCategories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
+                    {uniqueCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                   </select>
                 </div>
-                <div className="w-full sm:w-72">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Indicator (KPI)</label>
+                <div className="w-full sm:w-80">
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Specific Indicator</label>
                   <select 
-                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full p-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 outline-none"
                     value={selectedKpi}
                     onChange={(e) => setSelectedKpi(e.target.value)}
                   >
-                    <option value="All">All KPIs in Category</option>
-                    {availableKpis.map(k => (
-                      <option key={k.id} value={k.id}>{k.kpi}</option>
-                    ))}
+                    <option value="All">All Indicators</option>
+                    {availableKpis.map(k => <option key={k.id} value={k.id}>{k.kpi}</option>)}
                   </select>
                 </div>
               </div>
             </div>
 
             {/* Chart Rendering Area */}
-            <div className="space-y-8">
+            <div className="grid grid-cols-1 gap-10">
               {kpisToRender.length === 0 ? (
-                <div className="bg-white p-12 text-center rounded-2xl border border-gray-100">
-                  <p className="text-gray-500 font-medium">No KPIs match the selected filters.</p>
+                <div className="bg-white p-20 text-center rounded-3xl border border-gray-100 shadow-inner">
+                  <Info size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-400 font-bold">No active indicators match your current selection.</p>
                 </div>
               ) : (
                 kpisToRender.map((kpi) => {
-                  const chartData = universities.filter(u => u.active !== false).map(uni => ({
+                  const chartData = universities.filter(u => u.active).map(uni => ({
                     name: uni.name,
                     shortName: uni.abbr,
                     value: parseForChart(kpi.values[uni.name]),
@@ -521,58 +638,59 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                   }));
 
                   return (
-                    <div key={kpi.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col print:break-inside-avoid print:shadow-none print:border-gray-300">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                    <div key={kpi.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-50 flex flex-col group print:break-inside-avoid print:shadow-none print:border-gray-200">
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10">
                         <div>
-                          <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded mb-2 inline-block tracking-wider uppercase print:bg-white print:border print:border-blue-200">
+                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full mb-3 inline-block tracking-widest uppercase">
                             {kpi.category}
                           </span>
-                          <h2 className="text-xl font-bold text-gray-800">{kpi.kpi}</h2>
+                          <h2 className="text-2xl font-black text-gray-800 group-hover:text-indigo-600 transition-colors">{kpi.kpi}</h2>
+                          <p className="text-gray-400 text-sm mt-1 font-medium">Measurement Period: Academic Year {kpi.year}</p>
                         </div>
-                        <div className="flex gap-3 text-xs text-gray-500 mt-2 md:mt-0 font-medium bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 print:bg-white">
+                        <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
                           {chartData.map((d, i) => (
-                            <span key={i} title={d.name}>{d.shortName}</span>
+                            <span key={i} className="text-[10px] font-bold text-gray-400 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">{d.shortName}</span>
                           ))}
                         </div>
                       </div>
                       
-                      <div className="h-[350px] w-full min-h-0 relative">
+                      <div className="h-[400px] w-full relative">
                         {chartData.every(d => d.value === null) ? (
-                          <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                            <BarChart size={40} className="mb-2 opacity-30" />
-                            <p>No numeric data available for visualization.</p>
+                          <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
+                            <Activity size={40} className="mb-4 opacity-20" />
+                            <p className="font-bold">Comparative data pending for this indicator.</p>
                           </div>
                         ) : (
                           <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 20 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                              <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f8fafc" />
                               <XAxis 
                                 dataKey="shortName" 
                                 axisLine={false} 
                                 tickLine={false} 
-                                tick={{ fill: '#4b5563', fontSize: 13, fontWeight: 600 }}
-                                dy={10}
+                                tick={{ fill: '#64748b', fontSize: 12, fontWeight: 700 }}
+                                dy={15}
                               />
                               <YAxis 
                                 axisLine={false} 
                                 tickLine={false} 
-                                tick={{ fill: '#6b7280', fontSize: 12 }}
+                                tick={{ fill: '#94a3b8', fontSize: 11 }}
                               />
-                              <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
+                              <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f1f5f9', radius: 10 }} />
                               <Bar 
                                 dataKey="value" 
-                                fill="#2563eb" 
-                                radius={[6, 6, 0, 0]} 
-                                animationDuration={1000}
-                                barSize={60}
+                                fill="#4f46e5" 
+                                radius={[12, 12, 4, 4]} 
+                                animationDuration={1200}
+                                barSize={50}
                               >
                                 <LabelList 
                                   dataKey="originalValue" 
                                   position="top" 
-                                  offset={10} 
-                                  fill="#4b5563" 
+                                  offset={15} 
+                                  fill="#1e293b" 
                                   fontSize={12} 
-                                  fontWeight={600} 
+                                  fontWeight={900} 
                                 />
                               </Bar>
                             </BarChart>
@@ -580,15 +698,14 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                         )}
                       </div>
 
-                      {/* Action Plan Section Display */}
                       {kpi.actionPlan && (
-                        <div className="mt-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl flex gap-3 items-start print:bg-white print:border-gray-200">
-                          <div className="bg-emerald-100 p-2 rounded-lg text-emerald-700 print:hidden">
-                            <ListTree size={20} />
+                        <div className="mt-10 p-6 bg-emerald-50/50 border border-emerald-100/50 rounded-3xl flex gap-5 items-start">
+                          <div className="bg-emerald-600 text-white p-2.5 rounded-2xl shadow-lg shadow-emerald-100">
+                            <ShieldCheck size={20} />
                           </div>
                           <div>
-                            <h4 className="text-sm font-bold text-emerald-900 mb-1 print:text-gray-800">Dubai Medical University (DMU) - Action Plan</h4>
-                            <p className="text-sm text-emerald-800 leading-relaxed print:text-gray-600">{kpi.actionPlan}</p>
+                            <h4 className="text-sm font-black text-emerald-900 uppercase tracking-widest mb-1">Dubai Medical University - Strategic Action</h4>
+                            <p className="text-emerald-800 leading-relaxed font-medium">{kpi.actionPlan}</p>
                           </div>
                         </div>
                       )}
@@ -599,38 +716,36 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
             </div>
 
             {/* Read-only Data Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden print:break-inside-avoid print:shadow-none print:border-gray-300 print:mt-8">
-              <div className="p-6 border-b border-gray-100 bg-gray-50/50 print:bg-white print:border-b-2">
-                <h3 className="text-lg font-bold text-gray-800">Raw Data View</h3>
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-50 overflow-hidden print:break-inside-avoid">
+              <div className="p-8 border-b border-gray-50 bg-gray-50/30">
+                <h3 className="text-xl font-black text-gray-800">Indicator Summary Table</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
-                  <thead className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200 print:bg-white">
+                  <thead className="bg-gray-50 text-gray-400 font-black uppercase tracking-widest text-[10px]">
                     <tr>
-                      <th className="px-6 py-4 whitespace-nowrap">Year</th>
-                      <th className="px-6 py-4 whitespace-nowrap">Category</th>
-                      <th className="px-6 py-4 whitespace-nowrap border-r border-gray-200">KPI</th>
-                      {universities.filter(u => u.active !== false).map(uni => (
-                        <th key={uni.name} className="px-6 py-4 whitespace-nowrap font-medium text-gray-700">
-                          {uni.name}
+                      <th className="px-8 py-5">Category</th>
+                      <th className="px-8 py-5 border-r border-gray-100">Indicator</th>
+                      {universities.filter(u => u.active).map(uni => (
+                        <th key={uni.name} className="px-8 py-5 font-black text-indigo-600">
+                          {uni.abbr}
                         </th>
                       ))}
-                      <th className="px-6 py-4 whitespace-nowrap border-l border-gray-200 bg-emerald-50/50 text-emerald-800 print:bg-white">DMU Action Plan</th>
+                      <th className="px-8 py-5 border-l border-gray-100 bg-emerald-50/50 text-emerald-800">Action Plan</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-50">
                     {kpisToRender.map((kpi) => (
-                      <tr key={kpi.id} className="hover:bg-blue-50/30 transition-colors print:border-b">
-                        <td className="px-6 py-3 font-medium text-gray-600">{kpi.year}</td>
-                        <td className="px-6 py-3 font-medium text-gray-800">{kpi.category}</td>
-                        <td className="px-6 py-3 border-r border-gray-100 text-gray-600 font-medium max-w-xs truncate print:whitespace-normal" title={kpi.kpi}>{kpi.kpi}</td>
-                        {universities.filter(u => u.active !== false).map(uni => (
-                          <td key={uni.name} className="px-6 py-3 text-gray-600">
-                            {kpi.values[uni.name] || <span className="text-gray-300">-</span>}
+                      <tr key={kpi.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-8 py-4 font-bold text-gray-500">{kpi.category}</td>
+                        <td className="px-8 py-4 border-r border-gray-50 text-gray-800 font-black max-w-xs">{kpi.kpi}</td>
+                        {universities.filter(u => u.active).map(uni => (
+                          <td key={uni.name} className="px-8 py-4 font-bold text-gray-600">
+                            {kpi.values[uni.name] || <span className="text-gray-200">—</span>}
                           </td>
                         ))}
-                        <td className="px-6 py-3 border-l border-gray-100 text-emerald-700 italic max-w-xs truncate print:whitespace-normal print:text-gray-700" title={kpi.actionPlan}>
-                          {kpi.actionPlan || <span className="text-emerald-300">-</span>}
+                        <td className="px-8 py-4 border-l border-gray-50 text-emerald-700 italic text-xs font-medium max-w-xs truncate">
+                          {kpi.actionPlan || <span className="text-emerald-100">—</span>}
                         </td>
                       </tr>
                     ))}
@@ -641,185 +756,56 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
           </div>
         )}
 
-        {/* --- VIEW: DATA EDITOR (ADMIN ONLY) --- */}
+        {/* --- VIEW: ADMIN STUDIO (RE-STRUCTURED) --- */}
         {currentPage === 'admin' && (
-          <div className="space-y-6">
+          <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in duration-500">
             
-            {/* Editor Toolbar */}
-            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 text-blue-700 rounded-lg">
-                  <Database size={20} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-800">Data Management Matrix</h2>
-                  <p className="text-xs text-gray-500">Changes made here reflect instantly across the dashboard charts.</p>
-                </div>
-              </div>
-              
-              <div className="flex flex-wrap gap-3">
-                <button 
-                  onClick={() => setIsUniModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 text-gray-700 font-medium rounded-lg shadow-sm transition-all text-sm"
-                >
-                  <Building2 size={16} /> Manage Universities
-                </button>
-                <button 
-                  onClick={handleAddKpi}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-all text-sm"
-                >
-                  <ListTree size={16} /> Add New KPI Row
-                </button>
-              </div>
-            </div>
+            {/* Admin Sub-Navigation Sidebar */}
+            <aside className="lg:w-64 flex-shrink-0 space-y-2">
+               <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Management Modes</p>
+               <button 
+                  onClick={() => setAdminTab('universities')}
+                  className={`w-full flex items-center gap-3 px-4 py-4 rounded-2xl transition-all font-bold text-sm ${adminTab === 'universities' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-gray-500 hover:bg-white hover:text-indigo-600 shadow-sm border border-transparent hover:border-indigo-100'}`}
+               >
+                  <Building2 size={20} /> Universities
+               </button>
+               <button 
+                  onClick={() => setAdminTab('kpis')}
+                  className={`w-full flex items-center gap-3 px-4 py-4 rounded-2xl transition-all font-bold text-sm ${adminTab === 'kpis' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-gray-500 hover:bg-white hover:text-indigo-600 shadow-sm border border-transparent hover:border-indigo-100'}`}
+               >
+                  <ShieldCheck size={20} /> Indicators List
+               </button>
+               <button 
+                  onClick={() => setAdminTab('data')}
+                  className={`w-full flex items-center gap-3 px-4 py-4 rounded-2xl transition-all font-bold text-sm ${adminTab === 'data' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-gray-500 hover:bg-white hover:text-indigo-600 shadow-sm border border-transparent hover:border-indigo-100'}`}
+               >
+                  <Edit2 size={20} /> Value Entry
+               </button>
 
-            {/* Editable Spreadsheet View */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto max-h-[75vh] relative">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-gray-100/90 text-gray-700 font-semibold sticky top-0 z-20 backdrop-blur-md border-b border-gray-200 shadow-sm">
-                    <tr>
-                      <th className="px-4 py-3 whitespace-nowrap w-24 sticky left-0 z-30 bg-gray-100 shadow-[1px_0_0_0_#e5e7eb]">Year</th>
-                      <th className="px-4 py-3 whitespace-nowrap w-40 sticky left-24 z-30 bg-gray-100 shadow-[1px_0_0_0_#e5e7eb]">Category</th>
-                      <th className="px-4 py-3 whitespace-nowrap w-64 border-r border-gray-200 sticky left-64 z-30 bg-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Indicator (KPI)</th>
-                      
-                      {universities.map(uni => (
-                        <th key={uni.name} className="px-4 py-3 min-w-[140px]">
-                          <div className="line-clamp-2" title={uni.name}>{uni.abbr} <span className="text-[10px] font-normal text-gray-500 block">({uni.name})</span></div>
-                        </th>
-                      ))}
-                      
-                      <th className="px-4 py-3 min-w-[200px] border-l border-gray-200 bg-emerald-50/90 text-emerald-800">
-                        DMU Action Plan
-                      </th>
-                      <th className="px-4 py-3 w-16 text-center sticky right-0 z-30 bg-gray-100 shadow-[-1px_0_0_0_#e5e7eb]">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {kpis.map((kpi) => (
-                      <tr key={kpi.id} className="group hover:bg-blue-50/20 transition-colors">
-                        
-                        <td className="p-0 sticky left-0 z-10 bg-white group-hover:bg-blue-50/20 align-top border-r border-gray-100">
-                          <input 
-                            value={kpi.year || ''}
-                            onChange={(e) => handleUpdateKpiInfo(kpi.id, 'year', e.target.value)}
-                            className="w-full h-full px-4 py-3 bg-transparent border-0 focus:ring-2 focus:ring-inset focus:ring-blue-500 font-medium text-gray-800"
-                            placeholder="Year"
-                          />
-                        </td>
-                        
-                        <td className="p-0 sticky left-24 z-10 bg-white group-hover:bg-blue-50/20 align-top border-r border-gray-100">
-                          <input 
-                            value={kpi.category}
-                            onChange={(e) => handleUpdateKpiInfo(kpi.id, 'category', e.target.value)}
-                            className="w-full h-full px-4 py-3 bg-transparent border-0 focus:ring-2 focus:ring-inset focus:ring-blue-500 font-medium text-gray-800"
-                            placeholder="Category"
-                          />
-                        </td>
-                        
-                        <td className="p-0 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] sticky left-64 z-10 bg-white group-hover:bg-blue-50/20 align-top">
-                          <textarea 
-                            value={kpi.kpi}
-                            onChange={(e) => handleUpdateKpiInfo(kpi.id, 'kpi', e.target.value)}
-                            className="w-full h-full min-h-[48px] px-4 py-3 bg-transparent border-0 focus:ring-2 focus:ring-inset focus:ring-blue-500 text-gray-700 resize-none overflow-hidden"
-                            placeholder="KPI Name"
-                            rows={1}
-                          />
-                        </td>
-                        
-                        {universities.map(uni => (
-                          <td key={uni.name} className="p-0 align-top border-r border-gray-50 last:border-r-0">
-                            <input 
-                              type="text"
-                              value={kpi.values[uni.name] !== undefined ? kpi.values[uni.name] : ''}
-                              onChange={(e) => handleUpdateKpiValue(kpi.id, uni.name, e.target.value)}
-                              className="w-full h-full px-4 py-3 bg-transparent border-0 focus:ring-2 focus:ring-inset focus:ring-blue-500 focus:bg-white text-gray-600 placeholder-gray-300"
-                              placeholder="-"
-                            />
-                          </td>
-                        ))}
+               <div className="mt-8 p-6 bg-white rounded-3xl border border-slate-100 shadow-sm">
+                  <h4 className="text-xs font-black text-gray-800 uppercase mb-3">Admin Statistics</h4>
+                  <div className="space-y-4">
+                     <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Entities</p>
+                        <p className="text-2xl font-black text-indigo-600">{universities.length}</p>
+                     </div>
+                     <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Indicators</p>
+                        <p className="text-2xl font-black text-indigo-600">{kpis.length}</p>
+                     </div>
+                  </div>
+               </div>
+            </aside>
 
-                        <td className="p-0 align-top border-l border-gray-200 bg-emerald-50/30 group-hover:bg-emerald-50/60">
-                           <textarea 
-                            value={kpi.actionPlan || ''}
-                            onChange={(e) => handleUpdateKpiInfo(kpi.id, 'actionPlan', e.target.value)}
-                            className="w-full h-full min-h-[48px] px-4 py-3 bg-transparent border-0 focus:ring-2 focus:ring-inset focus:ring-emerald-500 text-emerald-800 placeholder-emerald-300 resize-none overflow-hidden"
-                            placeholder="Enter Action Plan for DMU..."
-                            rows={1}
-                          />
-                        </td>
-
-                        <td className="px-4 py-3 text-center align-middle sticky right-0 z-10 bg-white group-hover:bg-blue-50/20 border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                          <button 
-                            onClick={() => handleToggleKpiActive(kpi.id)}
-                            className={`p-1.5 rounded-lg transition-colors ${kpi.active !== false ? 'text-gray-400 hover:text-blue-600' : 'text-blue-600 hover:text-blue-700 bg-blue-50'}`}
-                            title={kpi.active !== false ? "Hide from Dashboard" : "Show in Dashboard"}
-                          >
-                            {kpi.active !== false ? <ShieldCheck size={16} /> : <ShieldAlert size={16} />}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {kpis.length === 0 && (
-                      <tr>
-                        <td colSpan={universities.length + 5} className="px-6 py-12 text-center text-gray-500 bg-gray-50">
-                          No data available. Click "Add New KPI Row" to start building your dataset.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            {/* Sub-Page Content */}
+            <main className="flex-1 min-w-0">
+               {adminTab === 'universities' && <UniversityManager />}
+               {adminTab === 'kpis' && <KpiManager />}
+               {adminTab === 'data' && <DataEntryManager />}
+            </main>
           </div>
         )}
       </div>
-
-      {/* --- MODALS --- */}
-      
-      {/* University Manager Modal */}
-      <Modal 
-        isOpen={isUniModalOpen} 
-        onClose={() => setIsUniModalOpen(false)}
-        title="Manage Universities & Abbreviations"
-      >
-        <UniversityManager />
-        <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end">
-          <button 
-            onClick={() => setIsUniModalOpen(false)}
-            className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg transition-colors shadow-sm"
-          >
-            Done
-          </button>
-        </div>
-      </Modal>
-
-      {/* Confirmation Modal */}
-      <Modal
-        isOpen={confirmDelete.isOpen}
-        onClose={closeConfirmDelete}
-        title="Confirm Deletion"
-      >
-        <div className="py-2">
-          <p className="text-gray-600 text-base">{confirmDelete.message}</p>
-          <p className="text-sm text-red-500 mt-2 font-medium">This action cannot be undone.</p>
-        </div>
-        <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end gap-3">
-          <button 
-            onClick={closeConfirmDelete}
-            className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={executeDelete}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg shadow-sm transition-colors flex items-center gap-2"
-          >
-            <Trash2 size={16} /> Delete
-          </button>
-        </div>
-      </Modal>
-
     </div>
   );
 }

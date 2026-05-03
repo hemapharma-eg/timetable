@@ -350,7 +350,15 @@ export default function App() {
         setAppUserMeta(null);
         setPermissions([]);
         setLoading(false);
-        navigate('/login');
+        
+        // Don't redirect to login if we are viewing a public report
+        const params = new URLSearchParams(window.location.search);
+        const viewParam = params.get('view');
+        const isPublicView = (viewParam === 'public_risk_report') || (viewParam === 'benchmarking');
+        
+        if (!isPublicView) {
+          navigate('/login');
+        }
       }
     });
 
