@@ -27,28 +27,28 @@ try {
 
 // --- INITIAL DATA ---
 const initialUniversities = [
-  { name: "Gulf Medical University (GMU)", abbr: "GMU" },
-  { name: "Mohammed Bin Rashid University (MBRU)", abbr: "MBRU" },
-  { name: "Dubai Medical University", abbr: "DMU" },
-  { name: "RAKMHSU", abbr: "RAK" },
-  { name: "Battejee Medical College", abbr: "BMC" },
-  { name: "Royal College of Surgeons in Ireland (RCSI)", abbr: "RCSI" }
+  { name: "Gulf Medical University (GMU)", abbr: "GMU", active: true },
+  { name: "Mohammed Bin Rashid University (MBRU)", abbr: "MBRU", active: true },
+  { name: "Dubai Medical University", abbr: "DMU", active: true },
+  { name: "RAKMHSU", abbr: "RAK", active: true },
+  { name: "Battejee Medical College", abbr: "BMC", active: true },
+  { name: "Royal College of Surgeons in Ireland (RCSI)", abbr: "RCSI", active: true }
 ];
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const initialKpis = [
-  { id: generateId(), year: '2025', category: 'Students', kpi: 'Total Enrolled Students', actionPlan: '', values: { "Gulf Medical University (GMU)": "2824", "Mohammed Bin Rashid University (MBRU)": "551", "Dubai Medical University": "828", "RAKMHSU": "1700", "Battejee Medical College": "1820", "Royal College of Surgeons in Ireland (RCSI)": "5267" } },
-  { id: generateId(), year: '2025', category: 'Students', kpi: '% National Students', actionPlan: '', values: { "Gulf Medical University (GMU)": "9.8", "Mohammed Bin Rashid University (MBRU)": "27.2", "Dubai Medical University": "13.8", "RAKMHSU": "21.1", "Battejee Medical College": "81.59", "Royal College of Surgeons in Ireland (RCSI)": "32" } },
-  { id: generateId(), year: '2025', category: 'Students', kpi: 'Student Nationalities', actionPlan: 'Increase marketing efforts in North Africa and South Asia.', values: { "Gulf Medical University (GMU)": "105", "Mohammed Bin Rashid University (MBRU)": "50", "Dubai Medical University": "52", "RAKMHSU": "48", "Battejee Medical College": "52", "Royal College of Surgeons in Ireland (RCSI)": "103" } },
-  { id: generateId(), year: '2025', category: 'Students', kpi: 'Student-to-Faculty Ratio', actionPlan: '', values: { "Gulf Medical University (GMU)": "11", "Mohammed Bin Rashid University (MBRU)": "5", "Dubai Medical University": "12", "RAKMHSU": "11", "Battejee Medical College": "9", "Royal College of Surgeons in Ireland (RCSI)": "24" } },
-  { id: generateId(), year: '2025', category: 'Research', kpi: 'Research Publications', actionPlan: 'Provide additional grants for faculty publishing in top journals.', values: { "Gulf Medical University (GMU)": "519", "Mohammed Bin Rashid University (MBRU)": "401", "Dubai Medical University": "162", "RAKMHSU": "441", "Battejee Medical College": "322", "Royal College of Surgeons in Ireland (RCSI)": "1923" } },
-  { id: generateId(), year: '2025', category: 'Research', kpi: 'Publication in top 10% journals', actionPlan: '', values: { "Gulf Medical University (GMU)": "14.1", "Mohammed Bin Rashid University (MBRU)": "26.6", "Dubai Medical University": "16.2", "RAKMHSU": "11.4", "Battejee Medical College": "10.5", "Royal College of Surgeons in Ireland (RCSI)": "30" } },
-  { id: generateId(), year: '2025', category: 'Research', kpi: 'Research with International Collaboration', actionPlan: '', values: { "Gulf Medical University (GMU)": "83.4", "Mohammed Bin Rashid University (MBRU)": "79.3", "Dubai Medical University": "72.8", "RAKMHSU": "87.8", "Battejee Medical College": "76.7", "Royal College of Surgeons in Ireland (RCSI)": "63.2" } },
-  { id: generateId(), year: '2025', category: 'Graduates', kpi: 'Total Graduates (Latest)', actionPlan: '', values: { "Gulf Medical University (GMU)": "561", "Mohammed Bin Rashid University (MBRU)": "99", "Dubai Medical University": "114", "RAKMHSU": "247", "Battejee Medical College": "232", "Royal College of Surgeons in Ireland (RCSI)": "1780" } },
-  { id: generateId(), year: '2025', category: 'Graduates', kpi: 'Employability', actionPlan: 'Establish a new alumni network to improve career placement tracking.', values: { "Gulf Medical University (GMU)": "", "Mohammed Bin Rashid University (MBRU)": "", "Dubai Medical University": "67", "RAKMHSU": "48", "Battejee Medical College": "64", "Royal College of Surgeons in Ireland (RCSI)": "90" } },
-  { id: generateId(), year: '2025', category: 'Ranking', kpi: 'THE World (2025)', actionPlan: '', values: { "Gulf Medical University (GMU)": "NR", "Mohammed Bin Rashid University (MBRU)": "NR", "Dubai Medical University": "NR", "RAKMHSU": "NR", "Battejee Medical College": "NR", "Royal College of Surgeons in Ireland (RCSI)": "251-300" } },
-  { id: generateId(), year: '2025', category: 'Ranking', kpi: 'THE Arab Region', actionPlan: '', values: { "Gulf Medical University (GMU)": "101-125", "Mohammed Bin Rashid University (MBRU)": "NR", "Dubai Medical University": "NR", "RAKMHSU": "151-175", "Battejee Medical College": "NR", "Royal College of Surgeons in Ireland (RCSI)": "NA" } },
+  { id: generateId(), active: true, year: '2025', category: 'Students', kpi: 'Total Enrolled Students', actionPlan: '', values: { "Gulf Medical University (GMU)": "2824", "Mohammed Bin Rashid University (MBRU)": "551", "Dubai Medical University": "828", "RAKMHSU": "1700", "Battejee Medical College": "1820", "Royal College of Surgeons in Ireland (RCSI)": "5267" } },
+  { id: generateId(), active: true, year: '2025', category: 'Students', kpi: '% National Students', actionPlan: '', values: { "Gulf Medical University (GMU)": "9.8", "Mohammed Bin Rashid University (MBRU)": "27.2", "Dubai Medical University": "13.8", "RAKMHSU": "21.1", "Battejee Medical College": "81.59", "Royal College of Surgeons in Ireland (RCSI)": "32" } },
+  { id: generateId(), active: true, year: '2025', category: 'Students', kpi: 'Student Nationalities', actionPlan: 'Increase marketing efforts in North Africa and South Asia.', values: { "Gulf Medical University (GMU)": "105", "Mohammed Bin Rashid University (MBRU)": "50", "Dubai Medical University": "52", "RAKMHSU": "48", "Battejee Medical College": "52", "Royal College of Surgeons in Ireland (RCSI)": "103" } },
+  { id: generateId(), active: true, year: '2025', category: 'Students', kpi: 'Student-to-Faculty Ratio', actionPlan: '', values: { "Gulf Medical University (GMU)": "11", "Mohammed Bin Rashid University (MBRU)": "5", "Dubai Medical University": "12", "RAKMHSU": "11", "Battejee Medical College": "9", "Royal College of Surgeons in Ireland (RCSI)": "24" } },
+  { id: generateId(), active: true, year: '2025', category: 'Research', kpi: 'Research Publications', actionPlan: 'Provide additional grants for faculty publishing in top journals.', values: { "Gulf Medical University (GMU)": "519", "Mohammed Bin Rashid University (MBRU)": "401", "Dubai Medical University": "162", "RAKMHSU": "441", "Battejee Medical College": "322", "Royal College of Surgeons in Ireland (RCSI)": "1923" } },
+  { id: generateId(), active: true, year: '2025', category: 'Research', kpi: 'Publication in top 10% journals', actionPlan: '', values: { "Gulf Medical University (GMU)": "14.1", "Mohammed Bin Rashid University (MBRU)": "26.6", "Dubai Medical University": "16.2", "RAKMHSU": "11.4", "Battejee Medical College": "10.5", "Royal College of Surgeons in Ireland (RCSI)": "30" } },
+  { id: generateId(), active: true, year: '2025', category: 'Research', kpi: 'Research with International Collaboration', actionPlan: '', values: { "Gulf Medical University (GMU)": "83.4", "Mohammed Bin Rashid University (MBRU)": "79.3", "Dubai Medical University": "72.8", "RAKMHSU": "87.8", "Battejee Medical College": "76.7", "Royal College of Surgeons in Ireland (RCSI)": "63.2" } },
+  { id: generateId(), active: true, year: '2025', category: 'Graduates', kpi: 'Total Graduates (Latest)', actionPlan: '', values: { "Gulf Medical University (GMU)": "561", "Mohammed Bin Rashid University (MBRU)": "99", "Dubai Medical University": "114", "RAKMHSU": "247", "Battejee Medical College": "232", "Royal College of Surgeons in Ireland (RCSI)": "1780" } },
+  { id: generateId(), active: true, year: '2025', category: 'Graduates', kpi: 'Employability', actionPlan: 'Establish a new alumni network to improve career placement tracking.', values: { "Gulf Medical University (GMU)": "", "Mohammed Bin Rashid University (MBRU)": "", "Dubai Medical University": "67", "RAKMHSU": "48", "Battejee Medical College": "64", "Royal College of Surgeons in Ireland (RCSI)": "90" } },
+  { id: generateId(), active: true, year: '2025', category: 'Ranking', kpi: 'THE World (2025)', actionPlan: '', values: { "Gulf Medical University (GMU)": "NR", "Mohammed Bin Rashid University (MBRU)": "NR", "Dubai Medical University": "NR", "RAKMHSU": "NR", "Battejee Medical College": "NR", "Royal College of Surgeons in Ireland (RCSI)": "251-300" } },
+  { id: generateId(), active: true, year: '2025', category: 'Ranking', kpi: 'THE Arab Region', actionPlan: '', values: { "Gulf Medical University (GMU)": "101-125", "Mohammed Bin Rashid University (MBRU)": "NR", "Dubai Medical University": "NR", "RAKMHSU": "151-175", "Battejee Medical College": "NR", "Royal College of Surgeons in Ireland (RCSI)": "NA" } },
 ];
 
 // --- UTILITY COMPONENTS ---
@@ -123,7 +123,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
          if (parsed.universities) setUniversities(parsed.universities);
          if (parsed.kpis) setKpis(parsed.kpis);
       } catch(e) { console.error("Failed to parse URL data"); }
-    } else if (reportId && db && user) {
+    } else if (reportId && db) {
        const fetchReport = async () => {
           try {
              const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', reportId);
@@ -137,7 +137,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
        };
        fetchReport();
     }
-  }, [user]);
+  }, [user, db]); // Watch db as well
 
   // --- SHARE CAPABILITY ---
   const showToast = (message) => {
@@ -154,9 +154,9 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', reportId);
          await setDoc(docRef, { universities, kpis });
          
-         const newUrl = new URL(window.location.href);
+         const newUrl = new URL(window.location.origin + window.location.pathname);
+         newUrl.searchParams.set('view', 'benchmarking');
          newUrl.searchParams.set('report', reportId);
-         newUrl.searchParams.delete('data');
          shareUrl = newUrl.toString();
          window.history.pushState({}, '', shareUrl);
       } catch (e) {
@@ -186,9 +186,9 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   
   const createBase64Url = () => {
      const encoded = encodeURIComponent(btoa(JSON.stringify({ universities, kpis })));
-     const newUrl = new URL(window.location.href);
+     const newUrl = new URL(window.location.origin + window.location.pathname);
+     newUrl.searchParams.set('view', 'benchmarking');
      newUrl.searchParams.set('data', encoded);
-     newUrl.searchParams.delete('report');
      window.history.pushState({}, '', newUrl.toString());
      return newUrl.toString();
   };
@@ -200,16 +200,17 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   }, [kpis]);
 
   const availableKpis = useMemo(() => {
-    return kpis.filter(k => selectedCategory === 'All' || k.category === selectedCategory);
-  }, [kpis, selectedCategory]);
+    return kpis.filter(k => (selectedCategory === 'All' || k.category === selectedCategory) && (currentPage === 'admin' || k.active !== false));
+  }, [kpis, selectedCategory, currentPage]);
 
   const kpisToRender = useMemo(() => {
     return kpis.filter(k => {
       const matchCategory = selectedCategory === 'All' || k.category === selectedCategory;
       const matchKpi = selectedKpi === 'All' || k.id === selectedKpi;
-      return matchCategory && matchKpi;
+      const matchActive = currentPage === 'admin' || k.active !== false;
+      return matchCategory && matchKpi && matchActive;
     });
-  }, [kpis, selectedCategory, selectedKpi]);
+  }, [kpis, selectedCategory, selectedKpi, currentPage]);
 
   // --- CRUD OPERATIONS: UNIVERSITIES ---
   const handleAddUniversity = (name, abbr) => {
@@ -217,7 +218,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     const newName = name.trim();
     const newAbbr = abbr.trim() || newName.substring(0, 4).toUpperCase();
     
-    setUniversities([...universities, { name: newName, abbr: newAbbr }]);
+    setUniversities([...universities, { name: newName, abbr: newAbbr, active: true }]);
     // Add empty value for this new university to all KPIs
     setKpis(kpis.map(k => ({
       ...k,
@@ -245,20 +246,17 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     }
   };
 
-  const handleDeleteUniversity = (name) => {
-    setUniversities(universities.filter(u => u.name !== name));
-    setKpis(kpis.map(k => {
-      const newValues = { ...k.values };
-      delete newValues[name];
-      return { ...k, values: newValues };
-    }));
-    closeConfirmDelete();
+  const handleToggleUniversityActive = (name) => {
+    setUniversities(universities.map(u => 
+      u.name === name ? { ...u, active: !u.active } : u
+    ));
   };
 
   // --- CRUD OPERATIONS: KPIs ---
   const handleAddKpi = () => {
     const newKpi = {
       id: generateId(),
+      active: true,
       year: '2025',
       category: 'New Category',
       kpi: 'New KPI Name',
@@ -268,25 +266,8 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     setKpis([newKpi, ...kpis]); // Add to top for visibility
   };
 
-  const handleUpdateKpiInfo = (id, field, value) => {
-    setKpis(kpis.map(k => k.id === id ? { ...k, [field]: value } : k));
-  };
-
-  const handleUpdateKpiValue = (id, uniName, value) => {
-    setKpis(kpis.map(k => {
-      if (k.id === id) {
-        return { ...k, values: { ...k.values, [uniName]: value } };
-      }
-      return k;
-    }));
-  };
-
-  const handleDeleteKpi = (id) => {
-    setKpis(kpis.filter(k => k.id !== id));
-    closeConfirmDelete();
-    if (selectedKpi === id) {
-      setSelectedKpi('All');
-    }
+  const handleToggleKpiActive = (id) => {
+    setKpis(kpis.map(k => k.id === id ? { ...k, active: !k.active } : k));
   };
 
   // --- CONFIRMATION HELPER ---
@@ -297,8 +278,8 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     setConfirmDelete({ isOpen: false, itemType: '', itemId: null, message: '' });
   };
   const executeDelete = () => {
-    if (confirmDelete.itemType === 'university') handleDeleteUniversity(confirmDelete.itemId);
-    if (confirmDelete.itemType === 'kpi') handleDeleteKpi(confirmDelete.itemId);
+    // No longer doing hard deletes
+    closeConfirmDelete();
   };
 
   // --- CHARTING HELPERS ---
@@ -422,11 +403,11 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                     <Edit2 size={16} />
                   </button>
                   <button 
-                    onClick={() => requestDelete('university', uni.name, `Are you sure you want to delete ${uni.name}? This will remove all its data.`)}
-                    className="p-2 text-gray-400 hover:text-red-600 rounded-lg transition-colors"
-                    title="Remove University"
+                    onClick={() => handleToggleUniversityActive(uni.name)}
+                    className={`p-2 rounded-lg transition-colors ${uni.active !== false ? 'text-gray-400 hover:text-blue-600' : 'text-blue-600 hover:text-blue-700 bg-blue-50'}`}
+                    title={uni.active !== false ? "Hide from Dashboard" : "Show in Dashboard"}
                   >
-                    <Trash2 size={16} />
+                    {uni.active !== false ? <ShieldCheck size={16} /> : <ShieldAlert size={16} />}
                   </button>
                 </div>
               )}
@@ -532,7 +513,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                 </div>
               ) : (
                 kpisToRender.map((kpi) => {
-                  const chartData = universities.map(uni => ({
+                  const chartData = universities.filter(u => u.active !== false).map(uni => ({
                     name: uni.name,
                     shortName: uni.abbr,
                     value: parseForChart(kpi.values[uni.name]),
@@ -629,7 +610,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                       <th className="px-6 py-4 whitespace-nowrap">Year</th>
                       <th className="px-6 py-4 whitespace-nowrap">Category</th>
                       <th className="px-6 py-4 whitespace-nowrap border-r border-gray-200">KPI</th>
-                      {universities.map(uni => (
+                      {universities.filter(u => u.active !== false).map(uni => (
                         <th key={uni.name} className="px-6 py-4 whitespace-nowrap font-medium text-gray-700">
                           {uni.name}
                         </th>
@@ -643,7 +624,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                         <td className="px-6 py-3 font-medium text-gray-600">{kpi.year}</td>
                         <td className="px-6 py-3 font-medium text-gray-800">{kpi.category}</td>
                         <td className="px-6 py-3 border-r border-gray-100 text-gray-600 font-medium max-w-xs truncate print:whitespace-normal" title={kpi.kpi}>{kpi.kpi}</td>
-                        {universities.map(uni => (
+                        {universities.filter(u => u.active !== false).map(uni => (
                           <td key={uni.name} className="px-6 py-3 text-gray-600">
                             {kpi.values[uni.name] || <span className="text-gray-300">-</span>}
                           </td>
@@ -770,11 +751,11 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
 
                         <td className="px-4 py-3 text-center align-middle sticky right-0 z-10 bg-white group-hover:bg-blue-50/20 border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                           <button 
-                            onClick={() => requestDelete('kpi', kpi.id, `Delete KPI: "${kpi.kpi}"?`)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete Row"
+                            onClick={() => handleToggleKpiActive(kpi.id)}
+                            className={`p-1.5 rounded-lg transition-colors ${kpi.active !== false ? 'text-gray-400 hover:text-blue-600' : 'text-blue-600 hover:text-blue-700 bg-blue-50'}`}
+                            title={kpi.active !== false ? "Hide from Dashboard" : "Show in Dashboard"}
                           >
-                            <Trash2 size={16} />
+                            {kpi.active !== false ? <ShieldCheck size={16} /> : <ShieldAlert size={16} />}
                           </button>
                         </td>
                       </tr>

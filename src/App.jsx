@@ -11,6 +11,7 @@ import { CollegesManager, ProgramsManager, CommitteesManager } from './OrgManage
 import { DatabaseBuilder } from './DatabaseBuilder';
 import { NavigationBuilder } from './NavigationBuilder';
 import { DynamicPage } from './DynamicPage';
+import { Benchmarking } from './Benchmarking';
 
 // Reusable Layout Components
 const SidebarItem = ({ icon: Icon, label, path, active, onClick }) => (
@@ -421,6 +422,10 @@ export default function App() {
   const viewParam = params.get('view');
   if (viewParam === 'public_risk_report' && params.get('year')) {
     return <PublicRiskReport year={params.get('year')} />;
+  }
+
+  if (viewParam === 'benchmarking' && (params.get('report') || params.get('data'))) {
+    return <Benchmarking initialPage="dashboard" />;
   }
 
   if (loading) {
