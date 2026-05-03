@@ -6,14 +6,14 @@ import {
   LayoutDashboard, Database, ShieldAlert, ShieldCheck, 
   Plus, Trash2, Edit2, Save, X, Building2, ListTree,
   Share2, Printer, CheckCircle, ChevronRight, Settings,
-  Activity, Users, Info, Calendar, Filter, ArrowLeft, Check
+  Activity, Users, Info, Calendar, Filter, ArrowLeft, Check, Loader2
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { supabase } from './supabase';
 
-// --- FIREBASE INIT (Optional fallback) ---
+// --- FIREBASE INIT ---
 let app, auth, db, appId;
 try {
   const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
@@ -27,66 +27,24 @@ try {
   console.warn("Firebase not configured", e);
 }
 
-// --- INITIAL DATA & UTILS ---
+// --- UTILS ---
 const generateId = () => Math.random().toString(36).substr(2, 9);
-
-const initialUniversities = [
-  { id: 'uni1', name: "Gulf Medical University (GMU)", abbr: "GMU", active: true },
-  { id: 'uni2', name: "Mohammed Bin Rashid University (MBRU)", abbr: "MBRU", active: true },
-  { id: 'uni3', name: "Dubai Medical University", abbr: "DMU", active: true },
-  { id: 'uni4', name: "RAKMHSU", abbr: "RAK", active: true },
-  { id: 'uni5', name: "Battejee Medical College", abbr: "BMC", active: true },
-  { id: 'uni6', name: "Royal College of Surgeons in Ireland (RCSI)", abbr: "RCSI", active: true }
-];
-
-const initialYears = [
-  { id: 'y1', name: '2024-2025', active: true },
-  { id: 'y2', name: '2023-2024', active: true }
-];
-
-const initialKpiDefinitions = [
-  { id: 'k1', category: 'Students', name: 'Total Enrolled Students', active: true },
-  { id: 'k2', category: 'Students', name: '% National Students', active: true },
-  { id: 'k3', category: 'Students', name: 'Student Nationalities', active: true },
-  { id: 'k4', category: 'Students', name: 'Student-to-Faculty Ratio', active: true },
-  { id: 'k5', category: 'Research', name: 'Research Publications', active: true },
-  { id: 'k6', category: 'Research', name: 'Publication in top 10% journals', active: true },
-  { id: 'k7', category: 'Research', name: 'Research with International Collaboration', active: true },
-  { id: 'k8', category: 'Graduates', name: 'Total Graduates (Latest)', active: true },
-  { id: 'k9', category: 'Graduates', name: 'Employability', active: true },
-  { id: 'k10', category: 'Ranking', name: 'THE World', active: true },
-  { id: 'k11', category: 'Ranking', name: 'THE Arab Region', active: true },
-];
-
-// Initial data points for 2024-2025
-const initialData = [
-  { id: generateId(), kpiId: 'k1', yearId: 'y1', actionPlan: '', values: { "uni1": "2824", "uni2": "551", "uni3": "828", "uni4": "1700", "uni5": "1820", "uni6": "5267" } },
-  { id: generateId(), kpiId: 'k2', yearId: 'y1', actionPlan: '', values: { "uni1": "9.8", "uni2": "27.2", "uni3": "13.8", "uni4": "21.1", "uni5": "81.59", "uni6": "32" } },
-  { id: generateId(), kpiId: 'k3', yearId: 'y1', actionPlan: 'Increase marketing efforts in North Africa and South Asia.', values: { "uni1": "105", "uni2": "50", "uni3": "52", "uni4": "48", "uni5": "52", "uni6": "103" } },
-  { id: generateId(), kpiId: 'k4', yearId: 'y1', actionPlan: '', values: { "uni1": "11", "uni2": "5", "uni3": "12", "uni4": "11", "uni5": "9", "uni6": "24" } },
-  { id: generateId(), kpiId: 'k5', yearId: 'y1', actionPlan: 'Provide additional grants for faculty publishing in top journals.', values: { "uni1": "519", "uni2": "401", "uni3": "162", "uni4": "441", "uni5": "322", "uni6": "1923" } },
-  { id: generateId(), kpiId: 'k6', yearId: 'y1', actionPlan: '', values: { "uni1": "14.1", "uni2": "26.6", "uni3": "16.2", "uni4": "11.4", "uni5": "10.5", "uni6": "30" } },
-  { id: generateId(), kpiId: 'k7', yearId: 'y1', actionPlan: '', values: { "uni1": "83.4", "uni2": "79.3", "uni3": "72.8", "uni4": "87.8", "uni5": "76.7", "uni6": "63.2" } },
-  { id: generateId(), kpiId: 'k8', yearId: 'y1', actionPlan: '', values: { "uni1": "561", "uni2": "99", "uni3": "114", "uni4": "247", "uni5": "232", "uni6": "1780" } },
-  { id: generateId(), kpiId: 'k9', yearId: 'y1', actionPlan: 'Establish a new alumni network to improve career placement tracking.', values: { "uni1": "", "uni2": "", "uni3": "67", "uni4": "48", "uni5": "64", "uni6": "90" } },
-  { id: generateId(), kpiId: 'k10', yearId: 'y1', actionPlan: '', values: { "uni1": "NR", "uni2": "NR", "uni3": "NR", "uni4": "NR", "uni5": "NR", "uni6": "251-300" } },
-  { id: generateId(), kpiId: 'k11', yearId: 'y1', actionPlan: '', values: { "uni1": "101-125", "uni2": "NR", "uni3": "NR", "uni4": "151-175", "uni5": "NR", "uni6": "NA" } },
-];
 
 // --- MAIN COMPONENT ---
 export function Benchmarking({ initialPage = 'dashboard' }) {
   const [currentPage, setCurrentPage] = useState(initialPage);
-  const [adminTab, setAdminTab] = useState('universities'); // 'universities' | 'kpis' | 'years' | 'mapping' | 'data'
-  const [adminSubMode, setAdminSubMode] = useState('list'); // 'list' | 'add' | 'edit'
+  const [adminTab, setAdminTab] = useState('universities'); 
+  const [adminSubMode, setAdminSubMode] = useState('list'); 
+  const [loading, setLoading] = useState(true);
   
   // Data State
-  const [universities, setUniversities] = useState(initialUniversities);
-  const [years, setYears] = useState(initialYears);
-  const [kpiDefinitions, setKpiDefinitions] = useState(initialKpiDefinitions);
-  const [benchmarkingData, setBenchmarkingData] = useState(initialData);
+  const [universities, setUniversities] = useState([]);
+  const [years, setYears] = useState([]);
+  const [kpiDefinitions, setKpiDefinitions] = useState([]);
+  const [benchmarkingData, setBenchmarkingData] = useState([]);
 
   // Filters
-  const [selectedYearId, setSelectedYearId] = useState(initialYears[0]?.id || '');
+  const [selectedYearId, setSelectedYearId] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedKpiId, setSelectedKpiId] = useState('All');
 
@@ -100,7 +58,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
 
   useEffect(() => { setCurrentPage(initialPage); }, [initialPage]);
 
-  // --- AUTH & SYNC ---
+  // --- AUTH & DATA SYNC ---
   useEffect(() => {
     if (!auth) return;
     const initAuth = async () => {
@@ -115,23 +73,56 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   }, []);
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const reportId = urlParams.get('report');
-    if (reportId) {
-       const fetchReport = async () => {
-          try {
-             const { data: report, error } = await supabase.from('benchmarking_reports').select('data').eq('id', reportId).maybeSingle();
-             if (!error && report) {
-                const d = report.data;
-                if (d.universities) setUniversities(d.universities);
-                if (d.years) setYears(d.years);
-                if (d.kpiDefinitions) setKpiDefinitions(d.kpiDefinitions);
-                if (d.benchmarkingData) setBenchmarkingData(d.benchmarkingData);
-             }
-          } catch(e) { console.error(e); }
-       };
-       fetchReport();
-    }
+    const fetchData = async () => {
+      setLoading(true);
+      const urlParams = new URLSearchParams(window.location.search);
+      const reportId = urlParams.get('report');
+
+      if (reportId) {
+        // Snapshot Mode (Public Shared Report)
+        try {
+          const { data: report, error } = await supabase.from('benchmarking_reports').select('data').eq('id', reportId).maybeSingle();
+          if (!error && report) {
+            const d = report.data;
+            if (d.universities) setUniversities(d.universities);
+            if (d.years) setYears(d.years);
+            if (d.kpiDefinitions) setKpiDefinitions(d.kpiDefinitions);
+            if (d.benchmarkingData) setBenchmarkingData(d.benchmarkingData);
+            if (d.years?.length > 0) setSelectedYearId(d.years[0].id);
+          }
+        } catch(e) { console.error(e); }
+      } else {
+        // Master List Mode (Live Data)
+        try {
+          const [resUni, resYears, resKpis, resData] = await Promise.all([
+            supabase.from('benchmarking_universities').select('*').order('name'),
+            supabase.from('benchmarking_years').select('*').order('name', { ascending: false }),
+            supabase.from('benchmarking_kpis').select('*').order('category'),
+            supabase.from('benchmarking_values').select('*')
+          ]);
+
+          if (resUni.data) setUniversities(resUni.data);
+          if (resYears.data) {
+            setYears(resYears.data);
+            if (resYears.data.length > 0) setSelectedYearId(resYears.data[0].id);
+          }
+          if (resKpis.data) setKpiDefinitions(resKpis.data);
+          if (resData.data) {
+            // Transform Supabase structure to our local structure if needed
+            // Currently they match: { kpi_id, year_id, values, action_plan }
+            setBenchmarkingData(resData.data.map(d => ({
+               id: d.id,
+               kpiId: d.kpi_id,
+               yearId: d.year_id,
+               values: d.values || {},
+               actionPlan: d.action_plan || ''
+            })));
+          }
+        } catch(e) { console.error(e); }
+      }
+      setLoading(false);
+    };
+    fetchData();
   }, [user]);
 
   const showToast = (message) => {
@@ -140,7 +131,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   };
 
   const handleShare = async () => {
-    showToast('Generating short link...');
+    showToast('Generating snapshot link...');
     try {
        const payload = { universities, years, kpiDefinitions, benchmarkingData };
        const { data, error } = await supabase.from('benchmarking_reports').insert([{ data: payload }]).select().single();
@@ -150,89 +141,161 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
        showToast('Share link copied!');
     } catch (e) {
        console.error(e);
-       showToast('Share failed. Run the SQL script!');
+       showToast('Share failed. Run the SQL scripts!');
     }
   };
 
-  // --- CRUD HELPERS ---
-  const handleAddUniversity = (u) => {
-    setUniversities([...universities, { ...u, id: generateId(), active: true }]);
-    setAdminSubMode('list');
-    showToast('University added');
-  };
-  const handleUpdateUniversity = (u) => {
-    setUniversities(universities.map(item => item.id === u.id ? u : item));
-    setAdminSubMode('list');
-    setEditingItem(null);
-    showToast('University updated');
-  };
-  const handleDeleteUniversity = (id) => {
-    if (!window.confirm('Delete this university? All associated data will be lost.')) return;
-    setUniversities(universities.filter(u => u.id !== id));
-    showToast('University deleted');
+  // --- PERSISTENT CRUD OPERATIONS ---
+
+  const handleAddUniversity = async (u) => {
+    try {
+      const { data, error } = await supabase.from('benchmarking_universities').insert([{ name: u.name, abbr: u.abbr }]).select().single();
+      if (error) throw error;
+      setUniversities([...universities, data]);
+      setAdminSubMode('list');
+      showToast('University saved to Master List');
+    } catch(e) { showToast('Error saving university'); }
   };
 
-  const handleAddYear = (y) => {
-    setYears([...years, { ...y, id: generateId(), active: true }]);
-    setAdminSubMode('list');
-    showToast('Academic year added');
+  const handleUpdateUniversity = async (u) => {
+    try {
+      const { error } = await supabase.from('benchmarking_universities').update({ name: u.name, abbr: u.abbr, active: u.active }).eq('id', u.id);
+      if (error) throw error;
+      setUniversities(universities.map(item => item.id === u.id ? u : item));
+      setAdminSubMode('list');
+      setEditingItem(null);
+      showToast('University updated');
+    } catch(e) { showToast('Update failed'); }
   };
-  const handleUpdateYear = (y) => {
-    setYears(years.map(item => item.id === y.id ? y : item));
-    setAdminSubMode('list');
-    setEditingItem(null);
-    showToast('Year updated');
+
+  const handleDeleteUniversity = async (id) => {
+    if (!window.confirm('Delete this university? All historical data associated with it will remain but won\'t be visible.')) return;
+    try {
+      const { error } = await supabase.from('benchmarking_universities').delete().eq('id', id);
+      if (error) throw error;
+      setUniversities(universities.filter(u => u.id !== id));
+      showToast('University deleted');
+    } catch(e) { showToast('Delete failed'); }
   };
-  const handleDeleteYear = (id) => {
+
+  const handleAddYear = async (y) => {
+    try {
+      const { data, error } = await supabase.from('benchmarking_years').insert([{ name: y.name }]).select().single();
+      if (error) throw error;
+      setYears([data, ...years]);
+      setAdminSubMode('list');
+      showToast('Year added to Master List');
+    } catch(e) { showToast('Error adding year'); }
+  };
+
+  const handleUpdateYear = async (y) => {
+    try {
+      const { error } = await supabase.from('benchmarking_years').update({ name: y.name, active: y.active }).eq('id', y.id);
+      if (error) throw error;
+      setYears(years.map(item => item.id === y.id ? y : item));
+      setAdminSubMode('list');
+      setEditingItem(null);
+      showToast('Year updated');
+    } catch(e) { showToast('Update failed'); }
+  };
+
+  const handleDeleteYear = async (id) => {
     if (!window.confirm('Delete this year and all its benchmarking data?')) return;
-    setYears(years.filter(y => y.id !== id));
-    setBenchmarkingData(benchmarkingData.filter(d => d.yearId !== id));
-    showToast('Year deleted');
+    try {
+      const { error } = await supabase.from('benchmarking_years').delete().eq('id', id);
+      if (error) throw error;
+      setYears(years.filter(y => y.id !== id));
+      setBenchmarkingData(benchmarkingData.filter(d => d.yearId !== id));
+      showToast('Year deleted');
+    } catch(e) { showToast('Delete failed'); }
   };
 
-  const handleAddKpiDef = (k) => {
-    setKpiDefinitions([...kpiDefinitions, { ...k, id: generateId(), active: true }]);
-    setAdminSubMode('list');
-    showToast('KPI definition added');
-  };
-  const handleUpdateKpiDef = (k) => {
-    setKpiDefinitions(kpiDefinitions.map(item => item.id === k.id ? k : item));
-    setAdminSubMode('list');
-    setEditingItem(null);
-    showToast('KPI updated');
-  };
-  const handleDeleteKpiDef = (id) => {
-    if (!window.confirm('Delete this KPI and all its values across all years?')) return;
-    setKpiDefinitions(kpiDefinitions.filter(k => k.id !== id));
-    setBenchmarkingData(benchmarkingData.filter(d => d.kpiId !== id));
-    showToast('KPI deleted');
+  const handleAddKpiDef = async (k) => {
+    try {
+      const { data, error } = await supabase.from('benchmarking_kpis').insert([{ category: k.category, name: k.name }]).select().single();
+      if (error) throw error;
+      setKpiDefinitions([...kpiDefinitions, data]);
+      setAdminSubMode('list');
+      showToast('Indicator added to Master List');
+    } catch(e) { showToast('Error adding indicator'); }
   };
 
-  const handleToggleMapping = (kpiId, yearId) => {
+  const handleUpdateKpiDef = async (k) => {
+    try {
+      const { error } = await supabase.from('benchmarking_kpis').update({ category: k.category, name: k.name, active: k.active }).eq('id', k.id);
+      if (error) throw error;
+      setKpiDefinitions(kpiDefinitions.map(item => item.id === k.id ? k : item));
+      setAdminSubMode('list');
+      setEditingItem(null);
+      showToast('Indicator updated');
+    } catch(e) { showToast('Update failed'); }
+  };
+
+  const handleDeleteKpiDef = async (id) => {
+    if (!window.confirm('Delete this indicator definition and all values?')) return;
+    try {
+      const { error } = await supabase.from('benchmarking_kpis').delete().eq('id', id);
+      if (error) throw error;
+      setKpiDefinitions(kpiDefinitions.filter(k => k.id !== id));
+      setBenchmarkingData(benchmarkingData.filter(d => d.kpiId !== id));
+      showToast('Indicator deleted');
+    } catch(e) { showToast('Delete failed'); }
+  };
+
+  const handleToggleMapping = async (kpiId, yearId) => {
     const exists = benchmarkingData.find(d => d.kpiId === kpiId && d.yearId === yearId);
     if (exists) {
-      if (window.confirm('Remove this KPI from this year? This will delete entered values.')) {
-        setBenchmarkingData(benchmarkingData.filter(d => !(d.kpiId === kpiId && d.yearId === yearId)));
+      if (window.confirm('Remove mapping? Data will be deleted.')) {
+        try {
+          const { error } = await supabase.from('benchmarking_values').delete().eq('kpi_id', kpiId).eq('year_id', yearId);
+          if (error) throw error;
+          setBenchmarkingData(benchmarkingData.filter(d => !(d.kpiId === kpiId && d.yearId === yearId)));
+        } catch(e) { showToast('Mapping removal failed'); }
       }
     } else {
-      setBenchmarkingData([...benchmarkingData, { id: generateId(), kpiId, yearId, actionPlan: '', values: {} }]);
+      try {
+        const { data, error } = await supabase.from('benchmarking_values').insert([{ kpi_id: kpiId, year_id: yearId, values: {} }]).select().single();
+        if (error) throw error;
+        setBenchmarkingData([...benchmarkingData, { id: data.id, kpiId: data.kpi_id, yearId: data.year_id, actionPlan: '', values: {} }]);
+      } catch(e) { showToast('Mapping failed'); }
     }
   };
 
-  const handleUpdateValue = (kpiId, yearId, uniId, value) => {
-    setBenchmarkingData(benchmarkingData.map(d => {
-      if (d.kpiId === kpiId && d.yearId === yearId) {
-        return { ...d, values: { ...d.values, [uniId]: value } };
-      }
+  const handleUpdateValue = async (kpiId, yearId, uniId, value) => {
+    // Optimistic Update
+    const prevData = [...benchmarkingData];
+    const newData = benchmarkingData.map(d => {
+      if (d.kpiId === kpiId && d.yearId === yearId) return { ...d, values: { ...d.values, [uniId]: value } };
       return d;
-    }));
+    });
+    setBenchmarkingData(newData);
+
+    try {
+      const record = newData.find(d => d.kpiId === kpiId && d.yearId === yearId);
+      const { error } = await supabase.from('benchmarking_values').update({ values: record.values }).eq('kpi_id', kpiId).eq('year_id', yearId);
+      if (error) throw error;
+    } catch(e) {
+       setBenchmarkingData(prevData);
+       showToast('Failed to save value');
+    }
   };
 
-  const handleUpdateActionPlan = (kpiId, yearId, plan) => {
-    setBenchmarkingData(benchmarkingData.map(d => {
+  const handleUpdateActionPlan = async (kpiId, yearId, plan) => {
+    // Optimistic Update
+    const prevData = [...benchmarkingData];
+    const newData = benchmarkingData.map(d => {
       if (d.kpiId === kpiId && d.yearId === yearId) return { ...d, actionPlan: plan };
       return d;
-    }));
+    });
+    setBenchmarkingData(newData);
+
+    try {
+      const { error } = await supabase.from('benchmarking_values').update({ action_plan: plan }).eq('kpi_id', kpiId).eq('year_id', yearId);
+      if (error) throw error;
+    } catch(e) {
+       setBenchmarkingData(prevData);
+       showToast('Failed to save action plan');
+    }
   };
 
   // --- DERIVED VIEW DATA ---
@@ -264,8 +327,17 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     return isNaN(num) ? null : num;
   };
 
-  // --- ADMIN SUB-PAGES ---
+  // --- SHARED UI COMPONENTS ---
   
+  if (loading) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-20 text-indigo-600">
+        <Loader2 size={48} className="animate-spin mb-4" />
+        <p className="font-black text-lg">Synchronizing Master List...</p>
+      </div>
+    );
+  }
+
   const ListView = ({ items, columns, onEdit, onDelete, onAdd }) => (
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
@@ -315,7 +387,6 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
       <div className="max-w-2xl mx-auto bg-white p-10 rounded-[40px] shadow-xl shadow-indigo-100/20 border border-indigo-50">
         <button onClick={() => setAdminSubMode('list')} className="flex items-center gap-2 text-indigo-600 font-bold mb-8 hover:underline"><ArrowLeft size={18}/> Back to List</button>
         <h2 className="text-3xl font-black text-gray-800 mb-2">{adminSubMode === 'add' ? 'Add University' : 'Edit University'}</h2>
-        <p className="text-gray-400 mb-10">Configure the institution details for benchmarking comparisons.</p>
         <div className="space-y-6">
           <div className="space-y-2">
             <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Full Name</label>
@@ -338,7 +409,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     if (adminSubMode === 'list') return (
       <ListView 
         items={years} 
-        columns={[{key:'name', label:'Academic Year'}]}
+        columns={[{key:'name', label:'Year'}]}
         onAdd={() => setAdminSubMode('add')}
         onEdit={(item) => { setEditingItem(item); setAdminSubMode('edit'); }}
         onDelete={handleDeleteYear}
@@ -347,7 +418,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     return (
       <div className="max-w-2xl mx-auto bg-white p-10 rounded-[40px] shadow-xl shadow-indigo-100/20 border border-indigo-50">
         <button onClick={() => setAdminSubMode('list')} className="flex items-center gap-2 text-indigo-600 font-bold mb-8 hover:underline"><ArrowLeft size={18}/> Back to List</button>
-        <h2 className="text-3xl font-black text-gray-800 mb-2">{adminSubMode === 'add' ? 'Add Academic Year' : 'Edit Year'}</h2>
+        <h2 className="text-3xl font-black text-gray-800 mb-2">{adminSubMode === 'add' ? 'Add Year' : 'Edit Year'}</h2>
         <div className="space-y-6">
           <div className="space-y-2">
             <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Year Name</label>
@@ -401,7 +472,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
         <div className="flex flex-col md:flex-row justify-between items-center bg-white p-8 rounded-3xl shadow-sm border border-indigo-50 gap-6">
            <div>
               <h3 className="text-2xl font-black text-gray-800">Indicator Mapping</h3>
-              <p className="text-gray-400 text-sm mt-1">Select which indicators are active for each academic year</p>
+              <p className="text-gray-400 text-sm mt-1">Select which indicators are active for each year</p>
            </div>
            <div className="w-full md:w-64">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block text-center md:text-left">Target Year</label>
@@ -483,7 +554,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                 <div className="flex justify-between items-start mb-12">
                    <div>
                       <h2 className="text-3xl font-black text-gray-800">{kpiDefinitions.find(k => k.id === activeDataKpiId)?.name}</h2>
-                      <p className="text-gray-400 font-bold mt-1">Data entry for Academic Year {currentYear?.name}</p>
+                      <p className="text-gray-400 font-bold mt-1">Data entry for Year {currentYear?.name}</p>
                    </div>
                    <div className="flex gap-2 items-center text-emerald-600 bg-emerald-50 px-4 py-2 rounded-2xl font-black text-xs uppercase tracking-widest">
                       <CheckCircle size={16}/> Auto-saved
@@ -519,7 +590,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
              <div className="h-full min-h-[500px] flex flex-col items-center justify-center text-center bg-white rounded-[40px] border-2 border-dashed border-gray-200 p-20">
                 <div className="bg-indigo-50 p-8 rounded-full text-indigo-400 mb-8"><ListTree size={64}/></div>
                 <h3 className="text-2xl font-black text-gray-800">Select an Indicator</h3>
-                <p className="text-gray-400 max-w-sm mx-auto mt-4 leading-relaxed font-medium">Choose an indicator from the sidebar to begin data entry for the academic year {currentYear?.name}.</p>
+                <p className="text-gray-400 max-w-sm mx-auto mt-4 leading-relaxed font-medium">Choose an indicator from the sidebar to begin data entry for the year {currentYear?.name}.</p>
              </div>
            )}
         </div>
@@ -559,7 +630,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                <button onClick={() => setCurrentPage('dashboard')} className="ml-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 flex items-center gap-2"><BarChart size={18} /> Dashboard</button>
             ) : (
                !new URLSearchParams(window.location.search).get('report') && (
-                 <button onClick={() => {setCurrentPage('admin'); setAdminTab('universities'); setAdminSubMode('list');}} className="ml-2 bg-white text-indigo-600 border border-indigo-100 px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2"><Settings size={18} /> Admin Studio</button>
+                 <button onClick={() => {setCurrentPage('admin'); setAdminTab('universities'); setAdminSubMode('list'); setEditingItem(null);}} className="ml-2 bg-white text-indigo-600 border border-indigo-100 px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2"><Settings size={18} /> Admin Studio</button>
                )
             )}
         </div>
@@ -575,7 +646,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
               </div>
               <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto print:hidden">
                 <div className="w-full sm:w-44">
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Academic Year</label>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Year</label>
                   <select className="w-full p-3.5 bg-gray-50 border-0 rounded-2xl text-sm font-bold" value={selectedYearId} onChange={e => setSelectedYearId(e.target.value)}>
                     {years.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
                   </select>
@@ -667,7 +738,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
             <aside className="lg:w-72 flex-shrink-0 space-y-3">
                <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Master Configuration</p>
                <AdminNavItem id="universities" icon={Building2} label="Universities" active={adminTab === 'universities'} onClick={() => {setAdminTab('universities'); setAdminSubMode('list'); setEditingItem(null);}} />
-               <AdminNavItem id="years" icon={Calendar} label="Academic Years" active={adminTab === 'years'} onClick={() => {setAdminTab('years'); setAdminSubMode('list'); setEditingItem(null);}} />
+               <AdminNavItem id="years" icon={Calendar} label="Years" active={adminTab === 'years'} onClick={() => {setAdminTab('years'); setAdminSubMode('list'); setEditingItem(null);}} />
                <AdminNavItem id="kpis" icon={ShieldCheck} label="Indicators List" active={adminTab === 'kpis'} onClick={() => {setAdminTab('kpis'); setAdminSubMode('list'); setEditingItem(null);}} />
                <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest my-6">Data & Mapping</p>
                <AdminNavItem id="mapping" icon={Activity} label="KPI-Year Mapping" active={adminTab === 'mapping'} onClick={() => setAdminTab('mapping')} />
