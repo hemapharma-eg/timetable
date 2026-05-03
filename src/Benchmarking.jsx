@@ -390,11 +390,11 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
         <div className="space-y-6">
           <div className="space-y-2">
             <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Full Name</label>
-            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. Gulf Medical University" />
+            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. Dubai Medical University" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Abbreviation</label>
-            <input value={form.abbr} onChange={e => setForm({...form, abbr: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. GMU" />
+            <input value={form.abbr} onChange={e => setForm({...form, abbr: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. DMU" />
           </div>
           <button onClick={() => adminSubMode === 'add' ? handleAddUniversity(form) : handleUpdateUniversity(form)} className="w-full bg-indigo-600 text-white py-5 rounded-3xl font-black text-lg shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
             <Save size={24} /> {adminSubMode === 'add' ? 'Create University' : 'Save Changes'}
