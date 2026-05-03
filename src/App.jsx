@@ -9,6 +9,8 @@ import { supabase } from './supabase';
 import { RiskManagement, PublicRiskReport } from './RiskManagement';
 import { CollegesManager, ProgramsManager, CommitteesManager } from './OrgManager';
 import { DatabaseBuilder } from './DatabaseBuilder';
+import { NavigationBuilder } from './NavigationBuilder';
+import { DynamicPage } from './DynamicPage';
 
 // Reusable Layout Components
 const SidebarItem = ({ icon: Icon, label, path, active, onClick }) => (
@@ -56,10 +58,17 @@ function AdminPortal({ session, userMeta, permissions }) {
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
 
+  // Dynamic Navigation
+  const [sections, setSections] = useState([]);
+  const [pages, setPages] = useState([]);
+
   useEffect(() => {
     supabase.from('faculty').select('*').then(({ data }) => setFaculty(data || []));
     supabase.from('courses').select('*').then(({ data }) => setCourses(data || []));
     supabase.from('students').select('*').then(({ data }) => setStudents(data || []));
+    
+    supabase.from('app_sections').select('*').order('order_index').then(({ data }) => setSections(data || []));
+    supabase.from('app_pages').select('*').order('order_index').then(({ data }) => setPages(data || []));
   }, []);
 
   return (
@@ -74,7 +83,28 @@ function AdminPortal({ session, userMeta, permissions }) {
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/admin/risk')} />
           <SidebarItem id="db_builder" icon={Settings} label="Database Builder" active={currentTab === 'db_builder'} onClick={() => navigate('/admin/db_builder')} />
+          <SidebarItem id="navigation" icon={LayoutGrid} label="App Structure" active={currentTab === 'navigation'} onClick={() => navigate('/admin/navigation')} />
           <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/admin/roles')} />
+
+          {sections.map(section => {
+            const sectionPages = pages.filter(p => p.section_id === section.id);
+            if (sectionPages.length === 0) return null;
+            return (
+              <div key={section.id} className="pt-4">
+                <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">{section.name}</p>
+                {sectionPages.map(page => (
+                  <SidebarItem 
+                    key={page.id} 
+                    id={`page_${page.id}`} 
+                    icon={page.type === 'app' ? BookOpen : LayoutGrid} 
+                    label={page.name} 
+                    active={currentTab === `page_${page.id}`} 
+                    onClick={() => navigate(`/admin/page/${page.id}`)} 
+                  />
+                ))}
+              </div>
+            );
+          })}
           
           <div className="pt-4 mt-auto pb-4">
             <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors">
@@ -96,7 +126,13 @@ function AdminPortal({ session, userMeta, permissions }) {
                 <DatabaseBuilder />
               </PageContainer>
             } />
+            <Route path="navigation" element={
+              <PageContainer title="App Structure" description="Build sections and pages for the sidebar">
+                <NavigationBuilder />
+              </PageContainer>
+            } />
             <Route path="roles" element={<RolesManager />} />
+            <Route path="page/:pageId" element={<DynamicPage session={session} userMeta={userMeta} permissions={permissions} />} />
           </Routes>
         </div>
       </main>
@@ -125,12 +161,19 @@ function FacultyPortal({ session, userMeta, permissions }) {
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
 
+  // Dynamic Navigation
+  const [sections, setSections] = useState([]);
+  const [pages, setPages] = useState([]);
+
   useEffect(() => {
     if (hasDb) {
       supabase.from('faculty').select('*').then(({ data }) => setFaculty(data || []));
       supabase.from('courses').select('*').then(({ data }) => setCourses(data || []));
       supabase.from('students').select('*').then(({ data }) => setStudents(data || []));
     }
+    
+    supabase.from('app_sections').select('*').order('order_index').then(({ data }) => setSections(data || []));
+    supabase.from('app_pages').select('*').order('order_index').then(({ data }) => setPages(data || []));
   }, [hasDb]);
 
   return (
@@ -149,6 +192,26 @@ function FacultyPortal({ session, userMeta, permissions }) {
           {hasDb && (
             <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/faculty/databases')} />
           )}
+
+          {sections.map(section => {
+            const sectionPages = pages.filter(p => p.section_id === section.id && permissions.some(perm => perm.module_name === `page_${p.id}` && perm.can_view));
+            if (sectionPages.length === 0) return null;
+            return (
+              <div key={section.id} className="pt-4">
+                <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">{section.name}</p>
+                {sectionPages.map(page => (
+                  <SidebarItem 
+                    key={page.id} 
+                    id={`page_${page.id}`} 
+                    icon={page.type === 'app' ? BookOpen : LayoutGrid} 
+                    label={page.name} 
+                    active={currentTab === `page_${page.id}`} 
+                    onClick={() => navigate(`/faculty/page/${page.id}`)} 
+                  />
+                ))}
+              </div>
+            );
+          })}
           
           <div className="pt-4 mt-auto pb-4">
             <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors">
@@ -187,6 +250,8 @@ function FacultyPortal({ session, userMeta, permissions }) {
                 </PageContainer>
               } />
             )}
+
+            <Route path="page/:pageId" element={<DynamicPage session={session} userMeta={userMeta} permissions={permissions} />} />
 
             <Route path="welcome" element={
               <div className="flex h-full items-center justify-center">
