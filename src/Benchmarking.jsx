@@ -42,6 +42,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   const [universities, setUniversities] = useState([]);
   const [years, setYears] = useState([]);
   const [kpiDefinitions, setKpiDefinitions] = useState([]);
+  const [benchmarkingCategories, setBenchmarkingCategories] = useState([]);
   const [benchmarkingData, setBenchmarkingData] = useState([]);
 
   // Filters
@@ -98,6 +99,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
           const [resUni, resYears, resKpis, resData] = await Promise.all([
             supabase.from('benchmarking_universities').select('*').order('name'),
             supabase.from('benchmarking_years').select('*').order('name', { ascending: false }),
+            supabase.from('benchmarking_categories').select('*').order('name'),
             supabase.from('benchmarking_kpis').select('*').order('category'),
             supabase.from('benchmarking_values').select('*')
           ]);
@@ -107,6 +109,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
             setYears(resYears.data);
             if (resYears.data.length > 0) setSelectedYearId(resYears.data[0].id);
           }
+          if (resCategories?.data) setBenchmarkingCategories(resCategories.data);
           if (resKpis.data) setKpiDefinitions(resKpis.data);
           if (resData.data) {
             // Transform Supabase structure to our local structure if needed
@@ -243,6 +246,37 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
     } catch(e) { showToast('Delete failed'); }
   };
 
+  const handleAddCategory = async (c) => {
+    try {
+      const { data, error } = await supabase.from('benchmarking_categories').insert([{ name: c.name }]).select().single();
+      if (error) throw error;
+      setBenchmarkingCategories([...benchmarkingCategories, data]);
+      setAdminSubMode('list');
+      showToast('Category added');
+    } catch(e) { showToast('Error adding category'); }
+  };
+
+  const handleUpdateCategory = async (c) => {
+    try {
+      const { error } = await supabase.from('benchmarking_categories').update({ name: c.name, active: c.active }).eq('id', c.id);
+      if (error) throw error;
+      setBenchmarkingCategories(benchmarkingCategories.map(item => item.id === c.id ? c : item));
+      setAdminSubMode('list');
+      setEditingItem(null);
+      showToast('Category updated');
+    } catch(e) { showToast('Update failed'); }
+  };
+
+  const handleDeleteCategory = async (id) => {
+    if (!window.confirm('Delete this category? Indicators with this category will remain but the category itself will be removed from the master list.')) return;
+    try {
+      const { error } = await supabase.from('benchmarking_categories').delete().eq('id', id);
+      if (error) throw error;
+      setBenchmarkingCategories(benchmarkingCategories.filter(c => c.id !== id));
+      showToast('Category deleted');
+    } catch(e) { showToast('Delete failed'); }
+  };
+
   const handleToggleMapping = async (kpiId, yearId) => {
     const exists = benchmarkingData.find(d => d.kpiId === kpiId && d.yearId === yearId);
     if (exists) {
@@ -302,7 +336,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   // --- DERIVED VIEW DATA ---
   const activeUniversities = useMemo(() => universities.filter(u => u.active), [universities]);
   const activeYears = useMemo(() => years.filter(y => y.active), [years]);
-  const categories = useMemo(() => Array.from(new Set(kpiDefinitions.map(k => k.category))), [kpiDefinitions]);
+  const categories = useMemo(() => benchmarkingCategories.length > 0 ? benchmarkingCategories.map(c => c.name) : Array.from(new Set(kpiDefinitions.map(k => k.category))), [benchmarkingCategories, kpiDefinitions]);
   
   const currentYear = useMemo(() => years.find(y => y.id === selectedYearId), [years, selectedYearId]);
   
@@ -480,6 +514,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Master Configuration</p>
                <AdminNavItem id="universities" icon={Building2} label="Universities" active={adminTab === 'universities'} onClick={() => {setAdminTab('universities'); setAdminSubMode('list'); setEditingItem(null);}} />
                <AdminNavItem id="years" icon={Calendar} label="Years" active={adminTab === 'years'} onClick={() => {setAdminTab('years'); setAdminSubMode('list'); setEditingItem(null);}} />
+               <AdminNavItem id="categories" icon={ListTree} label="Categories" active={adminTab === 'categories'} onClick={() => {setAdminTab('categories'); setAdminSubMode('list'); setEditingItem(null);}} />
                <AdminNavItem id="kpis" icon={ShieldCheck} label="Indicators List" active={adminTab === 'kpis'} onClick={() => {setAdminTab('kpis'); setAdminSubMode('list'); setEditingItem(null);}} />
                <p className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest my-6">Data & Mapping</p>
                <AdminNavItem id="mapping" icon={Activity} label="KPI-Year Mapping" active={adminTab === 'mapping'} onClick={() => setAdminTab('mapping')} />
@@ -511,17 +546,30 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                  />
                )}
                {adminTab === 'kpis' && (
-                 <KpiDefPage 
-                   adminSubMode={adminSubMode} 
-                   setAdminSubMode={setAdminSubMode} 
-                   kpiDefinitions={kpiDefinitions} 
-                   editingItem={editingItem} 
-                   setEditingItem={setEditingItem} 
-                   handleAddKpiDef={handleAddKpiDef} 
-                   handleUpdateKpiDef={handleUpdateKpiDef} 
-                   handleDeleteKpiDef={handleDeleteKpiDef} 
-                 />
-               )}
+                  <KpiDefPage 
+                    adminSubMode={adminSubMode} 
+                    setAdminSubMode={setAdminSubMode} 
+                    kpiDefinitions={kpiDefinitions} 
+                    editingItem={editingItem} 
+                    setEditingItem={setEditingItem} 
+                    handleAddKpiDef={handleAddKpiDef} 
+                    handleUpdateKpiDef={handleUpdateKpiDef} 
+                    handleDeleteKpiDef={handleDeleteKpiDef} 
+                    categories={benchmarkingCategories}
+                  />
+                )}
+                {adminTab === 'categories' && (
+                  <CategoryPage 
+                    adminSubMode={adminSubMode} 
+                    setAdminSubMode={setAdminSubMode} 
+                    categories={benchmarkingCategories} 
+                    editingItem={editingItem} 
+                    setEditingItem={setEditingItem} 
+                    handleAddCategory={handleAddCategory} 
+                    handleUpdateCategory={handleUpdateCategory} 
+                    handleDeleteCategory={handleDeleteCategory} 
+                  />
+                )}
                {adminTab === 'mapping' && (
                  <MappingPage 
                    years={years} 
@@ -686,12 +734,12 @@ const YearPage = ({ adminSubMode, setAdminSubMode, years, editingItem, setEditin
   );
 };
 
-const KpiDefPage = ({ adminSubMode, setAdminSubMode, kpiDefinitions, editingItem, setEditingItem, handleAddKpiDef, handleUpdateKpiDef, handleDeleteKpiDef }) => {
-  const [form, setForm] = useState(editingItem || { name: '', category: 'Students' });
+const KpiDefPage = ({ adminSubMode, setAdminSubMode, kpiDefinitions, editingItem, setEditingItem, handleAddKpiDef, handleUpdateKpiDef, handleDeleteKpiDef, categories }) => {
+  const [form, setForm] = useState(editingItem || { name: '', category: categories[0]?.name || 'Students' });
   
   useEffect(() => {
-    setForm(editingItem || { name: '', category: 'Students' });
-  }, [editingItem]);
+    setForm(editingItem || { name: '', category: categories[0]?.name || 'Students' });
+  }, [editingItem, categories]);
 
   if (adminSubMode === 'list') return (
     <ListView 
@@ -714,15 +762,44 @@ const KpiDefPage = ({ adminSubMode, setAdminSubMode, kpiDefinitions, editingItem
         <div className="space-y-2">
           <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Category</label>
           <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl outline-none font-bold">
-            <option>Students</option>
-            <option>Faculty</option>
-            <option>Research</option>
-            <option>Facilities</option>
-            <option>Financial</option>
+            {categories.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
           </select>
         </div>
         <button onClick={() => adminSubMode === 'add' ? handleAddKpiDef(form) : handleUpdateKpiDef(form)} className="w-full bg-indigo-600 text-white py-5 rounded-3xl font-black text-lg shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
           <Save size={24} /> {adminSubMode === 'add' ? 'Create Indicator' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const CategoryPage = ({ adminSubMode, setAdminSubMode, categories, editingItem, setEditingItem, handleAddCategory, handleUpdateCategory, handleDeleteCategory }) => {
+  const [form, setForm] = useState(editingItem || { name: '' });
+  
+  useEffect(() => {
+    setForm(editingItem || { name: '' });
+  }, [editingItem]);
+
+  if (adminSubMode === 'list') return (
+    <ListView 
+      items={categories} 
+      columns={[{key:'name', label:'Category Name'}]}
+      onAdd={() => setAdminSubMode('add')}
+      onEdit={(item) => { setEditingItem(item); setAdminSubMode('edit'); }}
+      onDelete={handleDeleteCategory}
+    />
+  );
+  return (
+    <div className="max-w-2xl mx-auto bg-white p-10 rounded-[40px] shadow-xl shadow-indigo-100/20 border border-indigo-50">
+      <button onClick={() => setAdminSubMode('list')} className="flex items-center gap-2 text-indigo-600 font-bold mb-8 hover:underline"><ArrowLeft size={18}/> Back to List</button>
+      <h2 className="text-3xl font-black text-gray-800 mb-2">{adminSubMode === 'add' ? 'Add Category' : 'Edit Category'}</h2>
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Category Name</label>
+          <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-6 py-4 bg-gray-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. Students" />
+        </div>
+        <button onClick={() => adminSubMode === 'add' ? handleAddCategory(form) : handleUpdateCategory(form)} className="w-full bg-indigo-600 text-white py-5 rounded-3xl font-black text-lg shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
+          <Save size={24} /> {adminSubMode === 'add' ? 'Create Category' : 'Save Changes'}
         </button>
       </div>
     </div>
