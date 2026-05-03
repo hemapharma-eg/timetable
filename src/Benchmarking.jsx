@@ -901,25 +901,24 @@ const DataEntryPage = ({ benchmarkingData, selectedYearId, setSelectedYearId, ac
                <p className="text-slate-400 font-medium mt-1">Data collection for {currentYear?.name}</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 gap-4">
               {universities.map(uni => (
-                <div key={uni.id} className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all duration-300 group">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-xs">
-                      {uni.abbr}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1 truncate" title={uni.name}>
-                        {uni.name}
-                      </p>
-                      <p className="text-[10px] font-black text-indigo-600/50 uppercase tracking-tighter">Institutional Data</p>
-                    </div>
+                <div key={uni.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-6">
+                  <div className="w-16 h-16 bg-slate-50 text-indigo-600 rounded-2xl flex-shrink-0 flex items-center justify-center font-black text-sm border border-slate-100">
+                    {uni.abbr}
                   </div>
                   
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Value Entry</label>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate" title={uni.name}>
+                      {uni.name}
+                    </p>
+                    <h4 className="text-sm font-bold text-slate-700">Institutional Record</h4>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Value Entry</span>
                     <input 
-                      className="w-full bg-slate-50 border-0 px-5 py-4 rounded-2xl text-xl font-black text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-100 outline-none transition-all" 
+                      className="w-28 bg-white border border-slate-200 px-4 py-2 rounded-xl text-lg font-black text-indigo-600 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-right" 
                       value={activeDataEntry.values[uni.id] || ''} 
                       onChange={e => handleUpdateValue(activeDataEntry.kpiId, activeDataEntry.yearId, uni.id, e.target.value)}
                       placeholder="0.00"
