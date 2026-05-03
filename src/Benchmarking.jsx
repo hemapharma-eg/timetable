@@ -806,10 +806,10 @@ const DataEntryPage = ({ benchmarkingData, selectedYearId, setSelectedYearId, ac
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {universities.map(uni => (
                 <div key={uni.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all">
-                  <div className="flex items-center gap-4">
-                     <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-indigo-600 font-black group-hover:bg-indigo-600 group-hover:text-white transition-all">{uni.abbr}</div>
-                     <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{uni.name}</p>
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                     <div className="w-12 h-12 bg-slate-50 rounded-2xl flex-shrink-0 flex items-center justify-center text-indigo-600 font-black group-hover:bg-indigo-600 group-hover:text-white transition-all">{uni.abbr}</div>
+                     <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest break-words">{uni.name}</p>
                         <p className="font-bold text-slate-700">Value Entry</p>
                      </div>
                   </div>
