@@ -11,7 +11,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
-import { supabase } from './supabaseClient';
+import { supabase } from './supabase';
 
 // --- FIREBASE INIT ---
 let app, auth, db, appId;
