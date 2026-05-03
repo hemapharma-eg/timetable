@@ -804,7 +804,8 @@ const DataEntryPage = ({ benchmarkingData, selectedYearId, setSelectedYearId, ac
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {universities.map(uni =>                 <div key={uni.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm group hover:border-indigo-200 transition-all flex flex-col gap-5">
+              {universities.map(uni => (
+                <div key={uni.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm group hover:border-indigo-200 transition-all flex flex-col gap-5">
                   <div className="flex items-center gap-4">
                      <div className="w-12 h-12 bg-slate-50 rounded-2xl flex-shrink-0 flex items-center justify-center text-indigo-600 font-black group-hover:bg-indigo-600 group-hover:text-white transition-all text-sm">{uni.abbr}</div>
                      <div className="flex-1 min-w-0">
