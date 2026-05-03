@@ -81,49 +81,38 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
       const reportId = urlParams.get('report');
 
       if (reportId) {
-        // Snapshot Mode (Public Shared Report)
-        try {
-          const { data: report, error } = await supabase.from('benchmarking_reports').select('data').eq('id', reportId).maybeSingle();
-          if (!error && report) {
-            const d = report.data;
-            if (d.universities) setUniversities(d.universities);
-            if (d.years) setYears(d.years);
-            if (d.kpiDefinitions) setKpiDefinitions(d.kpiDefinitions);
-            if (d.benchmarkingData) setBenchmarkingData(d.benchmarkingData);
-            if (d.years?.length > 0) setSelectedYearId(d.years[0].id);
-          }
-        } catch(e) { console.error(e); }
-      } else {
-        // Master List Mode (Live Data)
-        try {
-          const [resUni, resYears, resCats, resKpis, resData] = await Promise.all([
-            supabase.from('benchmarking_universities').select('*').order('name'),
-            supabase.from('benchmarking_years').select('*').order('name', { ascending: false }),
-            supabase.from('benchmarking_categories').select('*').order('name'),
-            supabase.from('benchmarking_kpis').select('*').order('category'),
-            supabase.from('benchmarking_values').select('*')
-          ]);
-
-          if (resUni.data) setUniversities(resUni.data);
-          if (resYears.data) {
-            setYears(resYears.data);
-            if (resYears.data.length > 0) setSelectedYearId(resYears.data[0].id);
-          }
-          if (resCats?.data) setBenchmarkingCategories(resCats.data);
-          if (resKpis.data) setKpiDefinitions(resKpis.data);
-          if (resData.data) {
-            // Transform Supabase structure to our local structure if needed
-            // Currently they match: { kpi_id, year_id, values, action_plan }
-            setBenchmarkingData(resData.data.map(d => ({
-               id: d.id,
-               kpiId: d.kpi_id,
-               yearId: d.year_id,
-               values: d.values || {},
-               actionPlan: d.action_plan || ''
-            })));
-          }
-        } catch(e) { console.error(e); }
+        // Shared Live Mode
+        // We still fetch live data in the 'else' block, but we could use this flag
+        // to customize the UI for viewers if needed.
       }
+      
+      // Always fetch Live Data to ensure link is 'Live'
+      try {
+        const [resUni, resYears, resCats, resKpis, resData] = await Promise.all([
+          supabase.from('benchmarking_universities').select('*').order('name'),
+          supabase.from('benchmarking_years').select('*').order('name', { ascending: false }),
+          supabase.from('benchmarking_categories').select('*').order('name'),
+          supabase.from('benchmarking_kpis').select('*').order('category'),
+          supabase.from('benchmarking_values').select('*')
+        ]);
+
+        if (resUni.data) setUniversities(resUni.data);
+        if (resYears.data) {
+          setYears(resYears.data);
+          if (resYears.data.length > 0) setSelectedYearId(resYears.data[0].id);
+        }
+        if (resCats?.data) setBenchmarkingCategories(resCats.data);
+        if (resKpis.data) setKpiDefinitions(resKpis.data);
+        if (resData.data) {
+          setBenchmarkingData(resData.data.map(d => ({
+             id: d.id,
+             kpiId: d.kpi_id,
+             yearId: d.year_id,
+             values: d.values || {},
+             actionPlan: d.action_plan || ''
+          })));
+        }
+      } catch(e) { console.error(e); }
       setLoading(false);
     };
     fetchData();
@@ -135,17 +124,12 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   };
 
   const handleShare = async () => {
-    showToast('Generating snapshot link...');
     try {
-       const payload = { universities, years, kpiDefinitions, benchmarkingData };
-       const { data, error } = await supabase.from('benchmarking_reports').insert([{ data: payload }]).select().single();
-       if (error) throw error;
-       const shareUrl = `${window.location.origin}${window.location.pathname}?view=benchmarking&report=${data.id}`;
+       const shareUrl = `${window.location.origin}${window.location.pathname}?view=benchmarking&report=live`;
        navigator.clipboard.writeText(shareUrl);
-       showToast('Share link copied!');
+       showToast('Live Share link copied!');
     } catch (e) {
-       console.error(e);
-       showToast('Share failed. Run the SQL scripts!');
+       showToast('Share failed.');
     }
   };
 
