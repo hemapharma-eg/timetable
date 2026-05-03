@@ -490,10 +490,6 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                               <div key={plan.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
                                 <div className="flex-1">
                                   <p className="text-sm font-bold text-slate-700 mb-1">{plan.action_text}</p>
-                                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resp: <span className="text-indigo-600">{plan.responsibility || 'TBD'}</span></span>
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Deadline: <span className="text-indigo-600">{plan.deadline_month} {plan.deadline_year}</span></span>
-                                  </div>
                                 </div>
                                 <div className="flex-shrink-0">
                                   <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
@@ -979,9 +975,6 @@ const ActionPlanManager = ({ years, selectedYearId, setSelectedYearId, kpiDefini
   
   const initialForm = {
     action_text: '',
-    responsibility: '',
-    deadline_month: 'September',
-    deadline_year: new Date().getFullYear().toString(),
     status: 'pending',
     kpi_id: activeKpiId,
     year_id: selectedYearId
@@ -994,7 +987,6 @@ const ActionPlanManager = ({ years, selectedYearId, setSelectedYearId, kpiDefini
     else setForm({ ...initialForm, kpi_id: activeKpiId, year_id: selectedYearId });
   }, [editingItem, activeKpiId, selectedYearId]);
 
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const statusOptions = ['pending', 'in process', 'achieved'];
 
   const filteredPlans = actionPlans.filter(p => p.kpi_id === activeKpiId && p.year_id === selectedYearId);
@@ -1046,30 +1038,16 @@ const ActionPlanManager = ({ years, selectedYearId, setSelectedYearId, kpiDefini
                   <h3 className="text-xl font-black text-slate-800">{editingItem ? 'Edit Action Item' : 'New Action Item'}</h3>
                   <button onClick={() => setShowForm(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl"><X size={20}/></button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="md:col-span-2 space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Action Description</label>
-                    <textarea value={form.action_text} onChange={e => setForm({...form, action_text: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold min-h-[100px]" placeholder="What needs to be done?" />
-                  </div>
+                <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsibility</label>
-                    <input value={form.responsibility} onChange={e => setForm({...form, responsibility: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="Department / Individual" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Action Description</label>
+                    <textarea value={form.action_text} onChange={e => setForm({...form, action_text: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold min-h-[120px]" placeholder="What needs to be done?" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Status</label>
                     <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl outline-none font-bold">
                       {statusOptions.map(opt => <option key={opt} value={opt}>{opt.toUpperCase()}</option>)}
                     </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Deadline Month</label>
-                    <select value={form.deadline_month} onChange={e => setForm({...form, deadline_month: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl outline-none font-bold">
-                      {months.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Deadline Year</label>
-                    <input value={form.deadline_year} onChange={e => setForm({...form, deadline_year: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border-0 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold" placeholder="e.g. 2025" />
                   </div>
                 </div>
                 <button onClick={() => { editingItem ? handleUpdateActionItem(form) : handleAddActionItem(form); setShowForm(false); }} className="w-full mt-8 bg-indigo-600 text-white py-5 rounded-3xl font-black text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
@@ -1096,12 +1074,8 @@ const ActionPlanManager = ({ years, selectedYearId, setSelectedYearId, kpiDefini
                           }`}>
                             {item.status}
                           </span>
-                          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                            Target: {item.deadline_month} {item.deadline_year}
-                          </span>
                         </div>
-                        <p className="text-base font-bold text-slate-800 leading-relaxed mb-1">{item.action_text}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsibility: <span className="text-indigo-600">{item.responsibility || 'Not Assigned'}</span></p>
+                        <p className="text-base font-bold text-slate-800 leading-relaxed">{item.action_text}</p>
                       </div>
                       <div className="flex gap-2 self-end md:self-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => { setEditingItem(item); setShowForm(true); }} className="p-3 text-indigo-400 hover:bg-indigo-50 rounded-2xl"><Edit2 size={18} /></button>
