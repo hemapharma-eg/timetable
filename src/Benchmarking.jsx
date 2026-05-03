@@ -11,6 +11,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+import { supabase } from './supabaseClient';
 
 // --- FIREBASE INIT ---
 let app, auth, db, appId;
@@ -124,17 +125,34 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
          if (parsed.universities) setUniversities(parsed.universities);
          if (parsed.kpis) setKpis(parsed.kpis);
       } catch(e) { console.error("Failed to parse URL data"); }
-    } else if (reportId && db) {
+    } else if (reportId) {
        const fetchReport = async () => {
           try {
-             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', reportId);
-             const docSnap = await getDoc(docRef);
-             if (docSnap.exists()) {
-                const data = docSnap.data();
+             // Try Supabase first
+             const { data: report, error } = await supabase
+               .from('benchmarking_reports')
+               .select('data')
+               .eq('id', reportId)
+               .maybeSingle();
+
+             if (!error && report) {
+                const data = report.data;
                 if (data.universities) setUniversities(data.universities);
                 if (data.kpis) setKpis(data.kpis);
+                return;
              }
-          } catch(e) { console.error(e); }
+
+             // Fallback to Firebase for legacy reports
+             if (db) {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', reportId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                   const data = docSnap.data();
+                   if (data.universities) setUniversities(data.universities);
+                   if (data.kpis) setKpis(data.kpis);
+                }
+             }
+          } catch(e) { console.error("Failed to fetch report:", e); }
        };
        fetchReport();
     }
@@ -148,27 +166,43 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
 
   const handleShare = async () => {
     let shareUrl = window.location.href;
-    
-    // We try to use Firebase even if 'user' isn't fully synced yet, 
-    // but we need the db and appId.
-    if (db && appId) {
-      try {
-         showToast('Generating short link...');
-         const reportId = new URLSearchParams(window.location.search).get('report') || generateId();
-         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', reportId);
-         await setDoc(docRef, { universities, kpis });
-         
-         const newUrl = new URL(window.location.origin + window.location.pathname);
-         newUrl.searchParams.set('view', 'benchmarking');
-         newUrl.searchParams.set('report', reportId);
-         shareUrl = newUrl.toString();
-         window.history.pushState({}, '', shareUrl);
-      } catch (e) {
-         console.error("Firebase share failed, falling back to URL encode", e);
-         shareUrl = createBase64Url();
-      }
-    } else {
-      shareUrl = createBase64Url();
+    showToast('Generating short link...');
+
+    try {
+       // Always prefer Supabase for sharing now
+       const { data, error } = await supabase
+         .from('benchmarking_reports')
+         .insert([{ data: { universities, kpis } }])
+         .select()
+         .single();
+
+       if (error) throw error;
+
+       const reportId = data.id;
+       const newUrl = new URL(window.location.origin + window.location.pathname);
+       newUrl.searchParams.set('view', 'benchmarking');
+       newUrl.searchParams.set('report', reportId);
+       shareUrl = newUrl.toString();
+       window.history.pushState({}, '', shareUrl);
+    } catch (e) {
+       console.error("Supabase share failed, falling back to Firebase or URL", e);
+       if (db && appId) {
+          try {
+             const reportId = new URLSearchParams(window.location.search).get('report') || generateId();
+             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', reportId);
+             await setDoc(docRef, { universities, kpis });
+             
+             const newUrl = new URL(window.location.origin + window.location.pathname);
+             newUrl.searchParams.set('view', 'benchmarking');
+             newUrl.searchParams.set('report', reportId);
+             shareUrl = newUrl.toString();
+             window.history.pushState({}, '', shareUrl);
+          } catch (fireErr) {
+             shareUrl = createBase64Url();
+          }
+       } else {
+          shareUrl = createBase64Url();
+       }
     }
 
     const textArea = document.createElement("textarea");

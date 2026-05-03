@@ -432,7 +432,7 @@ export default function App() {
     return <PublicRiskReport year={params.get('year')} />;
   }
 
-  if (viewParam === 'benchmarking' && (params.get('report') || params.get('data'))) {
+  if (!session && viewParam === 'benchmarking' && (params.get('report') || params.get('data'))) {
     return <Benchmarking initialPage="dashboard" />;
   }
 
