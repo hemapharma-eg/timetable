@@ -901,26 +901,35 @@ const DataEntryPage = ({ benchmarkingData, selectedYearId, setSelectedYearId, ac
                <p className="text-slate-400 font-medium mt-1">Data collection for {currentYear?.name}</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {universities.map(uni => (
-                <div key={uni.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm group hover:border-indigo-200 transition-all flex flex-col gap-5">
-                  <div className="flex items-center gap-4">
-                     <div className="w-12 h-12 bg-slate-50 rounded-2xl flex-shrink-0 flex items-center justify-center text-indigo-600 font-black group-hover:bg-indigo-600 group-hover:text-white transition-all text-sm">{uni.abbr}</div>
-                     <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate" title={uni.name}>{uni.name}</p>
-                        <p className="font-bold text-slate-700">Institutional Record</p>
-                     </div>
+                <div key={uni.id} className="bg-white border border-slate-200 rounded-[28px] overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 group">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-xs group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
+                          {uni.abbr}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1 truncate" title={uni.name}>{uni.name}</p>
+                          <p className="text-xs font-bold text-slate-600 leading-none">Institutional Data</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="relative">
+                      <input 
+                        className="w-full bg-slate-50 border border-slate-100 px-5 py-4 rounded-2xl text-lg font-black text-slate-800 placeholder:text-slate-300 focus:bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-200 outline-none transition-all" 
+                        value={activeDataEntry.values[uni.id] || ''} 
+                        onChange={e => handleUpdateValue(activeDataEntry.kpiId, activeDataEntry.yearId, uni.id, e.target.value)}
+                        placeholder="0.00"
+                      />
+                      <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Entry</span>
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div className="flex items-center justify-between bg-slate-50/50 p-4 rounded-2xl border border-slate-50">
-                     <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Entry Value</span>
-                     <input 
-                       className="w-32 bg-white border border-slate-100 p-3 rounded-xl text-right font-black text-indigo-600 focus:ring-4 focus:ring-indigo-100 outline-none shadow-sm" 
-                       value={activeDataEntry.values[uni.id] || ''} 
-                       onChange={e => handleUpdateValue(activeDataEntry.kpiId, activeDataEntry.yearId, uni.id, e.target.value)}
-                       placeholder="0.00"
-                     />
-                  </div>
+                  <div className="h-1 w-full bg-slate-50 group-hover:bg-indigo-500 transition-colors duration-300" />
                 </div>
               ))}
             </div>
