@@ -96,7 +96,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
       } else {
         // Master List Mode (Live Data)
         try {
-          const [resUni, resYears, resKpis, resData] = await Promise.all([
+          const [resUni, resYears, resCats, resKpis, resData] = await Promise.all([
             supabase.from('benchmarking_universities').select('*').order('name'),
             supabase.from('benchmarking_years').select('*').order('name', { ascending: false }),
             supabase.from('benchmarking_categories').select('*').order('name'),
@@ -109,7 +109,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
             setYears(resYears.data);
             if (resYears.data.length > 0) setSelectedYearId(resYears.data[0].id);
           }
-          if (resCategories?.data) setBenchmarkingCategories(resCategories.data);
+          if (resCats?.data) setBenchmarkingCategories(resCats.data);
           if (resKpis.data) setKpiDefinitions(resKpis.data);
           if (resData.data) {
             // Transform Supabase structure to our local structure if needed
