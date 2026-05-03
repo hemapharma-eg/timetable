@@ -903,26 +903,23 @@ const DataEntryPage = ({ benchmarkingData, selectedYearId, setSelectedYearId, ac
 
             <div className="grid grid-cols-1 gap-4">
               {universities.map(uni => (
-                <div key={uni.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-6">
-                  <div className="w-16 h-16 bg-slate-50 text-indigo-600 rounded-2xl flex-shrink-0 flex items-center justify-center font-black text-sm border border-slate-100">
-                    {uni.abbr}
+                <div key={uni.id} className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between gap-8">
+                  <div className="flex items-center gap-6">
+                    <div className="w-16 h-16 bg-slate-50 text-indigo-600 rounded-2xl flex-shrink-0 flex items-center justify-center font-black text-sm border border-slate-100 shadow-inner">
+                      {uni.abbr}
+                    </div>
                   </div>
                   
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate" title={uni.name}>
-                      {uni.name}
-                    </p>
-                    <h4 className="text-sm font-bold text-slate-700">Institutional Record</h4>
-                  </div>
-                  
-                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Value Entry</span>
-                    <input 
-                      className="w-28 bg-white border border-slate-200 px-4 py-2 rounded-xl text-lg font-black text-indigo-600 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-right" 
-                      value={activeDataEntry.values[uni.id] || ''} 
-                      onChange={e => handleUpdateValue(activeDataEntry.kpiId, activeDataEntry.yearId, uni.id, e.target.value)}
-                      placeholder="0.00"
-                    />
+                  <div className="flex-1 flex items-center justify-end">
+                    <div className="flex items-center gap-6 bg-slate-50/50 px-8 py-4 rounded-[28px] border border-slate-50 shadow-sm">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] whitespace-nowrap">Value Entry</span>
+                      <input 
+                        className="w-32 bg-white border border-slate-200 px-6 py-3 rounded-2xl text-xl font-black text-indigo-600 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-right shadow-sm" 
+                        value={activeDataEntry.values[uni.id] || ''} 
+                        onChange={e => handleUpdateValue(activeDataEntry.kpiId, activeDataEntry.yearId, uni.id, e.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
