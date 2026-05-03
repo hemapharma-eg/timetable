@@ -607,17 +607,32 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                     handleDeleteCategory={handleDeleteCategory} 
                   />
                 )}
-               {adminTab === 'mapping' && (
-                 <MappingPage 
-                   years={years} 
-                   selectedYearId={selectedYearId} 
-                 setSelectedYearId={setSelectedYearId} 
-                   kpiDefinitions={kpiDefinitions} 
-                   benchmarkingData={benchmarkingData} 
-                   handleToggleMapping={handleToggleMapping} 
-                 />
-               )}
-               {adminTab === 'actions' && (
+                {adminTab === 'mapping' && (
+                  <MappingPage 
+                    years={years} 
+                    selectedYearId={selectedYearId} 
+                    setSelectedYearId={setSelectedYearId} 
+                    kpiDefinitions={kpiDefinitions} 
+                    benchmarkingData={benchmarkingData} 
+                    handleToggleMapping={handleToggleMapping} 
+                  />
+                )}
+                {adminTab === 'data' && (
+                  <DataEntryPage 
+                    benchmarkingData={benchmarkingData} 
+                    selectedYearId={selectedYearId} 
+                    setSelectedYearId={setSelectedYearId} 
+                    activeDataKpiId={activeDataKpiId} 
+                    setActiveDataKpiId={setActiveDataKpiId} 
+                    kpiDefinitions={kpiDefinitions} 
+                    years={years} 
+                    currentYear={currentYear} 
+                    universities={universities} 
+                    handleUpdateValue={handleUpdateValue} 
+                    handleUpdateActionPlan={handleUpdateActionPlan} 
+                  />
+                )}
+                {adminTab === 'actions' && (
                   <ActionPlanManager 
                     years={years}
                     selectedYearId={selectedYearId}
