@@ -901,35 +901,30 @@ const DataEntryPage = ({ benchmarkingData, selectedYearId, setSelectedYearId, ac
                <p className="text-slate-400 font-medium mt-1">Data collection for {currentYear?.name}</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {universities.map(uni => (
-                <div key={uni.id} className="bg-white border border-slate-200 rounded-[28px] overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 group">
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-xs group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
-                          {uni.abbr}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1 truncate" title={uni.name}>{uni.name}</p>
-                          <p className="text-xs font-bold text-slate-600 leading-none">Institutional Data</p>
-                        </div>
-                      </div>
+                <div key={uni.id} className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all duration-300 group">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-xs">
+                      {uni.abbr}
                     </div>
-                    
-                    <div className="relative">
-                      <input 
-                        className="w-full bg-slate-50 border border-slate-100 px-5 py-4 rounded-2xl text-lg font-black text-slate-800 placeholder:text-slate-300 focus:bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-200 outline-none transition-all" 
-                        value={activeDataEntry.values[uni.id] || ''} 
-                        onChange={e => handleUpdateValue(activeDataEntry.kpiId, activeDataEntry.yearId, uni.id, e.target.value)}
-                        placeholder="0.00"
-                      />
-                      <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Entry</span>
-                      </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1 truncate" title={uni.name}>
+                        {uni.name}
+                      </p>
+                      <p className="text-[10px] font-black text-indigo-600/50 uppercase tracking-tighter">Institutional Data</p>
                     </div>
                   </div>
-                  <div className="h-1 w-full bg-slate-50 group-hover:bg-indigo-500 transition-colors duration-300" />
+                  
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Value Entry</label>
+                    <input 
+                      className="w-full bg-slate-50 border-0 px-5 py-4 rounded-2xl text-xl font-black text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-100 outline-none transition-all" 
+                      value={activeDataEntry.values[uni.id] || ''} 
+                      onChange={e => handleUpdateValue(activeDataEntry.kpiId, activeDataEntry.yearId, uni.id, e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
