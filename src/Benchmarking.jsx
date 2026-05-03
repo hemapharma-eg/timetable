@@ -149,8 +149,11 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   const handleShare = async () => {
     let shareUrl = window.location.href;
     
-    if (db && user) {
+    // We try to use Firebase even if 'user' isn't fully synced yet, 
+    // but we need the db and appId.
+    if (db && appId) {
       try {
+         showToast('Generating short link...');
          const reportId = new URLSearchParams(window.location.search).get('report') || generateId();
          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', reportId);
          await setDoc(docRef, { universities, kpis });
@@ -564,6 +567,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
               <Printer size={18} /> Print
             </button>
             
+            {/* Only show Admin Studio if we are NOT in a public shared view */}
             {currentPage === 'admin' ? (
                <button 
                 onClick={() => setCurrentPage('dashboard')}
@@ -572,12 +576,14 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                  <BarChart size={18} /> View Dashboard
                </button>
             ) : (
-               <button 
-                onClick={() => setCurrentPage('admin')}
-                className="ml-2 bg-white text-indigo-600 border border-indigo-100 px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-indigo-50 transition-all flex items-center gap-2"
-               >
-                 <Settings size={18} /> Admin Studio
-               </button>
+               !new URLSearchParams(window.location.search).get('report') && !new URLSearchParams(window.location.search).get('data') && (
+                 <button 
+                  onClick={() => setCurrentPage('admin')}
+                  className="ml-2 bg-white text-indigo-600 border border-indigo-100 px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm hover:bg-indigo-50 transition-all flex items-center gap-2"
+                 >
+                   <Settings size={18} /> Admin Studio
+                 </button>
+               )
             )}
         </div>
       </div>
