@@ -336,7 +336,17 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   // --- DERIVED VIEW DATA ---
   const activeUniversities = useMemo(() => universities.filter(u => u.active), [universities]);
   const activeYears = useMemo(() => years.filter(y => y.active), [years]);
-  const categories = useMemo(() => benchmarkingCategories.length > 0 ? benchmarkingCategories.map(c => c.name) : Array.from(new Set(kpiDefinitions.map(k => k.category))), [benchmarkingCategories, kpiDefinitions]);
+  
+  // Robust categories list: prefer database table, fallback to unique categories from KPIs if empty
+  const categories = useMemo(() => {
+    const fromTable = benchmarkingCategories.map(c => c.name);
+    const fromKpis = Array.from(new Set(kpiDefinitions.map(k => k.category)));
+    
+    if (fromTable.length === 0) return fromKpis.length > 0 ? fromKpis : ['Students', 'Faculty', 'Research', 'Facilities', 'Financial'];
+    
+    // Merge both to ensure all existing indicators have a category filter
+    return Array.from(new Set([...fromTable, ...fromKpis])).sort();
+  }, [benchmarkingCategories, kpiDefinitions]);
   
   const currentYear = useMemo(() => years.find(y => y.id === selectedYearId), [years, selectedYearId]);
   
@@ -563,6 +573,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                     adminSubMode={adminSubMode} 
                     setAdminSubMode={setAdminSubMode} 
                     categories={benchmarkingCategories} 
+                    kpiDefinitions={kpiDefinitions}
                     editingItem={editingItem} 
                     setEditingItem={setEditingItem} 
                     handleAddCategory={handleAddCategory} 
@@ -773,17 +784,27 @@ const KpiDefPage = ({ adminSubMode, setAdminSubMode, kpiDefinitions, editingItem
   );
 };
 
-const CategoryPage = ({ adminSubMode, setAdminSubMode, categories, editingItem, setEditingItem, handleAddCategory, handleUpdateCategory, handleDeleteCategory }) => {
+const CategoryPage = ({ adminSubMode, setAdminSubMode, categories, kpiDefinitions, editingItem, setEditingItem, handleAddCategory, handleUpdateCategory, handleDeleteCategory }) => {
   const [form, setForm] = useState(editingItem || { name: '' });
   
   useEffect(() => {
     setForm(editingItem || { name: '' });
   }, [editingItem]);
 
+  const itemsWithCounts = useMemo(() => {
+    return categories.map(cat => ({
+      ...cat,
+      indicatorCount: kpiDefinitions.filter(k => k.category === cat.name).length
+    }));
+  }, [categories, kpiDefinitions]);
+
   if (adminSubMode === 'list') return (
     <ListView 
-      items={categories} 
-      columns={[{key:'name', label:'Category Name'}]}
+      items={itemsWithCounts} 
+      columns={[
+        {key:'name', label:'Category Name'},
+        {key:'indicatorCount', label:'Linked Indicators'}
+      ]}
       onAdd={() => setAdminSubMode('add')}
       onEdit={(item) => { setEditingItem(item); setAdminSubMode('edit'); }}
       onDelete={handleDeleteCategory}

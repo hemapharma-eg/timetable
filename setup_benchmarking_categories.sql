@@ -6,13 +6,18 @@ CREATE TABLE IF NOT EXISTS public.benchmarking_categories (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 2. Seed initial categories
+-- 2. Seed initial categories and migrate existing ones
 INSERT INTO public.benchmarking_categories (name) VALUES 
 ('Students'), 
 ('Faculty'), 
 ('Research'), 
 ('Facilities'), 
 ('Financial') 
+ON CONFLICT (name) DO NOTHING;
+
+-- Migrate existing categories from KPIs
+INSERT INTO public.benchmarking_categories (name)
+SELECT DISTINCT category FROM public.benchmarking_kpis
 ON CONFLICT (name) DO NOTHING;
 
 -- 3. Enable RLS
