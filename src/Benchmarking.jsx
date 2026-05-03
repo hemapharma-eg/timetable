@@ -568,6 +568,31 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
   return (
     <div className="min-h-full bg-transparent font-sans text-gray-900 flex flex-col print:bg-white animate-in fade-in duration-500">
       
+      {/* Print-specific Styles */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page { size: A4 landscape; margin: 1cm; }
+          body { background: white !important; }
+          .print-no-break { break-inside: avoid; }
+          .print-table-container { 
+            width: 100% !important; 
+            overflow: visible !important; 
+            font-size: 9px !important;
+          }
+          .print-table-container table { 
+            table-layout: auto !important; 
+            width: 100% !important; 
+          }
+          .print-table-container th, .print-table-container td { 
+            padding: 4px 8px !important; 
+          }
+          .print-chart-container {
+            height: 350px !important;
+            page-break-inside: avoid;
+          }
+        }
+      `}} />
+
       {/* Toast Notification */}
       {toast.visible && (
         <div className="fixed bottom-6 right-6 z-[200] bg-gray-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-6">
@@ -694,7 +719,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
                         </div>
                       </div>
                       
-                      <div className="h-[400px] w-full relative">
+                      <div className="h-[400px] w-full relative print-chart-container">
                         {chartData.every(d => d.value === null) ? (
                           <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
                             <Activity size={40} className="mb-4 opacity-20" />
@@ -756,7 +781,7 @@ export function Benchmarking({ initialPage = 'dashboard' }) {
             </div>
 
             {/* Read-only Data Table */}
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-50 overflow-hidden print:break-inside-avoid">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-50 overflow-hidden print:break-inside-avoid print-table-container">
               <div className="p-8 border-b border-gray-50 bg-gray-50/30">
                 <h3 className="text-xl font-black text-gray-800">Indicator Summary Table</h3>
               </div>
