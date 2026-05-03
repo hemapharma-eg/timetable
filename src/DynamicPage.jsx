@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 import { useParams } from 'react-router-dom';
 import { Search, Table, Eye, Filter, BarChart3, PieChart, LineChart, X, ArrowUpDown, ChevronLeft, ChevronRight, Hash, List } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, LineChart as ReLineChart, Line } from 'recharts';
+import { Benchmarking } from './Benchmarking';
 
 const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -36,8 +37,10 @@ export function DynamicPage({ session, userMeta, permissions }) {
       <div className="flex-1 min-h-0">
         {page.type === 'app' ? (
           <AppView page={page} />
-        ) : (
+        ) : page.type === 'report' ? (
           <DashboardView page={page} />
+        ) : (
+          <Benchmarking initialPage={page.configuration?.view || 'dashboard'} />
         )}
       </div>
     </div>

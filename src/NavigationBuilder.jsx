@@ -15,8 +15,12 @@ export function NavigationBuilder() {
   
   const fetchData = async () => {
     setLoading(true);
-    const { data: secData } = await supabase.from('app_sections').select('*').order('order_index');
-    const { data: pageData } = await supabase.from('app_pages').select('*').order('order_index');
+    const { data: secData, error: secError } = await supabase.from('app_sections').select('*').order('order_index');
+    const { data: pageData, error: pageError } = await supabase.from('app_pages').select('*').order('order_index');
+    
+    if (secError) console.error('Error fetching sections:', secError);
+    if (pageError) console.error('Error fetching pages:', pageError);
+
     setSections(secData || []);
     setPages(pageData || []);
     setLoading(false);
@@ -25,12 +29,23 @@ export function NavigationBuilder() {
   useEffect(() => { fetchData(); }, []);
 
   const addSection = async () => {
-    if (!newSectionName.trim()) return;
+    console.log('Attempting to add section:', newSectionName);
+    if (!newSectionName.trim()) {
+      alert('Section name cannot be empty');
+      return;
+    }
+    
     const { error } = await supabase.from('app_sections').insert([{ 
       name: newSectionName.trim(), 
       order_index: sections.length 
     }]);
-    if (!error) {
+    
+    if (error) {
+      console.error('Insert Error:', error);
+      alert('Error adding section: ' + error.message + '\n\nDetails: ' + error.details);
+    } else {
+      console.log('Section added successfully');
+      alert('Section added successfully!');
       setNewSectionName('');
       fetchData();
     }
@@ -39,7 +54,11 @@ export function NavigationBuilder() {
   const deleteSection = async (id) => {
     if (!confirm('Are you sure? This will delete all pages in this section.')) return;
     const { error } = await supabase.from('app_sections').delete().eq('id', id);
-    if (!error) fetchData();
+    if (error) {
+      alert('Error deleting section: ' + error.message);
+    } else {
+      fetchData();
+    }
   };
 
   const addPage = async (sectionId) => {
@@ -50,7 +69,9 @@ export function NavigationBuilder() {
       configuration: {},
       order_index: pages.filter(p => p.section_id === sectionId).length
     }]).select();
-    if (!error && data) {
+    if (error) {
+      alert('Error adding page: ' + error.message);
+    } else if (data) {
       setEditingPage(data[0]);
       fetchData();
     }
