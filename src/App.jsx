@@ -12,6 +12,7 @@ import { DatabaseBuilder } from './DatabaseBuilder';
 import { NavigationBuilder } from './NavigationBuilder';
 import { DynamicPage } from './DynamicPage';
 import { Benchmarking } from './Benchmarking';
+import { OBFManagement } from './OBFManagement';
 
 // Reusable Layout Components
 const SidebarItem = ({ icon: Icon, label, path, active, onClick }) => (
@@ -83,6 +84,7 @@ function AdminPortal({ session, userMeta, permissions }) {
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/admin/risk')} />
+          <SidebarItem id="obf" icon={BarChart3} label="OBF Management" active={currentTab === 'obf'} onClick={() => navigate('/admin/obf')} />
           <SidebarItem id="db_builder" icon={Settings} label="Database Builder" active={currentTab === 'db_builder'} onClick={() => navigate('/admin/db_builder')} />
           <SidebarItem id="navigation" icon={LayoutGrid} label="App Structure" active={currentTab === 'navigation'} onClick={() => navigate('/admin/navigation')} />
           <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/admin/roles')} />
@@ -121,6 +123,7 @@ function AdminPortal({ session, userMeta, permissions }) {
           <Routes>
             <Route path="/" element={<Navigate to="/admin/risk" replace />} />
             <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={true} />} />
+            <Route path="obf" element={<OBFManagement session={session} userMeta={userMeta} isTechAdmin={true} />} />
 
             <Route path="db_builder" element={
               <PageContainer title="Database Builder" description="Create databases, manage schemas, and import/export data">
@@ -147,12 +150,15 @@ function FacultyPortal({ session, userMeta, permissions }) {
   const currentTab = location.pathname.split('/')[2] || '';
 
   const riskPerms = permissions.filter(p => p.module_name.startsWith('risk_') && p.can_view);
+  const obfPerms = permissions.filter(p => p.module_name.startsWith('obf_') && p.can_view);
   const dbPerms = permissions.filter(p => p.module_name.startsWith('db_') && p.can_view);
 
   const hasRisk = riskPerms.length > 0;
+  const hasOBF = obfPerms.length > 0;
   const hasDb = dbPerms.length > 0;
 
   const allowedRiskTabs = riskPerms.map(p => p.module_name.replace('risk_', ''));
+  const allowedOBFTabs = obfPerms.map(p => p.module_name.replace('obf_', ''));
   const allowedDbTabs = dbPerms.map(p => p.module_name.replace('db_', ''));
 
   const [dbSubTab, setDbSubTab] = useState(allowedDbTabs.length > 0 ? allowedDbTabs[0] : '');
@@ -190,6 +196,9 @@ function FacultyPortal({ session, userMeta, permissions }) {
           {hasRisk && (
             <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/faculty/risk')} />
           )}
+          {hasOBF && (
+            <SidebarItem id="obf" icon={BarChart3} label="OBF Management" active={currentTab === 'obf'} onClick={() => navigate('/faculty/obf')} />
+          )}
           {hasDb && (
             <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/faculty/databases')} />
           )}
@@ -226,10 +235,14 @@ function FacultyPortal({ session, userMeta, permissions }) {
       <main className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible">
         <div className="max-w-6xl mx-auto h-full flex flex-col">
           <Routes>
-            <Route path="/" element={<Navigate to={hasRisk ? "/faculty/risk" : (hasDb ? "/faculty/databases" : "/faculty/welcome")} replace />} />
+            <Route path="/" element={<Navigate to={hasRisk ? "/faculty/risk" : (hasOBF ? "/faculty/obf" : (hasDb ? "/faculty/databases" : "/faculty/welcome"))} replace />} />
             
             {hasRisk && (
               <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={false} allowedSubTabs={allowedRiskTabs} permissions={permissions} />} />
+            )}
+
+            {hasOBF && (
+              <Route path="obf" element={<OBFManagement session={session} userMeta={userMeta} isTechAdmin={false} allowedSubTabs={allowedOBFTabs} permissions={permissions} />} />
             )}
             
             {hasDb && (
