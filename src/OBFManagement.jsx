@@ -396,19 +396,20 @@ function KPIRegister({ isTechAdmin, permissions, categories }) {
 
   // --- Excel Export ---
   const handleExportExcel = () => {
-    const exportData = kpis.map(k => ({
-      'KPI No.': k.kpi_no || '',
-      'KPI Title': k.title || '',
-      'Category': k.category || '',
-      'Unit': k.unit || '',
-      'Numerator Label': k.numerator_label || '',
-      'Denominator Label': k.denominator_label || '',
-      'No Risk (Green)': k.rubric_green || '',
-      'Low Probability (Yellow)': k.rubric_yellow || '',
-      'High Probability (Orange)': k.rubric_orange || '',
-      'Incident (Red)': k.rubric_red || ''
-    }));
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    const headers = ['KPI No.', 'KPI Title', 'Category', 'Unit', 'Numerator Label', 'Denominator Label', 'No Risk (Green)', 'Low Probability (Yellow)', 'High Probability (Orange)', 'Incident (Red)'];
+    const rows = kpis.map(k => [
+      k.kpi_no || '',
+      k.title || '',
+      k.category || '',
+      k.unit || '',
+      k.numerator_label || '',
+      k.denominator_label || '',
+      k.rubric_green || '',
+      k.rubric_yellow || '',
+      k.rubric_orange || '',
+      k.rubric_red || ''
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'OBF KPIs');
     XLSX.writeFile(wb, 'OBF_KPI_Framework.xlsx');
