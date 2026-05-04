@@ -397,16 +397,16 @@ function KPIRegister({ isTechAdmin, permissions, categories }) {
   // --- Excel Export ---
   const handleExportExcel = () => {
     const exportData = kpis.map(k => ({
-      KPI_No: k.kpi_no || '',
-      Title: k.title || '',
-      Category: k.category || '',
-      Unit: k.unit || '',
-      Numerator_Label: k.numerator_label || '',
-      Denominator_Label: k.denominator_label || '',
-      Green: k.rubric_green || '',
-      Yellow: k.rubric_yellow || '',
-      Orange: k.rubric_orange || '',
-      Red: k.rubric_red || ''
+      'KPI No.': k.kpi_no || '',
+      'KPI Title': k.title || '',
+      'Category': k.category || '',
+      'Unit': k.unit || '',
+      'Numerator Label': k.numerator_label || '',
+      'Denominator Label': k.denominator_label || '',
+      'No Risk (Green)': k.rubric_green || '',
+      'Low Probability (Yellow)': k.rubric_yellow || '',
+      'High Probability (Orange)': k.rubric_orange || '',
+      'Incident (Red)': k.rubric_red || ''
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -972,6 +972,9 @@ function KPIReportsView({ initialYear }) {
 function CategoriesManager({ categories, onRefresh }) {
   const [newValue, setNewValue] = useState('');
   const [newLabel, setNewLabel] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [editLabel, setEditLabel] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleAdd = async (e) => {
@@ -986,6 +989,20 @@ function CategoriesManager({ categories, onRefresh }) {
     finally { setLoading(false); }
   };
 
+  const handleUpdate = async (id) => {
+    if (!editValue.trim() || !editLabel.trim()) return;
+    setLoading(true);
+    try {
+      await supabase.from('obf_categories').update({
+        value: editValue.trim(),
+        label: editLabel.trim()
+      }).eq('id', id);
+      setEditingId(null);
+      onRefresh();
+    } catch (err) { alert(err.message); }
+    finally { setLoading(false); }
+  };
+
   const handleDelete = async (id) => {
     if (window.confirm('Delete category?')) {
       await supabase.from('obf_categories').delete().eq('id', id);
@@ -993,20 +1010,45 @@ function CategoriesManager({ categories, onRefresh }) {
     }
   };
 
+  const startEditing = (cat) => {
+    setEditingId(cat.id);
+    setEditValue(cat.value);
+    setEditLabel(cat.label);
+  };
+
   return (
     <div className="max-w-3xl space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h3 className="text-lg font-bold text-slate-800 mb-4">KPI Categories</h3>
-        <form onSubmit={handleAdd} className="flex gap-3 mb-6">
-          <input type="text" value={newValue} onChange={e => setNewValue(e.target.value)} placeholder="Code (e.g. ACAD)" className="w-1/3 px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
+        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Tags className="w-5 h-5 text-indigo-600" /> KPI Categories</h3>
+        <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-3 mb-6">
+          <input type="text" value={newValue} onChange={e => setNewValue(e.target.value)} placeholder="Code (e.g. ACAD)" className="flex-1 px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
           <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="Category Name" className="flex-1 px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
-          <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">Add</button>
+          <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 flex items-center gap-1.5"><PlusCircle size={16}/> Add</button>
         </form>
-        <div className="divide-y divide-slate-100">
-          {categories.map(cat => (
-            <div key={cat.id} className="py-3 flex justify-between items-center group">
-              <div><span className="font-bold text-indigo-700 mr-2">{cat.value}</span> {cat.label}</div>
-              <button onClick={() => handleDelete(cat.id)} className="text-red-500 opacity-0 group-hover:opacity-100 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+        <div className="divide-y divide-slate-100 border rounded-lg overflow-hidden">
+          {categories.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-sm italic">No categories defined yet.</div>
+          ) : categories.map(cat => (
+            <div key={cat.id} className="p-4 flex justify-between items-center group hover:bg-slate-50 transition-colors">
+              {editingId === cat.id ? (
+                <div className="flex gap-2 flex-1 mr-2">
+                  <input value={editValue} onChange={e => setEditValue(e.target.value)} className="w-1/3 px-3 py-1.5 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-indigo-500" />
+                  <input value={editLabel} onChange={e => setEditLabel(e.target.value)} className="flex-1 px-3 py-1.5 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-indigo-500" />
+                  <button onClick={() => handleUpdate(cat.id)} className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg">Save</button>
+                  <button onClick={() => setEditingId(null)} className="text-sm text-slate-500 px-3 py-1.5">Cancel</button>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded text-xs mr-3">{cat.value}</span> 
+                    <span className="font-medium text-slate-700">{cat.label}</span>
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => startEditing(cat)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit"><Edit size={16}/></button>
+                    <button onClick={() => handleDelete(cat.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Delete"><Trash2 size={16}/></button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -1017,6 +1059,9 @@ function CategoriesManager({ categories, onRefresh }) {
 
 function AcademicYearsManager({ years, onRefresh }) {
   const [newLabel, setNewLabel] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editLabel, setEditLabel] = useState('');
+
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!newLabel.trim()) return;
@@ -1025,18 +1070,55 @@ function AcademicYearsManager({ years, onRefresh }) {
     setNewLabel(''); onRefresh();
   };
 
+  const handleUpdate = async (id) => {
+    if (!editLabel.trim()) return;
+    try {
+      await supabase.from('academic_years').update({ label: editLabel.trim() }).eq('id', id);
+      setEditingId(null);
+      onRefresh();
+    } catch(e) { alert(e.message); }
+  };
+
+  const handleDelete = async (id, label) => {
+    if (!window.confirm(`Delete academic year "${label}"?`)) return;
+    try {
+      await supabase.from('academic_years').delete().eq('id', id);
+      onRefresh();
+    } catch(e) { alert(e.message); }
+  };
+
   return (
     <div className="max-w-2xl space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h3 className="text-lg font-bold text-slate-800 mb-4">Academic Years</h3>
+        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Clock className="w-5 h-5 text-indigo-600" /> Academic Years</h3>
         <form onSubmit={handleAdd} className="flex gap-3 mb-6">
-          <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. 2026-2027" className="flex-1 px-4 py-2 border rounded-lg outline-none" />
-          <button type="submit" className="px-5 py-2 bg-indigo-600 text-white rounded-lg">Add Year</button>
+          <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="e.g. 2026-2027" className="flex-1 px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
+          <button type="submit" className="px-5 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 flex items-center gap-1.5"><PlusCircle size={16}/> Add Year</button>
         </form>
-        <div className="grid grid-cols-2 gap-3">
-          {years.map(y => (
-            <div key={y.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 font-semibold">{y.label}</div>
-          ))}
+        <div className="space-y-2">
+          {years.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-sm italic">No years defined yet.</div>
+          ) : (
+            years.map(y => (
+              <div key={y.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 group hover:bg-slate-100 transition-colors">
+                {editingId === y.id ? (
+                  <div className="flex gap-2 flex-1 mr-2">
+                    <input value={editLabel} onChange={e => setEditLabel(e.target.value)} className="flex-1 px-3 py-1.5 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-indigo-500" />
+                    <button onClick={() => handleUpdate(y.id)} className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg">Save</button>
+                    <button onClick={() => setEditingId(null)} className="text-sm text-slate-500 px-3 py-1.5">Cancel</button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="font-bold text-slate-700">{y.label}</span>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => { setEditingId(y.id); setEditLabel(y.label); }} className="p-2 text-blue-500 hover:bg-blue-100 rounded-lg" title="Edit"><Edit size={16}/></button>
+                      <button onClick={() => handleDelete(y.id, y.label)} className="p-2 text-red-500 hover:bg-red-100 rounded-lg" title="Delete"><Trash2 size={16}/></button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
