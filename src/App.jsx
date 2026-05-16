@@ -218,10 +218,12 @@ function AdminPortal({ session, userMeta, permissions }) {
             <Route path="online_courses" element={<OnlineCourses session={session} userMeta={userMeta} />} />
 
             <Route path="databases" element={
-              <PageContainer title="Databases" description="Faculty & Staff synced from Google Sheet" activeSubTab={adminDbSubTab} setActiveSubTab={setAdminDbSubTab} tabs={[
+              <PageContainer title="Databases" description="Faculty & Staff and Students synced from Google Sheets" activeSubTab={adminDbSubTab} setActiveSubTab={setAdminDbSubTab} tabs={[
                 { id: 'faculty', label: 'Faculty & Staff' },
+                { id: 'students', label: 'Students' },
               ]}>
                 {adminDbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} showSyncButton={true} />}
+                {adminDbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} showSyncButton={true} />}
               </PageContainer>
             } />
             <Route path="db_builder" element={
@@ -412,7 +414,7 @@ function FacultyPortal({ session, userMeta, permissions }) {
                   ...(allowedDbTabs.includes('committees') ? [{ id: 'committees', label: 'Committees' }] : [])
                 ]}>
                   {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} showSyncButton={false} />}
-                  {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} isReadOnly={!permissions.some(p => p.module_name === 'db_students' && p.can_edit)} />}
+                  {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} showSyncButton={false} />}
                   {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} isReadOnly={!permissions.some(p => p.module_name === 'db_courses' && p.can_edit)} />}
                   {dbSubTab === 'colleges' && <CollegesManager />}
                   {dbSubTab === 'programs' && <ProgramsManager />}
