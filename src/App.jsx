@@ -417,9 +417,9 @@ function FacultyPortal({ session, userMeta, permissions }) {
                   ...(allowedDbTabs.includes('programs') ? [{ id: 'programs', label: 'Programs' }] : []),
                   ...(allowedDbTabs.includes('committees') ? [{ id: 'committees', label: 'Committees' }] : [])
                 ]}>
-                  {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} showSyncButton={false} />}
-                  {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} showSyncButton={false} />}
-                  {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} showSyncButton={false} />}
+                  {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} showSyncButton={true} />}
+                  {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} showSyncButton={true} />}
+                  {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} showSyncButton={true} />}
                   {dbSubTab === 'colleges' && <CollegesManager />}
                   {dbSubTab === 'programs' && <ProgramsManager />}
                   {dbSubTab === 'committees' && <CommitteesManager />}
