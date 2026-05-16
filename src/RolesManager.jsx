@@ -421,15 +421,3 @@ export function RolesManager() {
     </div>
   );
 }
-              ) : (
-                <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-                  Select a role from the left to view and edit its permissions.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
