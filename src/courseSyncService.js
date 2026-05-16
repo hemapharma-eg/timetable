@@ -155,7 +155,7 @@ export async function syncCoursesFromSheet() {
 
     const rawRecords = sheetRows
       .map(mapRowToRecord)
-      .filter(r => r.code); // Must at least have a course code
+      .filter(r => r.code && r.name); // Must have both code and name
 
     if (rawRecords.length === 0) {
       throw new Error('No valid records found after mapping.');
