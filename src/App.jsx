@@ -160,16 +160,6 @@ function AdminPortal({ session, userMeta, permissions }) {
           <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/admin/databases')} isExpanded={isExpanded} />
           <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/admin/roles')} isExpanded={isExpanded} />
 
-          <div className="pt-4">
-            {isExpanded ? (
-              <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 truncate">App Builder</p>
-            ) : (
-              <div className="h-px bg-slate-800 mx-2 mb-4" />
-            )}
-            <SidebarItem id="db_builder" icon={Settings} label="Database Builder" active={currentTab === 'db_builder'} onClick={() => navigate('/admin/db_builder')} isExpanded={isExpanded} />
-            <SidebarItem id="navigation" icon={LayoutGrid} label="App Structure" active={currentTab === 'navigation'} onClick={() => navigate('/admin/navigation')} isExpanded={isExpanded} />
-          </div>
-
           {sections.filter(s => {
             const n = s.name?.toUpperCase();
             return n !== 'BENCHMARKING' && n !== 'POLICIES';
@@ -597,13 +587,16 @@ export default function App() {
       setAppRole(roleToSet);
       
       let meta = userData || {};
+      const { data: roleAssign } = await supabase.from('staff_roles').select('custom_role_id').eq('email', userEmail).maybeSingle();
+      const custom_role_id = roleAssign?.custom_role_id || (matchedFaculty ? matchedFaculty.custom_role_id : null);
+
       if (matchedFaculty) {
-         meta = { ...meta, role: 'faculty', faculty_id: matchedFaculty.id, custom_role_id: matchedFaculty.custom_role_id };
-         if (matchedFaculty.custom_role_id) {
-           const { data: roleData } = await supabase.from('custom_roles').select('name').eq('id', matchedFaculty.custom_role_id).single();
+         meta = { ...meta, role: 'faculty', faculty_id: matchedFaculty.id, custom_role_id };
+         if (custom_role_id) {
+           const { data: roleData } = await supabase.from('custom_roles').select('name').eq('id', custom_role_id).single();
            if (roleData) meta.custom_role_name = roleData.name;
            
-           const { data: perms } = await supabase.from('role_permissions').select('*').eq('role_id', matchedFaculty.custom_role_id);
+           const { data: perms } = await supabase.from('role_permissions').select('*').eq('role_id', custom_role_id);
            if (perms) setPermissions(perms);
          }
       } else if (matchedStudent) {
