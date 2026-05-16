@@ -161,16 +161,18 @@ export async function syncCoursesFromSheet() {
       throw new Error('No valid records found after mapping.');
     }
 
-    // De-duplicate: Keep only the last record for each unique 'code'
-    // to prevent "ON CONFLICT DO UPDATE command cannot affect row a second time" error.
+    // De-duplicate: Keep only the last record for each unique (code + academic_year + program)
     const uniqueMap = new Map();
-    rawRecords.forEach(r => uniqueMap.set(r.code, r));
+    rawRecords.forEach(r => {
+      const compositeKey = `${r.code}-${r.academic_year || ''}-${r.program || ''}`;
+      uniqueMap.set(compositeKey, r);
+    });
     const records = Array.from(uniqueMap.values());
 
     // Upsert into Supabase.
     const { error } = await supabase
       .from('courses')
-      .upsert(records, { onConflict: 'code', ignoreDuplicates: false });
+      .upsert(records, { onConflict: 'code,academic_year,program', ignoreDuplicates: false });
 
     if (error) {
       throw new Error(`Supabase upsert failed: ${error.message}`);

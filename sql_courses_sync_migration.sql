@@ -1,25 +1,15 @@
--- SQL to fix the 'ON CONFLICT' error for courses sync
--- This ensures the 'code' column is unique, which is required for the sync to work.
+-- SQL to upgrade Course uniqueness
+-- The user specified that Course Code alone is not unique (repeats by year/program).
+-- We will use a composite key of (code, academic_year, program).
 
--- 1. First, ensure the 'code' column exists
-ALTER TABLE courses ADD COLUMN IF NOT EXISTS code TEXT;
+-- 1. Remove the old (incorrect) unique constraint
+ALTER TABLE courses DROP CONSTRAINT IF EXISTS courses_code_unique;
 
--- 2. Add the unique constraint to 'code'
--- NOTE: If this fails, it means you have duplicate course codes already in your table.
--- You must delete or rename duplicates before this will work.
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'courses_code_unique'
-    ) THEN
-        ALTER TABLE courses ADD CONSTRAINT courses_code_unique UNIQUE (code);
-    END IF;
-EXCEPTION
-    WHEN others THEN
-        RAISE NOTICE 'Could not add unique constraint. You may have duplicate course codes.';
-END
-$$;
+-- 2. Add the new composite unique constraint
+-- Note: If this fails, you have existing duplicates for the same code/year/program.
+-- You must clean them up in the Supabase Table Editor before running this.
+ALTER TABLE courses ADD CONSTRAINT courses_composite_unique UNIQUE (code, academic_year, program);
 
--- 3. Ensure indexes exist for performance
-CREATE INDEX IF NOT EXISTS idx_courses_code ON courses(code);
+-- 3. Update indexes
+DROP INDEX IF EXISTS idx_courses_code;
+CREATE INDEX IF NOT EXISTS idx_courses_composite ON courses(code, academic_year, program);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, User, RefreshCw, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import { supabase } from './supabase';
+import { fetchAll } from './supabaseUtils';
 import { syncFacultyFromSheet, isSyncDue, getLastSyncTime } from './facultySyncService';
 
 export const FACULTY_FIELDS = [
@@ -88,7 +89,7 @@ export const FacultyManager = ({ faculty, setFaculty, showSyncButton = false }) 
       }
 
       // Refresh data from Supabase
-      const { data } = await supabase.from('faculty').select('*').limit(5000);
+      const data = await fetchAll('faculty');
       if (data) setFaculty(data);
 
       setLastSync(getLastSyncTime());

@@ -14,6 +14,7 @@ import { DynamicPage } from './DynamicPage';
 import { Benchmarking } from './Benchmarking';
 import { DMUAnalytics } from './DMUAnalytics';
 import OnlineCourses from './OnlineCourses';
+import { fetchAll } from './supabaseUtils';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -95,10 +96,11 @@ function AdminPortal({ session, userMeta, permissions }) {
   const [sections, setSections] = useState([]);
   const [pages, setPages] = useState([]);
 
+
   useEffect(() => {
-    supabase.from('faculty').select('*').limit(5000).then(({ data }) => setFaculty(data || []));
-    supabase.from('courses').select('*').limit(5000).then(({ data }) => setCourses(data || []));
-    supabase.from('students').select('*').limit(5000).then(({ data }) => setStudents(data || []));
+    fetchAll('faculty').then(data => setFaculty(data));
+    fetchAll('courses').then(data => setCourses(data));
+    fetchAll('students').then(data => setStudents(data));
     
     supabase.from('app_sections').select('*').order('order_index').then(({ data }) => setSections(data || []));
     supabase.from('app_pages').select('*').order('order_index').then(({ data }) => setPages(data || []));

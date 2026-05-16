@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, GraduationCap, RefreshCw, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import { supabase } from './supabase';
+import { fetchAll } from './supabaseUtils';
 import { syncStudentsFromSheet, isStudentSyncDue, getStudentLastSyncTime } from './studentSyncService';
 
 export const STUDENT_FIELDS = [
@@ -149,7 +150,7 @@ export const StudentManager = ({ students, setStudents, showSyncButton = false }
         return;
       }
 
-      const { data } = await supabase.from('students').select('*').limit(5000);
+      const data = await fetchAll('students');
       if (data) setStudents(data);
 
       setLastSync(getStudentLastSyncTime());

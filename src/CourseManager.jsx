@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, BookOpen, RefreshCw, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import { supabase } from './supabase';
+import { fetchAll } from './supabaseUtils';
 import { syncCoursesFromSheet, isCourseSyncDue, getCourseLastSyncTime } from './courseSyncService';
 
 export const COURSE_FIELDS = [
@@ -81,7 +82,7 @@ export const CourseManager = ({ courses, setCourses, showSyncButton = false }) =
         return;
       }
 
-      const { data } = await supabase.from('courses').select('*').limit(5000);
+      const data = await fetchAll('courses');
       if (data) setCourses(data);
 
       setLastSync(getCourseLastSyncTime());
