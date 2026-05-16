@@ -113,25 +113,22 @@ export function RolesManager() {
     return 'view';
   };
   const MODULES = [
-    { section: 'Core Databases', key: 'db_faculty', label: 'Faculty & Staff' },
-    { section: 'Core Databases', key: 'db_students', label: 'Students' },
-    { section: 'Core Databases', key: 'db_courses', label: 'Courses' },
-    { section: 'Core Databases', key: 'db_colleges', label: 'Colleges' },
-    { section: 'Core Databases', key: 'db_programs', label: 'Programs' },
-    { section: 'Core Databases', key: 'db_committees', label: 'Committees' },
-
     { section: 'Risk Management', key: 'risk_dashboard', label: 'Dashboard' },
     { section: 'Risk Management', key: 'risk_new_risk', label: 'Report a Risk' },
     { section: 'Risk Management', key: 'risk_register', label: 'Risk Register' },
     { section: 'Risk Management', key: 'risk_reports', label: 'Yearly Reports' },
 
-    { section: 'Analytics & Learning', key: 'analytics', label: 'DMU Analytics' },
-    { section: 'Analytics & Learning', key: 'online_courses', label: 'Online Courses' },
-    { section: 'Analytics & Learning', key: 'benchmarking', label: 'Benchmarking Hub' },
+    { section: 'DMU Analytics', key: 'analytics', label: 'Analytics Dashboard' },
+    { section: 'Online Courses', key: 'online_courses', label: 'Course Management' },
 
-    { section: 'App Builder & Settings', key: 'db_builder', label: 'Database Builder' },
-    { section: 'App Builder & Settings', key: 'navigation', label: 'App Structure' },
-    { section: 'App Builder & Settings', key: 'roles', label: 'Role Management' },
+    { section: 'Databases', key: 'db_faculty', label: 'Faculty & Staff' },
+    { section: 'Databases', key: 'db_students', label: 'Students' },
+    { section: 'Databases', key: 'db_courses', label: 'Courses' },
+    { section: 'Databases', key: 'db_colleges', label: 'Colleges' },
+    { section: 'Databases', key: 'db_programs', label: 'Programs' },
+    { section: 'Databases', key: 'db_committees', label: 'Committees' },
+
+    { section: 'Role Management', key: 'roles', label: 'Permissions & Roles' },
 
     ...dynamicModules
   ];

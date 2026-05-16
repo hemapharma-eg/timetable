@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck, Clock, Settings, BarChart3, Activity, PlaySquare, GraduationCap, ChevronRight } from 'lucide-react';
+import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck, Clock, BarChart3, Activity, PlaySquare, GraduationCap, ChevronRight } from 'lucide-react';
 import { FacultyManager } from './FacultyManager';
 import { StudentManager } from './StudentManager';
 import { CourseManager } from './CourseManager';
@@ -8,10 +8,7 @@ import { RolesManager } from './RolesManager';
 import { supabase } from './supabase';
 import { RiskManagement, PublicRiskReport } from './RiskManagement';
 import { CollegesManager, ProgramsManager, CommitteesManager } from './OrgManager';
-import { DatabaseBuilder } from './DatabaseBuilder';
-import { NavigationBuilder } from './NavigationBuilder';
 import { DynamicPage } from './DynamicPage';
-import { Benchmarking } from './Benchmarking';
 import { DMUAnalytics } from './DMUAnalytics';
 import OnlineCourses from './OnlineCourses';
 import { fetchAll } from './supabaseUtils';
@@ -160,10 +157,7 @@ function AdminPortal({ session, userMeta, permissions }) {
           <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/admin/databases')} isExpanded={isExpanded} />
           <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/admin/roles')} isExpanded={isExpanded} />
 
-          {sections.filter(s => {
-            const n = s.name?.toUpperCase();
-            return n !== 'BENCHMARKING' && n !== 'POLICIES';
-          }).map(section => {
+          {sections.map(section => {
             const sectionPages = pages.filter(p => p.section_id === section.id);
             if (sectionPages.length === 0) return null;
             return (
@@ -220,17 +214,7 @@ function AdminPortal({ session, userMeta, permissions }) {
                 {adminDbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} showSyncButton={true} />}
               </PageContainer>
             } />
-            <Route path="db_builder" element={
-              <PageContainer title="Database Builder" description="Create databases, manage schemas, and import/export data">
-                <DatabaseBuilder />
-              </PageContainer>
-            } />
-            <Route path="navigation" element={
-              <PageContainer title="App Structure" description="Build sections and pages for the sidebar">
-                <NavigationBuilder />
-              </PageContainer>
-            } />
-            <Route path="roles" element={<RolesManager />} />
+             <Route path="roles" element={<RolesManager />} />
             <Route path="page/:pageId" element={<DynamicPage session={session} userMeta={userMeta} permissions={permissions} />} />
           </Routes>
         </div>
