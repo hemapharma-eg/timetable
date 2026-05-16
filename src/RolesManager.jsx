@@ -60,11 +60,11 @@ export function RolesManager() {
     fetchUsersData();
   }, []);
 
-  const assignUserRole = async (email, custom_role_id) => {
-    if (!custom_role_id) {
-      await supabase.from('staff_roles').delete().eq('email', email);
+  const assignUserRole = async (email, custom_role_id, remove = false) => {
+    if (remove) {
+      await supabase.from('staff_roles').delete().eq('email', email).eq('custom_role_id', custom_role_id);
     } else {
-      await supabase.from('staff_roles').upsert({ email, custom_role_id }, { onConflict: 'email' });
+      await supabase.from('staff_roles').upsert({ email, custom_role_id }, { onConflict: ['email', 'custom_role_id'] });
     }
     fetchUsersData();
   };
@@ -392,22 +392,37 @@ export function RolesManager() {
                       <td className="p-4 font-semibold text-slate-800">{f.name}</td>
                       <td className="p-4 text-slate-500 text-sm">{f.email}</td>
                       <td className="p-4">
-                        {currentRoleId ? (
-                          <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold border border-indigo-100">
-                            {roles.find(r => r.id === currentRoleId)?.name || 'Unknown Role'}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 text-xs italic text-center block">Standard Faculty</span>
-                        )}
+                        <div className="flex flex-wrap gap-2">
+                          {appUsers.filter(u => u.email === f.email).map(u => {
+                            const role = roles.find(r => r.id === u.custom_role_id);
+                            return (
+                              <span key={u.custom_role_id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold border border-indigo-100 group">
+                                {role?.name || 'Unknown'}
+                                <button 
+                                  onClick={() => assignUserRole(f.email, u.custom_role_id, true)} // true means remove
+                                  className="text-indigo-300 hover:text-indigo-600 ml-1 transition-colors"
+                                  title="Remove Role"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </span>
+                            );
+                          })}
+                          {appUsers.filter(u => u.email === f.email).length === 0 && (
+                             <span className="text-slate-400 text-xs italic">Standard Faculty</span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-4 text-right">
                         <select 
-                          value={currentRoleId || ''} 
-                          onChange={(e) => assignUserRole(f.email, e.target.value || null)}
+                          value="" 
+                          onChange={(e) => e.target.value && assignUserRole(f.email, e.target.value)}
                           className="px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500 bg-white min-w-[150px]"
                         >
-                          <option value="">Standard Faculty</option>
-                          {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                          <option value="">+ Add Role...</option>
+                          {roles.filter(r => !appUsers.some(u => u.email === f.email && u.custom_role_id === r.id)).map(r => (
+                            <option key={r.id} value={r.id}>{r.name}</option>
+                          ))}
                         </select>
                       </td>
                     </tr>

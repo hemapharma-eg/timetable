@@ -587,17 +587,31 @@ export default function App() {
       setAppRole(roleToSet);
       
       let meta = userData || {};
-      const { data: roleAssign } = await supabase.from('staff_roles').select('custom_role_id').eq('email', userEmail).maybeSingle();
-      const custom_role_id = roleAssign?.custom_role_id || (matchedFaculty ? matchedFaculty.custom_role_id : null);
+      const { data: roleAssigns } = await supabase.from('staff_roles').select('custom_role_id').eq('email', userEmail);
+      const customRoleIds = roleAssigns?.map(ra => ra.custom_role_id) || [];
+      
+      if (customRoleIds.length === 0 && matchedFaculty?.custom_role_id) {
+        customRoleIds.push(matchedFaculty.custom_role_id);
+      }
 
       if (matchedFaculty) {
-         meta = { ...meta, role: 'faculty', faculty_id: matchedFaculty.id, custom_role_id };
-         if (custom_role_id) {
-           const { data: roleData } = await supabase.from('custom_roles').select('name').eq('id', custom_role_id).single();
-           if (roleData) meta.custom_role_name = roleData.name;
+         meta = { ...meta, role: 'faculty', faculty_id: matchedFaculty.id, customRoleIds };
+         if (customRoleIds.length > 0) {
+           const { data: roleData } = await supabase.from('custom_roles').select('name').in('id', customRoleIds);
+           if (roleData) meta.custom_role_names = roleData.map(r => r.name);
            
-           const { data: perms } = await supabase.from('role_permissions').select('*').eq('role_id', custom_role_id);
-           if (perms) setPermissions(perms);
+           const { data: perms } = await supabase.from('role_permissions').select('*').in('role_id', customRoleIds);
+           if (perms) {
+             const merged = Object.values(perms.reduce((acc, p) => {
+               if (!acc[p.module_name]) acc[p.module_name] = { ...p };
+               else {
+                 acc[p.module_name].can_view = acc[p.module_name].can_view || p.can_view;
+                 acc[p.module_name].can_edit = acc[p.module_name].can_edit || p.can_edit;
+               }
+               return acc;
+             }, {}));
+             setPermissions(merged);
+           }
          }
       } else if (matchedStudent) {
          meta = { ...meta, role: 'student', group_id: matchedStudent.group_id };
