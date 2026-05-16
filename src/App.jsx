@@ -292,9 +292,9 @@ function FacultyPortal({ session, userMeta, permissions }) {
 
   useEffect(() => {
     if (hasDb) {
-      supabase.from('faculty').select('*').then(({ data }) => setFaculty(data || []));
-      supabase.from('courses').select('*').then(({ data }) => setCourses(data || []));
-      supabase.from('students').select('*').then(({ data }) => setStudents(data || []));
+      fetchAll('faculty').then(data => setFaculty(data));
+      fetchAll('courses').then(data => setCourses(data));
+      fetchAll('students').then(data => setStudents(data));
     }
     
     supabase.from('app_sections').select('*').order('order_index').then(({ data }) => setSections(data || []));
