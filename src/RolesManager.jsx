@@ -130,7 +130,10 @@ export function RolesManager() {
 
     { section: 'Role Management', key: 'roles', label: 'Permissions & Roles' },
 
-    ...dynamicModules
+    ...dynamicModules.filter(m => 
+      !['Database Builder', 'App Structure', 'Policies', 'Benchmarking Hub'].includes(m.label) &&
+      !['App Builder & Settings', 'Policies'].includes(m.section)
+    )
   ];
 
   const sections = [...new Set(MODULES.map(m => m.section))];
