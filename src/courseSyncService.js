@@ -153,16 +153,21 @@ export async function syncCoursesFromSheet() {
       throw new Error('No data found in the Google Sheet.');
     }
 
-    const records = sheetRows
+    const rawRecords = sheetRows
       .map(mapRowToRecord)
       .filter(r => r.code); // Must at least have a course code
 
-    if (records.length === 0) {
+    if (rawRecords.length === 0) {
       throw new Error('No valid records found after mapping.');
     }
 
-    // Upsert into Supabase. Assuming 'code' or 'id' is the unique key. 
-    // In CourseManager, 'id' is used. We'll try to use 'code' if it's unique in the DB.
+    // De-duplicate: Keep only the last record for each unique 'code'
+    // to prevent "ON CONFLICT DO UPDATE command cannot affect row a second time" error.
+    const uniqueMap = new Map();
+    rawRecords.forEach(r => uniqueMap.set(r.code, r));
+    const records = Array.from(uniqueMap.values());
+
+    // Upsert into Supabase.
     const { error } = await supabase
       .from('courses')
       .upsert(records, { onConflict: 'code', ignoreDuplicates: false });

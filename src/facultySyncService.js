@@ -172,13 +172,20 @@ export async function syncFacultyFromSheet() {
     }
 
     // 3. Map rows to Supabase records
-    const records = sheetRows
+    const rawRecords = sheetRows
       .map(mapRowToRecord)
       .filter(r => r.name); // Must have a name
 
-    if (records.length === 0) {
+    if (rawRecords.length === 0) {
       throw new Error('No valid records found after mapping.');
     }
+
+    // De-duplicate: Keep only the last record for each unique 'employee_id'
+    const uniqueMap = new Map();
+    rawRecords.forEach(r => {
+      if (r.employee_id) uniqueMap.set(r.employee_id, r);
+    });
+    const records = Array.from(uniqueMap.values());
 
     // 4. Upsert into Supabase (match on employee_id)
     const { error } = await supabase

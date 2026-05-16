@@ -230,13 +230,20 @@ export async function syncStudentsFromSheet() {
       throw new Error('No data found in the Google Sheet.');
     }
 
-    const records = sheetRows
+    const rawRecords = sheetRows
       .map(mapRowToRecord)
       .filter(r => r.name); // Must have a name
 
-    if (records.length === 0) {
+    if (rawRecords.length === 0) {
       throw new Error('No valid records found after mapping.');
     }
+
+    // De-duplicate: Keep only the last record for each unique 'id'
+    const uniqueMap = new Map();
+    rawRecords.forEach(r => {
+      if (r.id) uniqueMap.set(r.id, r);
+    });
+    const records = Array.from(uniqueMap.values());
 
     const { error } = await supabase
       .from('students')
