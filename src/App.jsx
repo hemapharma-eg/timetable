@@ -351,7 +351,7 @@ function FacultyPortal({ session, userMeta, permissions }) {
           {hasDb && (
             <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/faculty/databases')} isExpanded={isExpanded} />
           )}
-          {permissions.some(p => p.module_name === 'roles' && p.can_view) && (
+          {(permissions.some(p => p.module_name === 'roles' && p.can_view) || userMeta?.email === 'dribrahimpharmaceutics@gmail.com') && (
             <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/faculty/roles')} isExpanded={isExpanded} />
           )}
 
