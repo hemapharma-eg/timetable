@@ -119,6 +119,8 @@ export function RolesManager() {
     { section: 'Risk Management', key: 'risk_reports', label: 'Yearly Reports' },
 
     { section: 'DMU Analytics', key: 'analytics', label: 'Analytics Dashboard' },
+    { section: 'DMU Analytics', key: 'benchmarking', label: 'Benchmarking Hub' },
+
     { section: 'Online Courses', key: 'online_courses', label: 'Course Management' },
 
     { section: 'Databases', key: 'db_faculty', label: 'Faculty & Staff' },
@@ -131,7 +133,7 @@ export function RolesManager() {
     { section: 'Role Management', key: 'roles', label: 'Permissions & Roles' },
 
     ...dynamicModules.filter(m => 
-      !['Database Builder', 'App Structure', 'Policies', 'Benchmarking Hub'].includes(m.label) &&
+      !['Database Builder', 'App Structure', 'Policies'].includes(m.label) &&
       !['App Builder & Settings', 'Policies'].includes(m.section)
     )
   ];

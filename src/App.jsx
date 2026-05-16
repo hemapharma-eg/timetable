@@ -157,7 +157,7 @@ function AdminPortal({ session, userMeta, permissions }) {
           <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/admin/databases')} isExpanded={isExpanded} />
           <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/admin/roles')} isExpanded={isExpanded} />
 
-          {sections.filter(s => !['POLICIES', 'BENCHMARKING'].includes(s.name?.toUpperCase())).map(section => {
+          {sections.filter(s => !['POLICIES'].includes(s.name?.toUpperCase())).map(section => {
             const sectionPages = pages.filter(p => p.section_id === section.id);
             if (sectionPages.length === 0) return null;
             return (
