@@ -351,6 +351,9 @@ function FacultyPortal({ session, userMeta, permissions }) {
           {hasDb && (
             <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/faculty/databases')} isExpanded={isExpanded} />
           )}
+          {permissions.some(p => p.module_name === 'roles' && p.can_view) && (
+            <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/faculty/roles')} isExpanded={isExpanded} />
+          )}
 
           {sections.filter(s => {
             const n = s.name?.toUpperCase();
@@ -427,6 +430,7 @@ function FacultyPortal({ session, userMeta, permissions }) {
               } />
             )}
 
+            <Route path="roles" element={<RolesManager />} />
             <Route path="page/:pageId" element={<DynamicPage session={session} userMeta={userMeta} permissions={permissions} />} />
 
             <Route path="welcome" element={
