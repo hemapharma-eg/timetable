@@ -149,7 +149,7 @@ export const StudentManager = ({ students, setStudents, showSyncButton = false }
         return;
       }
 
-      const { data } = await supabase.from('students').select('*');
+      const { data } = await supabase.from('students').select('*').limit(5000);
       if (data) setStudents(data);
 
       setLastSync(getStudentLastSyncTime());

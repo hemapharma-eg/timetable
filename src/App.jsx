@@ -96,9 +96,9 @@ function AdminPortal({ session, userMeta, permissions }) {
   const [pages, setPages] = useState([]);
 
   useEffect(() => {
-    supabase.from('faculty').select('*').then(({ data }) => setFaculty(data || []));
-    supabase.from('courses').select('*').then(({ data }) => setCourses(data || []));
-    supabase.from('students').select('*').then(({ data }) => setStudents(data || []));
+    supabase.from('faculty').select('*').limit(5000).then(({ data }) => setFaculty(data || []));
+    supabase.from('courses').select('*').limit(5000).then(({ data }) => setCourses(data || []));
+    supabase.from('students').select('*').limit(5000).then(({ data }) => setStudents(data || []));
     
     supabase.from('app_sections').select('*').order('order_index').then(({ data }) => setSections(data || []));
     supabase.from('app_pages').select('*').order('order_index').then(({ data }) => setPages(data || []));

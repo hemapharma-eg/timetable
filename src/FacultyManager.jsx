@@ -88,7 +88,7 @@ export const FacultyManager = ({ faculty, setFaculty, showSyncButton = false }) 
       }
 
       // Refresh data from Supabase
-      const { data } = await supabase.from('faculty').select('*');
+      const { data } = await supabase.from('faculty').select('*').limit(5000);
       if (data) setFaculty(data);
 
       setLastSync(getLastSyncTime());

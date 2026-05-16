@@ -81,7 +81,7 @@ export const CourseManager = ({ courses, setCourses, showSyncButton = false }) =
         return;
       }
 
-      const { data } = await supabase.from('courses').select('*');
+      const { data } = await supabase.from('courses').select('*').limit(5000);
       if (data) setCourses(data);
 
       setLastSync(getCourseLastSyncTime());
