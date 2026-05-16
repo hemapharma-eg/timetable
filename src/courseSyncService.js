@@ -153,21 +153,26 @@ export async function syncCoursesFromSheet() {
       throw new Error('No data found in the Google Sheet.');
     }
 
-    const rawRecords = sheetRows
-      .map(mapRowToRecord)
-      .filter(r => r.code && r.name); // Must have both code and name
+    const allRecords = sheetRows.map(mapRowToRecord);
+    const validRecords = allRecords.filter(r => r.code && r.name);
+    const skippedCount = allRecords.length - validRecords.filter(r => r.code || r.name).length; 
+    // actually simpler:
+    const emptyRows = allRecords.filter(r => !r.code && !r.name).length;
+    const invalidRows = allRecords.filter(r => (r.code && !r.name) || (!r.code && r.name)).length;
 
-    if (rawRecords.length === 0) {
+    if (validRecords.length === 0) {
       throw new Error('No valid records found after mapping.');
     }
 
     // De-duplicate: Keep only the last record for each unique (code + academic_year + program)
     const uniqueMap = new Map();
-    rawRecords.forEach(r => {
+    validRecords.forEach(r => {
       const compositeKey = `${r.code}-${r.academic_year || ''}-${r.program || ''}`;
       uniqueMap.set(compositeKey, r);
     });
+    
     const records = Array.from(uniqueMap.values());
+    const duplicateCount = validRecords.length - records.length;
 
     // Upsert into Supabase.
     const { error } = await supabase
@@ -179,7 +184,12 @@ export async function syncCoursesFromSheet() {
     }
 
     localStorage.setItem(LAST_SYNC_KEY, Date.now().toString());
-    return { synced: records.length, errors: [] };
+    return { 
+      synced: records.length, 
+      skipped: invalidRows, 
+      duplicates: duplicateCount,
+      errors: [] 
+    };
   } catch (err) {
     console.error('[Course Sync]', err);
     return { synced: 0, errors: [err.message] };

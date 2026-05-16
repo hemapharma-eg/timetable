@@ -87,7 +87,7 @@ export const CourseManager = ({ courses, setCourses, showSyncButton = false }) =
 
       setLastSync(getCourseLastSyncTime());
       setSyncState('success');
-      setSyncMessage(`✓ Synced ${result.synced} course records from Google Sheet`);
+      setSyncMessage(`✓ Synced ${result.synced} courses. (${result.duplicates} duplicates merged, ${result.skipped} rows skipped due to missing info)`);
 
       setTimeout(() => { setSyncState('idle'); setSyncMessage(''); }, 5000);
     } catch (err) {
