@@ -5,6 +5,7 @@ import { Shield, Plus, Pencil, Trash2, Check, X, Search, ChevronDown, ChevronRig
 export function RolesManager() {
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
+  const [dynamicModules, setDynamicModules] = useState([]);
   
   const [isEditingRole, setIsEditingRole] = useState(null);
   const [roleForm, setRoleForm] = useState({ name: '', description: '' });
@@ -27,9 +28,24 @@ export function RolesManager() {
     if (data) setPermissions(data);
   };
 
+  const fetchDynamicModules = async () => {
+    const { data: sections } = await supabase.from('app_sections').select('*').order('order_index');
+    const { data: pages } = await supabase.from('app_pages').select('*').order('order_index');
+    
+    if (sections && pages) {
+      const dynamic = pages.map(p => ({
+        section: sections.find(s => s.id === p.section_id)?.name || 'Custom',
+        key: `page_${p.id}`,
+        label: p.name
+      }));
+      setDynamicModules(dynamic);
+    }
+  };
+
   useEffect(() => {
     fetchRoles();
     fetchPermissions();
+    fetchDynamicModules();
   }, []);
 
   const saveRole = async (e) => {
@@ -75,7 +91,6 @@ export function RolesManager() {
     if (perm.can_edit) return 'edit';
     return 'view';
   };
-
   const MODULES = [
     { section: 'Risk Management', key: 'risk_dashboard', label: 'Dashboard' },
     { section: 'Risk Management', key: 'risk_new_risk', label: 'Report a Risk' },
@@ -84,6 +99,7 @@ export function RolesManager() {
 
     { section: 'Administration', key: 'db_builder', label: 'Database Builder' },
     { section: 'Organization', key: 'org_structure', label: 'Org Structure' },
+    ...dynamicModules
   ];
 
   const sections = [...new Set(MODULES.map(m => m.section))];

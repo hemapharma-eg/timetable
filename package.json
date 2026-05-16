@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.40.0",
     "@tailwindcss/vite": "^4.2.3",
+    "firebase": "^12.12.1",
     "lucide-react": "^1.8.0",
     "puppeteer": "^24.42.0",
     "react": "^19.2.5",
