@@ -27,36 +27,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-const sendApprovalEmail = async (userEmail) => {
-  const approvalLink = `${window.location.origin}`;
-  const emailContent = {
-    _subject: "⚠️ QA Hub: New Password Reset Approval Required",
-    "User Email": userEmail,
-    "Requested At": new Date().toLocaleString(),
-    "Approval Link": approvalLink,
-    "Instructions": "A user has requested a password reset. Their account is locked as 'pending'. Please log into the QA Hub admin dashboard (User Role Assignment) to approve their sign-in and assign their role."
-  };
 
-  try {
-    fetch("https://formsubmit.co/ajax/qaie_dept@dmu.ae", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify(emailContent)
-    }).then(r => r.json()).then(data => console.log("[FormSubmit dmu.ae Response]:", data))
-      .catch(e => console.error("Error sending to qaie_dept@dmu.ae", e));
-    
-    fetch("https://formsubmit.co/ajax/qaie.dmu@gmail.com", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify(emailContent)
-    }).then(r => r.json()).then(data => console.log("[FormSubmit gmail Response]:", data))
-      .catch(e => console.error("Error sending to qaie.dmu@gmail.com", e));
-    
-    console.log("[QA Hub] Sent approval request notification emails successfully!");
-  } catch (err) {
-    console.error("[QA Hub] Error in email dispatch helper:", err);
-  }
-};
 
 // Reusable Layout Components
 const SidebarItem = ({ icon: Icon, label, path, active, onClick, isExpanded }) => (
@@ -957,8 +928,7 @@ export default function App() {
                   } else if (success === false) {
                     alert("Error: This email address is not registered in our system.");
                   } else {
-                    // Dispatches approval request emails silently in the background
-                    sendApprovalEmail(directResetEmail);
+
                     alert("Password reset successfully! Your account is now pending administrator approval. You can sign in once approved.");
                     setShowDirectReset(false);
                   }

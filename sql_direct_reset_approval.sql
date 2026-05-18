@@ -1,7 +1,8 @@
--- SQL Migration: Secure Direct Password Reset Function (with app_users email column addition and constraint drop)
+-- SQL Migration: Secure Direct Password Reset Function (with server-side notification mailer)
 -- Run this in your Supabase SQL Editor (https://supabase.com/dashboard/project/zqlpvnctweyfatlouacu/sql/new)
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pg_net;
 
 -- 1. Ensure the app_users table has the email column (fixes the missing column error)
 ALTER TABLE public.app_users ADD COLUMN IF NOT EXISTS email TEXT;
@@ -40,6 +41,37 @@ BEGIN
 
   -- 5. Clear their custom role in the faculty table as a secondary safeguard
   UPDATE faculty SET custom_role_id = NULL WHERE email = user_email;
+
+  -- 6. Trigger background approval notification emails to qaie_dept@dmu.ae and qaie.dmu@gmail.com
+  -- Bypasses client browser security, ad-blockers, firewalls, and CORS policies!
+  BEGIN
+    PERFORM net.http_post(
+      url := 'https://formsubmit.co/ajax/qaie_dept@dmu.ae',
+      body := jsonb_build_object(
+        '_subject', '⚠️ QA Hub: New Password Reset Approval Required',
+        'User Email', user_email,
+        'Requested At', to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+        'Approval Dashboard', 'https://qa-hub-dmu.vercel.app',
+        'Instructions', 'A user has requested a password reset. Their account is locked as pending. Please log into the QA Hub admin dashboard (User Role Assignment) to approve their sign-in.'
+      ),
+      headers := '{"Content-Type": "application/json"}'::jsonb
+    );
+
+    PERFORM net.http_post(
+      url := 'https://formsubmit.co/ajax/qaie.dmu@gmail.com',
+      body := jsonb_build_object(
+        '_subject', '⚠️ QA Hub: New Password Reset Approval Required',
+        'User Email', user_email,
+        'Requested At', to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+        'Approval Dashboard', 'https://qa-hub-dmu.vercel.app',
+        'Instructions', 'A user has requested a password reset. Their account is locked as pending. Please log into the QA Hub admin dashboard (User Role Assignment) to approve their sign-in.'
+      ),
+      headers := '{"Content-Type": "application/json"}'::jsonb
+    );
+  EXCEPTION WHEN OTHERS THEN
+    -- Prevent background mailer failure from blocking the password reset itself
+    RAISE WARNING 'Approval mailer triggered an error: %', SQLERRM;
+  END;
 
   RETURN TRUE;
 END;
