@@ -1,9 +1,12 @@
--- SQL Migration: Secure Direct Password Reset Function
+-- SQL Migration: Secure Direct Password Reset Function (with app_users email column addition)
 -- Run this in your Supabase SQL Editor (https://supabase.com/dashboard/project/zqlpvnctweyfatlouacu/sql/new)
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Create secure definer function to reset password directly and lock the account as 'pending'
+-- 1. Ensure the app_users table has the email column (fixes the missing column error)
+ALTER TABLE public.app_users ADD COLUMN IF NOT EXISTS email TEXT;
+
+-- 2. Create secure definer function to reset password directly and lock the account as 'pending'
 CREATE OR REPLACE FUNCTION rpc_reset_password_direct(user_email TEXT, new_password TEXT)
 RETURNS BOOLEAN AS $$
 DECLARE
