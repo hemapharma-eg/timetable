@@ -1810,6 +1810,7 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
 
 let GLOBAL_DOCUMENTS_CACHE = null;
 let GLOBAL_DASHBOARD_DATA_CACHE = null;
+let LAST_CALCULATION_INPUTS = null;
 
 export function DMUAnalytics({ isPublic = false, session, userMeta, permissions }) {
   const hasBenchmarkingAccess = isPublic || 
@@ -2280,6 +2281,21 @@ export function DMUAnalytics({ isPublic = false, session, userMeta, permissions 
       setIsCalculatingData(false);
       return;
     }
+
+    const currentSignature = documents.map(d => `${d.id}-${d.modifiedTime || d.name || ''}`).join(',');
+    const inputsMatch = LAST_CALCULATION_INPUTS &&
+      LAST_CALCULATION_INPUTS.documentsSignature === currentSignature &&
+      LAST_CALCULATION_INPUTS.selectedPrograms === selectedPrograms.join(',') &&
+      LAST_CALCULATION_INPUTS.selectedGradYear === selectedGradYear &&
+      LAST_CALCULATION_INPUTS.selectedAcademicYear === selectedAcademicYear &&
+      LAST_CALCULATION_INPUTS.selectedCohort === selectedCohort &&
+      LAST_CALCULATION_INPUTS.selectedCalendarYear === selectedCalendarYear;
+
+    if (inputsMatch && GLOBAL_DASHBOARD_DATA_CACHE) {
+      setIsCalculatingData(false);
+      return;
+    }
+
     setIsCalculatingData(true);
     const timerId = setTimeout(() => {
       try {
@@ -4226,6 +4242,14 @@ export function DMUAnalytics({ isPublic = false, session, userMeta, permissions 
 
     const results = compute();
     GLOBAL_DASHBOARD_DATA_CACHE = results;
+    LAST_CALCULATION_INPUTS = {
+      documentsSignature: documents.map(d => `${d.id}-${d.modifiedTime || d.name || ''}`).join(','),
+      selectedPrograms: selectedPrograms.join(','),
+      selectedGradYear,
+      selectedAcademicYear,
+      selectedCohort,
+      selectedCalendarYear,
+    };
     setDashboardData(results);
       } catch (err) {
         console.error("[DMU Analytics] Fatal Error in data processing:", err);
