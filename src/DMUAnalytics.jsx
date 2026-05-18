@@ -1442,7 +1442,11 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
 
 let GLOBAL_DOCUMENTS_CACHE = null;
 
-export function DMUAnalytics({ isPublic = false, session, userMeta }) {
+export function DMUAnalytics({ isPublic = false, session, userMeta, permissions }) {
+  const hasBenchmarkingAccess = isPublic || 
+    userMeta?.role === 'technical_admin' || 
+    userMeta?.role === 'academic_admin' || 
+    (permissions && permissions.some(p => p.module_name === 'benchmarking' && p.can_view));
   // --- UI STATE ---
   const [activeTab, setActiveTab] = useState('dashboard');
   const [capPrefill, setCapPrefill] = useState(null);
@@ -4083,13 +4087,15 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
                   <span>Corrective Action Plans</span>
                 </button>
 
-                <button 
-                  onClick={() => setActiveTab('benchmarking')}
-                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === 'benchmarking' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}
-                >
-                  <BarChart2 className="w-4 h-4" />
-                  <span>Benchmarking</span>
-                </button>
+                {hasBenchmarkingAccess && (
+                  <button 
+                    onClick={() => setActiveTab('benchmarking')}
+                    className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === 'benchmarking' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    <BarChart2 className="w-4 h-4" />
+                    <span>Benchmarking</span>
+                  </button>
+                )}
               </nav>
             </div>
 
@@ -4128,7 +4134,7 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative overflow-hidden print:overflow-visible print:h-auto print:block">
         
         {/* --- BENCHMARKING VIEW --- */}
-        {activeTab === 'benchmarking' && (
+        {activeTab === 'benchmarking' && hasBenchmarkingAccess && (
           <div className="flex-1 overflow-y-auto">
             <Benchmarking initialPage="dashboard" />
           </div>

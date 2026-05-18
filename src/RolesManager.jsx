@@ -185,7 +185,9 @@ export function RolesManager() {
 
     ...dynamicModules.filter(m => 
       !['Database Builder', 'App Structure', 'Policies'].includes(m.label) &&
-      !['App Builder & Settings', 'Policies'].includes(m.section)
+      !['App Builder & Settings', 'Policies'].includes(m.section) &&
+      !m.label.toLowerCase().includes('benchmarking') &&
+      !m.section.toLowerCase().includes('benchmarking')
     )
   ];
 

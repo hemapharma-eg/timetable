@@ -379,7 +379,7 @@ function AdminPortal({ session, userMeta, permissions }) {
             <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={true} />} />
             <Route path="analytics" element={
               <ErrorBoundary fallback={<div className="p-8 text-center bg-white border-2 border-dashed border-rose-200 rounded-[2.5rem] text-rose-500 font-bold shadow-sm">Analytics dashboard failed to initialize. Please check your internet connection or contact support.</div>}>
-                <DMUAnalytics session={session} userMeta={userMeta} />
+                <DMUAnalytics session={session} userMeta={userMeta} permissions={permissions} />
               </ErrorBoundary>
             } />
             <Route path="online_courses" element={<OnlineCourses session={session} userMeta={userMeta} />} />
@@ -567,7 +567,7 @@ function FacultyPortal({ session, userMeta, permissions }) {
             {hasAnalytics && (
               <Route path="analytics" element={
                 <ErrorBoundary fallback={<div className="p-8 text-center bg-white border-2 border-dashed border-rose-200 rounded-[2.5rem] text-rose-500 font-bold shadow-sm">Analytics dashboard failed to initialize. Please contact support.</div>}>
-                  <DMUAnalytics session={session} userMeta={userMeta} />
+                  <DMUAnalytics session={session} userMeta={userMeta} permissions={permissions} />
                 </ErrorBoundary>
               } />
             )}
