@@ -9,6 +9,7 @@ export function RolesManager() {
   const [dynamicModules, setDynamicModules] = useState([]);
   const [faculty, setFaculty] = useState([]);
   const [appUsers, setAppUsers] = useState([]);
+  const [dbAppUsers, setDbAppUsers] = useState([]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -39,8 +40,10 @@ export function RolesManager() {
   const fetchUsersData = async () => {
     const { data: fac } = await supabase.from('faculty').select('id, name, email').order('name');
     const { data: assignments } = await supabase.from('staff_roles').select('*');
+    const { data: appUsersList } = await supabase.from('app_users').select('*');
     if (fac) setFaculty(fac);
-    if (assignments) setAppUsers(assignments); // Using appUsers state to store staff_roles assignments
+    if (assignments) setAppUsers(assignments);
+    if (appUsersList) setDbAppUsers(appUsersList);
   };
 
   const fetchDynamicModules = async () => {
@@ -69,8 +72,34 @@ export function RolesManager() {
       await supabase.from('staff_roles').delete().eq('email', email).eq('custom_role_id', custom_role_id);
     } else {
       await supabase.from('staff_roles').upsert({ email, custom_role_id }, { onConflict: ['email', 'custom_role_id'] });
+      
+      // Auto-approve user when a role is assigned
+      const { data: uData } = await supabase.from('app_users').select('id').eq('email', email).maybeSingle();
+      if (uData) {
+        await supabase.from('app_users').update({ role: 'approved' }).eq('id', uData.id);
+      }
     }
     fetchUsersData();
+  };
+
+  const approveUser = async (email) => {
+    try {
+      const { data: uData } = await supabase.from('app_users').select('id').eq('email', email).maybeSingle();
+      if (uData) {
+        const { error } = await supabase.from('app_users').update({ role: 'approved' }).eq('id', uData.id);
+        if (error) {
+          alert(`Error: ${error.message}`);
+        } else {
+          alert(`Account for ${email} has been approved successfully!`);
+          fetchUsersData();
+        }
+      } else {
+        alert("This user does not have an app user record yet. They must log in once first or reset their password to register.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("An unexpected error occurred.");
+    }
   };
 
   const saveRole = async (e) => {
@@ -423,7 +452,16 @@ export function RolesManager() {
                   
                   return (
                     <tr key={f.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4 font-semibold text-slate-800">{f.name}</td>
+                      <td className="p-4 font-semibold text-slate-800">
+                        <div className="flex items-center gap-2">
+                          {f.name}
+                          {dbAppUsers.find(u => u.email === f.email)?.role === 'pending' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
+                              Pending Approval
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-4 text-slate-500 text-sm">{f.email}</td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-2">
@@ -460,23 +498,34 @@ export function RolesManager() {
                         </select>
                       </td>
                       <td className="p-4 text-right">
-                        <button
-                          onClick={() => handleSendResetEmail(f.email)}
-                          disabled={resetSending[f.email]}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                            resetSending[f.email]
-                              ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                              : 'bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 shadow-sm active:scale-[0.98]'
-                          }`}
-                          title="Send password reset invitation email"
-                        >
-                          {resetSending[f.email] ? (
-                            <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
-                          ) : (
-                            <KeyRound size={13} />
+                        <div className="flex justify-end items-center gap-2">
+                          {dbAppUsers.find(u => u.email === f.email)?.role === 'pending' && (
+                            <button
+                              onClick={() => approveUser(f.email)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm animate-bounce"
+                              title="Approve User"
+                            >
+                              <Check size={13} /> Approve
+                            </button>
                           )}
-                          Reset PW
-                        </button>
+                          <button
+                            onClick={() => handleSendResetEmail(f.email)}
+                            disabled={resetSending[f.email]}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                              resetSending[f.email]
+                                ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                : 'bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 shadow-sm active:scale-[0.98]'
+                            }`}
+                            title="Send password reset invitation email"
+                          >
+                            {resetSending[f.email] ? (
+                              <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
+                            ) : (
+                              <KeyRound size={13} />
+                            )}
+                            Reset PW
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

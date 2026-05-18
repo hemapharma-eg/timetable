@@ -492,6 +492,11 @@ export default function App() {
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showDirectReset, setShowDirectReset] = useState(false);
+  const [directResetEmail, setDirectResetEmail] = useState('');
+  const [directResetPassword, setDirectResetPassword] = useState('');
+  const [directResetConfirm, setDirectResetConfirm] = useState('');
+  const [directResetLoading, setDirectResetLoading] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -538,7 +543,17 @@ export default function App() {
 
   const fetchRoleAndData = async (userId, userEmail) => {
     try {
-      const { data: userData } = await supabase.from('app_users').select('*').eq('id', userId).single();
+      const { data: userData } = await supabase.from('app_users').select('*').eq('id', userId).maybeSingle();
+      
+      if (userEmail && userEmail !== 'dribrahimpharmaceutics@gmail.com') {
+        if (userData && userData.role === 'pending') {
+          await supabase.auth.signOut();
+          localStorage.removeItem('oc_active_course');
+          alert('Access Denied: Your account is pending administrator approval. Please contact the administrator (dribrahimpharmaceutics@gmail.com).');
+          setLoading(false);
+          return;
+        }
+      }
       
       let matchedFaculty = null;
       let matchedStudent = null;
@@ -684,8 +699,8 @@ export default function App() {
 
   if (!session) {
     return (
-      <div className="flex h-screen bg-slate-900 font-sans text-white items-center justify-center">
-        <div className="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-700">
+      <div className="flex h-screen bg-slate-900 font-sans text-white items-center justify-center relative">
+        <div className="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-700 animate-in fade-in duration-300">
           <div className="flex justify-center mb-6 text-indigo-400">
             <Calendar size={48} />
           </div>
@@ -706,15 +721,151 @@ export default function App() {
               <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
               <input name="password" type="password" required className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
             </div>
-            <button type="submit" className="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 flex items-center justify-center">
+            <button type="submit" className="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 flex items-center justify-center transition-colors">
               <LogIn size={18} className="mr-2" /> Sign In
             </button>
           </form>
+          
+          <div className="text-center mt-4">
+            <button 
+              type="button" 
+              onClick={() => {
+                setShowDirectReset(true);
+                setDirectResetEmail('');
+                setDirectResetPassword('');
+                setDirectResetConfirm('');
+              }} 
+              className="text-xs text-indigo-400 hover:text-indigo-300 font-medium hover:underline transition-colors"
+            >
+              Forgot Password? Reset it directly
+            </button>
+          </div>
           
           <div className="mt-6 pt-4 border-t border-slate-700 text-center text-sm text-slate-500">
             Contact admin if your account has no assigned permissions.
           </div>
         </div>
+
+        {/* Direct Reset Password Modal */}
+        {showDirectReset && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+            <div className="bg-slate-800 rounded-2xl shadow-xl border border-slate-700 p-6 w-full max-w-md animate-in zoom-in-95 duration-200 font-sans text-white">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <KeyRound className="text-indigo-400" size={20} />
+                  Reset Password Directly
+                </h3>
+                <button 
+                  type="button"
+                  onClick={() => setShowDirectReset(false)} 
+                  className="text-slate-400 hover:text-slate-200 rounded-lg p-1 hover:bg-slate-700 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <p className="text-xs text-slate-400 mb-6">
+                Enter your email address and choose a new password. After resetting, your account will require approval from the administrator (dribrahimpharmaceutics@gmail.com) before you can log in.
+              </p>
+              
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!directResetEmail || !directResetPassword || !directResetConfirm) return;
+                if (directResetPassword !== directResetConfirm) {
+                  alert("Passwords do not match!");
+                  return;
+                }
+                if (directResetPassword.length < 6) {
+                  alert("Password must be at least 6 characters long.");
+                  return;
+                }
+                setDirectResetLoading(true);
+                try {
+                  const { data: success, error } = await supabase.rpc('rpc_reset_password_direct', {
+                    user_email: directResetEmail,
+                    new_password: directResetPassword
+                  });
+                  if (error) {
+                    alert(`Error: ${error.message}`);
+                  } else if (success === false) {
+                    alert("Error: This email address is not registered in our system.");
+                  } else {
+                    alert("Password reset successfully! Your account is now pending administrator approval (dribrahimpharmaceutics@gmail.com). You can sign in once approved.");
+                    setShowDirectReset(false);
+                  }
+                } catch (err) {
+                  console.error(err);
+                  alert("An unexpected error occurred.");
+                } finally {
+                  setDirectResetLoading(false);
+                }
+              }} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
+                  <input 
+                    type="email" 
+                    required 
+                    value={directResetEmail}
+                    onChange={e => setDirectResetEmail(e.target.value)}
+                    placeholder="name@institution.com"
+                    className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">New Password</label>
+                  <input 
+                    type="password" 
+                    required 
+                    value={directResetPassword}
+                    onChange={e => setDirectResetPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Confirm New Password</label>
+                  <input 
+                    type="password" 
+                    required 
+                    value={directResetConfirm}
+                    onChange={e => setDirectResetConfirm(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+                
+                <div className="flex gap-3 justify-end pt-2">
+                  <button 
+                    type="button"
+                    onClick={() => setShowDirectReset(false)}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 font-medium text-xs transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={directResetLoading}
+                    className={`px-5 py-2 rounded-lg font-medium text-xs flex items-center gap-1.5 text-white transition-all ${
+                      directResetLoading 
+                        ? 'bg-indigo-600/50 cursor-not-allowed' 
+                        : 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98]'
+                    }`}
+                  >
+                    {directResetLoading ? (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <KeyRound size={14} /> Reset Password
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
