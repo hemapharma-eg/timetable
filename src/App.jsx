@@ -66,8 +66,8 @@ function WelcomeHub({ role, navigate, permissions, userMeta }) {
   // Check permissions to dynamically display links
   const hasRisk = role === 'technical_admin' || role === 'academic_admin' || (permissions && permissions.some(p => p.module_name.startsWith('risk_') && p.can_view));
   const hasDb = role === 'technical_admin' || (permissions && permissions.some(p => p.module_name.startsWith('db_') && p.can_view));
-  const hasAnalytics = role === 'technical_admin' || role === 'faculty' || role === 'academic_admin';
-  const hasCourses = true; // Everyone can see courses!
+  const hasAnalytics = role === 'technical_admin' || role === 'academic_admin' || (permissions && permissions.some(p => p.module_name === 'analytics' && p.can_view));
+  const hasCourses = role === 'student' || role === 'technical_admin' || role === 'academic_admin' || (permissions && permissions.some(p => p.module_name === 'online_courses' && p.can_view));
 
   return (
     <div className="py-6 px-4 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans text-slate-800">
@@ -373,8 +373,8 @@ function FacultyPortal({ session, userMeta, permissions }) {
   const allowedRiskTabs = riskPerms.map(p => p.module_name.replace('risk_', ''));
   const allowedDbTabs = dbPerms.map(p => p.module_name.replace('db_', ''));
   
-  // Assume true for now to match user's prompt request, you could restrict this further
-  const hasAnalytics = true;
+  const hasAnalytics = permissions.some(p => p.module_name === 'analytics' && p.can_view);
+  const hasCourses = permissions.some(p => p.module_name === 'online_courses' && p.can_view);
 
 
   const [dbSubTab, setDbSubTab] = useState(allowedDbTabs.length > 0 ? allowedDbTabs[0] : '');
@@ -450,7 +450,9 @@ function FacultyPortal({ session, userMeta, permissions }) {
           {hasAnalytics && (
             <SidebarItem id="analytics" icon={Activity} label="DMU Analytics" active={currentTab === 'analytics'} onClick={() => navigate('/faculty/analytics')} isExpanded={isExpanded} />
           )}
-          <SidebarItem id="online_courses" icon={PlaySquare} label="Online Courses" active={currentTab === 'online_courses'} onClick={() => navigate('/faculty/online_courses')} isExpanded={isExpanded} />
+          {hasCourses && (
+            <SidebarItem id="online_courses" icon={PlaySquare} label="Online Courses" active={currentTab === 'online_courses'} onClick={() => navigate('/faculty/online_courses')} isExpanded={isExpanded} />
+          )}
           {hasDb && (
             <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/faculty/databases')} isExpanded={isExpanded} />
           )}
@@ -512,7 +514,9 @@ function FacultyPortal({ session, userMeta, permissions }) {
                 </ErrorBoundary>
               } />
             )}
-            <Route path="online_courses" element={<OnlineCourses session={session} userMeta={userMeta} />} />
+            {hasCourses && (
+              <Route path="online_courses" element={<OnlineCourses session={session} userMeta={userMeta} />} />
+            )}
             
             {hasDb && (
               <Route path="databases" element={
