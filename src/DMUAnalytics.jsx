@@ -1440,6 +1440,8 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
   );
 };
 
+let GLOBAL_DOCUMENTS_CACHE = null;
+
 export function DMUAnalytics({ isPublic = false, session, userMeta }) {
   // --- UI STATE ---
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1567,7 +1569,7 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
   }, [selectedPrograms]);
   
   // --- DATA STATE ---
-  const [documents, setDocuments] = useState([]);
+  const [documents, setDocuments] = useState(GLOBAL_DOCUMENTS_CACHE || []);
   const [folderId, setFolderId] = useState(DEFAULT_FOLDER_ID);
   
   // --- MODAL STATE ---
@@ -1597,6 +1599,10 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
 
 
   useEffect(() => {
+    if (GLOBAL_DOCUMENTS_CACHE && GLOBAL_DOCUMENTS_CACHE.length > 0) {
+      console.log('[DMU Analytics] Instant Memory Load: Documents loaded from memory cache.');
+      return;
+    }
     if (GOOGLE_API_KEY && GOOGLE_API_KEY !== "YOUR_GOOGLE_API_KEY_HERE") {
       syncDriveFolder();
     } else {
@@ -1622,6 +1628,7 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
             if (rec && rec.docs) fetchedDocs.push(...rec.docs);
           });
           if (fetchedDocs.length > 0) {
+            GLOBAL_DOCUMENTS_CACHE = fetchedDocs;
             setDocuments(fetchedDocs);
             setIsSyncing(false);
             console.log('[DMU Analytics] Wrote cached files from IndexedDB into memory successfully!');
@@ -1780,6 +1787,7 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
       });
       
       if (fetchedDocs.length > 0) {
+        GLOBAL_DOCUMENTS_CACHE = fetchedDocs;
         setDocuments(fetchedDocs);
         localStorage.setItem('lastDriveSyncDate', todayStr);
         if (skippedFiles.length > 0) {
@@ -1795,7 +1803,11 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
     }
   };
 
-  const removeDocument = (id) => setDocuments(prev => prev.filter(doc => doc.id !== id));
+  const removeDocument = (id) => {
+    const updated = documents.filter(doc => doc.id !== id);
+    GLOBAL_DOCUMENTS_CACHE = updated;
+    setDocuments(updated);
+  };
 
 
 
