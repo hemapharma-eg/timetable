@@ -2273,6 +2273,13 @@ export function DMUAnalytics({ isPublic = false, session, userMeta, permissions 
   const [dashboardData, setDashboardData] = useState(GLOBAL_DASHBOARD_DATA_CACHE || { records: [], programs: [], cohorts: [], gradYears: [], academicYears: [], stats: null, docName: null });
 
   useEffect(() => {
+    if (!documents || documents.length === 0) {
+      if (GLOBAL_DASHBOARD_DATA_CACHE) {
+        return;
+      }
+      setIsCalculatingData(false);
+      return;
+    }
     setIsCalculatingData(true);
     const timerId = setTimeout(() => {
       try {
