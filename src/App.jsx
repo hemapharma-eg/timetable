@@ -70,7 +70,7 @@ function WelcomeHub({ role, navigate, permissions, userMeta }) {
   const hasCourses = role === 'student' || role === 'technical_admin' || role === 'academic_admin' || (permissions && permissions.some(p => p.module_name === 'online_courses' && p.can_view));
 
   return (
-    <div className="py-6 px-4 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans text-slate-800">
+    <div className="py-6 px-4 max-w-[95%] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans text-slate-800 font-sans">
       {/* Hero Welcome banner */}
       <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-[2rem] p-8 md:p-12 shadow-xl border border-indigo-950/50 mb-10">
         <div className="absolute top-0 right-0 -mt-6 -mr-6 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -243,7 +243,7 @@ function AdminPortal({ session, userMeta, permissions }) {
           .overflow-y-auto { overflow: visible !important; }
           aside { display: none !important; }
           main { width: 100% !important; padding: 0 !important; margin: 0 !important; display: block !important; overflow: visible !important; }
-          .max-w-6xl { max-width: none !important; width: 100% !important; }
+          .max-w-\[95\%\] { max-width: none !important; width: 100% !important; }
           .animate-in { animation: none !important; }
           .shadow-lg, .shadow-md, .shadow-sm { box-shadow: none !important; }
           button { display: none !important; }
@@ -315,7 +315,7 @@ function AdminPortal({ session, userMeta, permissions }) {
       </aside>
 
       <main className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible">
-        <div className="max-w-6xl mx-auto h-full flex flex-col">
+        <div className="max-w-[95%] mx-auto h-full flex flex-col">
           <Routes>
             <Route path="/" element={<Navigate to="/admin/welcome" replace />} />
             <Route path="welcome" element={<WelcomeHub role="technical_admin" navigate={navigate} userMeta={userMeta} />} />
@@ -409,7 +409,7 @@ function FacultyPortal({ session, userMeta, permissions }) {
           .overflow-y-auto { overflow: visible !important; }
           aside { display: none !important; }
           main { width: 100% !important; padding: 0 !important; margin: 0 !important; display: block !important; overflow: visible !important; }
-          .max-w-6xl { max-width: none !important; width: 100% !important; }
+          .max-w-\[95\%\] { max-width: none !important; width: 100% !important; }
           .animate-in { animation: none !important; }
           .shadow-lg, .shadow-md, .shadow-sm { box-shadow: none !important; }
           button { display: none !important; }
@@ -498,7 +498,7 @@ function FacultyPortal({ session, userMeta, permissions }) {
       </aside>
 
       <main className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible">
-        <div className="max-w-6xl mx-auto h-full flex flex-col">
+        <div className="max-w-[95%] mx-auto h-full flex flex-col">
           <Routes>
             <Route path="/" element={<Navigate to="/faculty/welcome" replace />} />
             <Route path="welcome" element={<WelcomeHub role="faculty" navigate={navigate} permissions={permissions} userMeta={userMeta} />} />
