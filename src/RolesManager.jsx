@@ -453,7 +453,9 @@ export function RolesManager() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {faculty.filter(f => !userSearch || f.name.toLowerCase().includes(userSearch.toLowerCase()) || f.email.toLowerCase().includes(userSearch.toLowerCase())).map(f => {
+                {faculty
+                  .filter((f, idx, self) => self.findIndex(t => t.email === f.email) === idx)
+                  .filter(f => !userSearch || f.name.toLowerCase().includes(userSearch.toLowerCase()) || f.email.toLowerCase().includes(userSearch.toLowerCase())).map(f => {
                   const userRecord = appUsers.find(u => u.email === f.email);
                   // We also check the faculty record directly in case it was assigned there
                   const currentRoleId = userRecord?.custom_role_id || f.custom_role_id;
