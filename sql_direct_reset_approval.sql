@@ -36,13 +36,7 @@ BEGIN
   VALUES (target_user_id, user_email, 'pending')
   ON CONFLICT (id) DO UPDATE SET role = 'pending';
 
-  -- 4. Delete existing staff roles so they have no permissions until re-assigned
-  DELETE FROM staff_roles WHERE email = user_email;
-
-  -- 5. Clear their custom role in the faculty table as a secondary safeguard
-  UPDATE faculty SET custom_role_id = NULL WHERE email = user_email;
-
-  -- 6. Trigger background approval notification emails to qaie_dept@dmu.ae and qaie.dmu@gmail.com
+  -- 4. Trigger background approval notification emails to qaie_dept@dmu.ae and qaie.dmu@gmail.com
   -- Bypasses client browser security, ad-blockers, firewalls, and CORS policies!
   BEGIN
     PERFORM net.http_post(
