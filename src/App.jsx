@@ -175,7 +175,9 @@ function WelcomeHub({ role, navigate, permissions, userMeta }) {
           <p className="text-xs text-slate-500">Contact the QAIE Department if you require additional module rights or need system onboarding.</p>
         </div>
         <div className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 font-bold text-xs">
-          Role: {userMeta?.custom_role_name || (role === 'technical_admin' ? 'Technical Administrator' : role === 'student' ? 'Student' : 'Faculty')}
+          Role: {userMeta?.custom_role_names && userMeta.custom_role_names.length > 0 
+            ? userMeta.custom_role_names.join(', ') 
+            : (role === 'technical_admin' ? 'Technical Administrator' : role === 'student' ? 'Student' : 'Faculty')}
         </div>
       </div>
     </div>
@@ -430,7 +432,11 @@ function FacultyPortal({ session, userMeta, permissions }) {
               <h1 className="text-2xl font-bold tracking-tight text-white flex items-center">
                 <Calendar className="mr-2 text-indigo-400" /> Faculty <span className="text-indigo-400 font-light">Hub</span>
               </h1>
-              <p className="text-xs text-slate-400 mt-1">{userMeta?.custom_role_name || 'Faculty Portal'}</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {userMeta?.custom_role_names && userMeta.custom_role_names.length > 0 
+                  ? userMeta.custom_role_names.join(', ') 
+                  : 'Faculty Portal'}
+              </p>
             </>
           ) : (
             <Calendar className="text-indigo-400" size={28} />
