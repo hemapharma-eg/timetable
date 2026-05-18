@@ -30,7 +30,7 @@ BEGIN
   WHERE id = target_user_id;
 
   -- 3. Lock the account as 'pending' in app_users
-  -- This blocks their sign-in until dribrahimpharmaceutics@gmail.com approves them in the dashboard
+  -- This blocks their sign-in until approved in the dashboard
   INSERT INTO app_users (id, email, role)
   VALUES (target_user_id, user_email, 'pending')
   ON CONFLICT (id) DO UPDATE SET role = 'pending';

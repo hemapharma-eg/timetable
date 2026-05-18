@@ -549,7 +549,7 @@ export default function App() {
         if (userData && userData.role === 'pending') {
           await supabase.auth.signOut();
           localStorage.removeItem('oc_active_course');
-          alert('Access Denied: Your account is pending administrator approval. Please contact the administrator (dribrahimpharmaceutics@gmail.com).');
+          alert('Access Denied: Your account is pending administrator approval. Please contact the administrator.');
           setLoading(false);
           return;
         }
@@ -765,7 +765,7 @@ export default function App() {
               </div>
               
               <p className="text-xs text-slate-400 mb-6">
-                Enter your email address and choose a new password. After resetting, your account will require approval from the administrator (dribrahimpharmaceutics@gmail.com) before you can log in.
+                Enter your email address and choose a new password. After resetting, your account will require approval from the administrator before you can log in.
               </p>
               
               <form onSubmit={async (e) => {
@@ -790,7 +790,7 @@ export default function App() {
                   } else if (success === false) {
                     alert("Error: This email address is not registered in our system.");
                   } else {
-                    alert("Password reset successfully! Your account is now pending administrator approval (dribrahimpharmaceutics@gmail.com). You can sign in once approved.");
+                    alert("Password reset successfully! Your account is now pending administrator approval. You can sign in once approved.");
                     setShowDirectReset(false);
                   }
                 } catch (err) {
