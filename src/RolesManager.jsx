@@ -98,6 +98,26 @@ export function RolesManager() {
     }
   };
 
+  const rejectUser = async (email) => {
+    if (!confirm(`Are you sure you want to REJECT the password reset request for ${email}?`)) return;
+    try {
+      const { data: uData } = await supabase.from('app_users').select('id').eq('email', email).maybeSingle();
+      if (uData) {
+        const { error } = await supabase.from('app_users').update({ role: 'rejected' }).eq('id', uData.id);
+        if (error) {
+          alert(`Error: ${error.message}`);
+        } else {
+          await supabase.from('staff_roles').delete().eq('email', email);
+          alert(`Account for ${email} has been rejected successfully.`);
+          fetchUsersData();
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert("An unexpected error occurred.");
+    }
+  };
+
   const saveRole = async (e) => {
     e.preventDefault();
     if (isEditingRole) {
@@ -202,7 +222,7 @@ export function RolesManager() {
   return (
     <div className="flex flex-col h-full gap-6">
       {/* Tab Switcher */}
-      <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 w-fit">
+      <div className="flex flex-wrap bg-white p-1 rounded-xl shadow-sm border border-slate-200 w-fit gap-1">
         <button 
           onClick={() => setActiveTab('roles')}
           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'roles' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}
@@ -215,9 +235,20 @@ export function RolesManager() {
         >
           User Role Assignment
         </button>
+        <button 
+          onClick={() => setActiveTab('pending')}
+          className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'pending' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'} flex items-center gap-2`}
+        >
+          Users Need Approval
+          {dbAppUsers.filter(u => u.role === 'pending').length > 0 && (
+            <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'pending' ? 'bg-white text-indigo-700 font-extrabold' : 'bg-rose-500 text-white animate-pulse'}`}>
+              {dbAppUsers.filter(u => u.role === 'pending').length}
+            </span>
+          )}
+        </button>
       </div>
 
-      {activeTab === 'roles' ? (
+      {activeTab === 'roles' && (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-bottom-2">
           <div className="mb-8">
             <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center">
@@ -384,7 +415,9 @@ export function RolesManager() {
             )}
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeTab === 'users' && (
         /* User Role Assignment Tab */
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-bottom-2">
           <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
@@ -473,13 +506,22 @@ export function RolesManager() {
                       <td className="p-4 text-right">
                         <div className="flex justify-end items-center gap-2">
                           {dbAppUsers.find(u => u.email === f.email)?.role === 'pending' && (
-                            <button
-                              onClick={() => approveUser(f.email)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm animate-bounce"
-                              title="Approve User"
-                            >
-                              <Check size={13} /> Approve
-                            </button>
+                            <>
+                              <button
+                                onClick={() => approveUser(f.email)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm"
+                                title="Approve User"
+                              >
+                                <Check size={13} /> Approve
+                              </button>
+                              <button
+                                onClick={() => rejectUser(f.email)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 active:scale-[0.98] transition-all shadow-sm"
+                                title="Reject User"
+                              >
+                                <X size={13} /> Reject
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -489,6 +531,77 @@ export function RolesManager() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Users Need Approval Tab */}
+      {activeTab === 'pending' && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-bottom-2">
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <Shield className="text-amber-500 animate-pulse animate-duration-1000" /> Users Need Approval
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">Review and action pending password resets or registration requests.</p>
+          </div>
+
+          {dbAppUsers.filter(u => u.role === 'pending').length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mb-4">
+                <Check size={28} />
+              </div>
+              <h4 className="text-md font-bold text-slate-800 mb-1">All Caught Up!</h4>
+              <p className="text-sm text-slate-400 max-w-sm">There are no pending user approval requests at the moment.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto border rounded-xl">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b text-slate-600 text-xs uppercase tracking-wider">
+                    <th className="p-4">Faculty Member</th>
+                    <th className="p-4">Email</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {dbAppUsers.filter(u => u.role === 'pending').map(user => {
+                    const matchedFac = faculty.find(f => f.email === user.email);
+                    return (
+                      <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-4 font-semibold text-slate-800">
+                          {matchedFac?.name || 'Guest / Unmatched User'}
+                        </td>
+                        <td className="p-4 text-slate-500 text-sm">{user.email}</td>
+                        <td className="p-4">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                            Pending Approval
+                          </span>
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex justify-end items-center gap-3">
+                            <button
+                              onClick={() => approveUser(user.email)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm"
+                              title="Approve User Access"
+                            >
+                              <Check size={14} /> Approve
+                            </button>
+                            <button
+                              onClick={() => rejectUser(user.email)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 active:scale-[0.98] transition-all shadow-sm"
+                              title="Reject and Lock Access"
+                            >
+                              <X size={14} /> Reject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

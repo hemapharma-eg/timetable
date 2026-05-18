@@ -71,8 +71,63 @@ function WelcomeHub({ role, navigate, permissions, userMeta }) {
   const hasAnalytics = role === 'technical_admin' || role === 'academic_admin' || (permissions && permissions.some(p => p.module_name === 'analytics' && p.can_view));
   const hasCourses = role === 'student' || role === 'technical_admin' || role === 'academic_admin' || (permissions && permissions.some(p => p.module_name === 'online_courses' && p.can_view));
 
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const isAdmin = role === 'technical_admin' || role === 'academic_admin' || (permissions && permissions.some(p => p.module_name === 'roles'));
+    if (isAdmin) {
+      const fetchPending = async () => {
+        try {
+          const { count, error } = await supabase
+            .from('app_users')
+            .select('*', { count: 'exact', head: true })
+            .eq('role', 'pending');
+          if (!error && count !== null) {
+            setPendingCount(count);
+          }
+        } catch (e) {
+          console.error("Error fetching pending approvals count:", e);
+        }
+      };
+      fetchPending();
+      
+      // Setup realtime subscription to keep it perfectly updated!
+      const channel = supabase
+        .channel('app_users_pending_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_users' }, () => {
+          fetchPending();
+        })
+        .subscribe();
+        
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [role, permissions]);
+
   return (
     <div className="py-6 px-4 max-w-[95%] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans text-slate-800 font-sans">
+      {/* Pending Approvals Notification Bar for Admins */}
+      {pendingCount > 0 && (
+        <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-3xl shadow-xs animate-in slide-in-from-top-3 duration-300">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-amber-100 text-amber-800 rounded-2xl animate-pulse">
+              <ShieldAlert size={20} />
+            </div>
+            <div>
+              <h5 className="font-bold text-amber-900 text-sm">Action Required: User Approvals Pending</h5>
+              <p className="text-xs text-amber-700 mt-0.5">There are <span className="font-extrabold text-amber-900">{pendingCount}</span> user accounts pending administrator approval. Please review their access requests.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => navigate(role === 'technical_admin' || role === 'academic_admin' ? '/admin/roles' : '/faculty/roles')}
+            className="w-full sm:w-auto px-4 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5"
+          >
+            Review & Approve <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Hero Welcome banner */}
       <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-[2rem] p-8 md:p-12 shadow-xl border border-indigo-950/50 mb-10">
         <div className="absolute top-0 right-0 -mt-6 -mr-6 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
