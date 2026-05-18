@@ -760,10 +760,22 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
   };
 
   const exportToExcel = () => {
-    const targetCaps = isAdmin ? caps : caps.filter(cap => cap.created_by === session?.user?.email);
+    const roleCaps = isAdmin ? caps : caps.filter(cap => cap.created_by === session?.user?.email);
+    
+    const targetCaps = roleCaps
+      .filter(cap => !filters.kpi_no || cap.kpi_no === filters.kpi_no)
+      .filter(cap => !filters.program || 
+        (filters.program === 'Institution Level' && (!cap.program || (Array.isArray(cap.program) && cap.program.length === 0))) ||
+        (Array.isArray(cap.program) && cap.program.includes(filters.program))
+      );
     
     if (targetCaps.length === 0) {
-      alert(isAdmin ? "No Corrective Action Plans exist to export." : "You have not created any Corrective Action Plans yet.");
+      const isFiltered = !!(filters.program || filters.kpi_no);
+      if (isFiltered) {
+        alert("No Corrective Action Plans match the active filters.");
+      } else {
+        alert(isAdmin ? "No Corrective Action Plans exist to export." : "You have not created any Corrective Action Plans yet.");
+      }
       return;
     }
 
@@ -799,7 +811,12 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
 
     const ws = XLSX.utils.json_to_sheet(dataRows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, isAdmin ? "All Action Plans" : "My Action Plans");
+    
+    const isFiltered = !!(filters.program || filters.kpi_no);
+    const sheetName = isFiltered 
+      ? "Filtered Action Plans" 
+      : (isAdmin ? "All Action Plans" : "My Action Plans");
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
     
     // Set auto column widths securely using the official wch property
     const max_widths = Object.keys(dataRows[0] || {}).map(key => {
@@ -810,26 +827,47 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
     ws['!cols'] = max_widths.map(w => ({ wch: w }));
 
     const safeEmail = session?.user?.email ? session.user.email.split('@')[0] : 'user';
-    const filename = isAdmin ? `All_Corrective_Action_Plans.xlsx` : `My_Corrective_Action_Plans_${safeEmail}.xlsx`;
+    let filename = isAdmin ? `All_Corrective_Action_Plans.xlsx` : `My_Corrective_Action_Plans_${safeEmail}.xlsx`;
+    if (isFiltered) {
+      filename = isAdmin ? `All_Corrective_Action_Plans_Filtered.xlsx` : `My_Corrective_Action_Plans_Filtered_${safeEmail}.xlsx`;
+    }
     XLSX.writeFile(wb, filename);
   };
 
   const exportToWord = () => {
-    const targetCaps = isAdmin ? caps : caps.filter(cap => cap.created_by === session?.user?.email);
+    const roleCaps = isAdmin ? caps : caps.filter(cap => cap.created_by === session?.user?.email);
+    
+    const targetCaps = roleCaps
+      .filter(cap => !filters.kpi_no || cap.kpi_no === filters.kpi_no)
+      .filter(cap => !filters.program || 
+        (filters.program === 'Institution Level' && (!cap.program || (Array.isArray(cap.program) && cap.program.length === 0))) ||
+        (Array.isArray(cap.program) && cap.program.includes(filters.program))
+      );
     
     if (targetCaps.length === 0) {
-      alert(isAdmin ? "No Corrective Action Plans exist to export." : "You have not created any Corrective Action Plans yet.");
+      const isFiltered = !!(filters.program || filters.kpi_no);
+      if (isFiltered) {
+        alert("No Corrective Action Plans match the active filters.");
+      } else {
+        alert(isAdmin ? "No Corrective Action Plans exist to export." : "You have not created any Corrective Action Plans yet.");
+      }
       return;
     }
+
+    const isFiltered = !!(filters.program || filters.kpi_no);
+    const filterDetails = [];
+    if (filters.program) filterDetails.push(`Scope: ${filters.program}`);
+    if (filters.kpi_no) filterDetails.push(`KPI: ${filters.kpi_no}`);
+    const filterStr = filterDetails.length > 0 ? ` | Filters: [${filterDetails.join(', ')}]` : '';
 
     let html = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
       <head>
-        <title>${isAdmin ? 'All' : 'My'} Corrective Action Plans Report</title>
+        <title>${isAdmin ? 'All' : 'My'}${isFiltered ? ' Filtered' : ''} Corrective Action Plans Report</title>
         <!--[if gte mso 9]>
         <xml>
           <w:WordDocument>
-            <w:View>Print</w:WordDocument>
+            <w:View>Print</w:View>
             <w:Zoom>100</w:Zoom>
             <w:DoNotOptimizeForBrowser/>
           </w:WordDocument>
@@ -930,9 +968,9 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
           <tr>
             <td>
               <div class="subtitle">Dubai Medical University</div>
-              <div class="title">${isAdmin ? 'All Institutional' : 'My'} Corrective Action Plans Report</div>
+              <div class="title">${isAdmin ? 'All Institutional' : 'My'}${isFiltered ? ' Filtered' : ''} Corrective Action Plans Report</div>
               <div style="font-size: 11px; color: #64748b; margin-top: 5px;">
-                Generated by: <b>${session?.user?.email || 'User'}</b> | Date: ${new Date().toLocaleDateString()}
+                Generated by: <b>${session?.user?.email || 'User'}</b> | Date: ${new Date().toLocaleDateString()}${filterStr}
               </div>
             </td>
           </tr>
@@ -1061,7 +1099,10 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
     const a = document.createElement('a');
     a.href = url;
     const safeEmail = session?.user?.email ? session.user.email.split('@')[0] : 'user';
-    const filename = isAdmin ? `All_Corrective_Action_Plans.doc` : `My_Corrective_Action_Plans_${safeEmail}.doc`;
+    let filename = isAdmin ? `All_Corrective_Action_Plans.doc` : `My_Corrective_Action_Plans_${safeEmail}.doc`;
+    if (isFiltered) {
+      filename = isAdmin ? `All_Corrective_Action_Plans_Filtered.doc` : `My_Corrective_Action_Plans_Filtered_${safeEmail}.doc`;
+    }
     a.download = filename;
     document.body.appendChild(a);
     a.click();
