@@ -1809,6 +1809,7 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
 };
 
 let GLOBAL_DOCUMENTS_CACHE = null;
+let GLOBAL_DASHBOARD_DATA_CACHE = null;
 
 export function DMUAnalytics({ isPublic = false, session, userMeta, permissions }) {
   const hasBenchmarkingAccess = isPublic || 
@@ -1985,12 +1986,17 @@ export function DMUAnalytics({ isPublic = false, session, userMeta, permissions 
   // --- GOOGLE DRIVE SYNC LOGIC ---
   const syncDriveFolder = async (force = false) => {
     if (!folderId) return;
-    setIsSyncing(true);
     setAuthError('');
 
     const todayStr = new Date().toLocaleDateString();
+    const lastSync = localStorage.getItem('lastDriveSyncDate');
+    const isTodaySync = !force && (lastSync === todayStr);
+
+    if (!isTodaySync) {
+      setIsSyncing(true);
+    }
+
     if (!force) {
-      const lastSync = localStorage.getItem('lastDriveSyncDate');
       if (lastSync === todayStr) {
         console.log('[DMU Analytics] Data already synced today. Loading from local IndexedDB cache...');
         const cachedRecords = await getAllCachedFiles();
@@ -2002,12 +2008,13 @@ export function DMUAnalytics({ isPublic = false, session, userMeta, permissions 
           if (fetchedDocs.length > 0) {
             GLOBAL_DOCUMENTS_CACHE = fetchedDocs;
             setDocuments(fetchedDocs);
-            setIsSyncing(false);
+            // No need to set isSyncing to false because it was never set to true!
             console.log('[DMU Analytics] Wrote cached files from IndexedDB into memory successfully!');
             return;
           }
         }
         console.log('[DMU Analytics] No local cache found, falling back to full drive sync.');
+        setIsSyncing(true); // Fallback: set to true since we have to fetch from network
       }
     }
 
@@ -2263,7 +2270,7 @@ export function DMUAnalytics({ isPublic = false, session, userMeta, permissions 
 
   // --- DASHBOARD KPI DATA PROCESSING ---
   const [isCalculatingData, setIsCalculatingData] = useState(false);
-  const [dashboardData, setDashboardData] = useState({ records: [], programs: [], cohorts: [], gradYears: [], academicYears: [], stats: null, docName: null });
+  const [dashboardData, setDashboardData] = useState(GLOBAL_DASHBOARD_DATA_CACHE || { records: [], programs: [], cohorts: [], gradYears: [], academicYears: [], stats: null, docName: null });
 
   useEffect(() => {
     setIsCalculatingData(true);
@@ -4211,10 +4218,11 @@ export function DMUAnalytics({ isPublic = false, session, userMeta, permissions 
     };
 
     const results = compute();
+    GLOBAL_DASHBOARD_DATA_CACHE = results;
     setDashboardData(results);
       } catch (err) {
         console.error("[DMU Analytics] Fatal Error in data processing:", err);
-        setDashboardData({
+        const errResults = {
           records: [],
           programs: [],
           gradYears: [],
@@ -4222,7 +4230,9 @@ export function DMUAnalytics({ isPublic = false, session, userMeta, permissions 
           cohorts: [],
           stats: null,
           error: err?.message || "Unknown error"
-        });
+        };
+        GLOBAL_DASHBOARD_DATA_CACHE = errResults;
+        setDashboardData(errResults);
       } finally {
         setIsCalculatingData(false);
       }
