@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck, Clock, BarChart3, Activity, PlaySquare, GraduationCap, ChevronRight, KeyRound, Check, X, Mail } from 'lucide-react';
+import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck, Clock, BarChart3, Activity, PlaySquare, GraduationCap, ChevronRight, KeyRound, Check, X, Mail, Home } from 'lucide-react';
 import { FacultyManager } from './FacultyManager';
 import { StudentManager } from './StudentManager';
 import { CourseManager } from './CourseManager';
@@ -62,13 +62,133 @@ const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab
   </div>
 );
 
+function WelcomeHub({ role, navigate, permissions, userMeta }) {
+  // Check permissions to dynamically display links
+  const hasRisk = role === 'technical_admin' || role === 'academic_admin' || (permissions && permissions.some(p => p.module_name.startsWith('risk_') && p.can_view));
+  const hasDb = role === 'technical_admin' || (permissions && permissions.some(p => p.module_name.startsWith('db_') && p.can_view));
+  const hasAnalytics = role === 'technical_admin' || role === 'faculty' || role === 'academic_admin';
+  const hasCourses = true; // Everyone can see courses!
+
+  return (
+    <div className="py-6 px-4 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans text-slate-800">
+      {/* Hero Welcome banner */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-[2rem] p-8 md:p-12 shadow-xl border border-indigo-950/50 mb-10">
+        <div className="absolute top-0 right-0 -mt-6 -mr-6 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -mb-6 -ml-6 w-72 h-72 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="relative z-10 max-w-2xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-xs font-semibold mb-6">
+            <GraduationCap size={14} /> Dubai Medical University
+          </div>
+          <h1 className="text-3xl md:text-5xl font-black tracking-tight mb-4 leading-tight text-white">
+            Welcome to the <br />
+            <span className="bg-gradient-to-r from-indigo-400 via-purple-300 to-emerald-400 bg-clip-text text-transparent">
+              QAIE Hub
+            </span>
+          </h1>
+          <p className="text-slate-300 text-base md:text-lg font-light leading-relaxed mb-0">
+            The central gateway for Quality Assurance & Institutional Effectiveness. Access advanced educational analytics, curriculum assessments, risk profiles, and dynamic course platforms designed to elevate academic excellence.
+          </p>
+        </div>
+      </div>
+
+      {/* Grid of features */}
+      <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+        <LayoutGrid className="text-indigo-600" size={18} />
+        Your Quick Gateways
+      </h3>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+        {/* DMU Analytics Card */}
+        {hasAnalytics && (
+          <div 
+            onClick={() => navigate(role === 'technical_admin' || role === 'academic_admin' ? '/admin/analytics' : '/faculty/analytics')}
+            className="group relative bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-indigo-200 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-bl-full group-hover:bg-indigo-500/10 transition-colors" />
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl w-fit mb-5 group-hover:scale-110 transition-transform">
+              <Activity size={24} />
+            </div>
+            <h4 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors">DMU Analytics</h4>
+            <p className="text-slate-500 text-sm leading-relaxed">
+              Explore dynamic performance analysis dashboards, grade attributions, and strategic Key Performance Indicators across cohorts and programs.
+            </p>
+          </div>
+        )}
+
+        {/* Online Courses Card */}
+        {hasCourses && (
+          <div 
+            onClick={() => navigate(role === 'student' ? '/student/online_courses' : (role === 'faculty' ? '/faculty/online_courses' : '/admin/online_courses'))}
+            className="group relative bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-violet-200 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-24 h-24 bg-violet-500/5 rounded-bl-full group-hover:bg-violet-500/10 transition-colors" />
+            <div className="p-3 bg-violet-50 text-violet-600 rounded-2xl w-fit mb-5 group-hover:scale-110 transition-transform">
+              <PlaySquare size={24} />
+            </div>
+            <h4 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-violet-600 transition-colors">Online Course Hub</h4>
+            <p className="text-slate-500 text-sm leading-relaxed">
+              Access online lecture slides, syllabus materials, interactive assessments, and course delivery platforms.
+            </p>
+          </div>
+        )}
+
+        {/* Risk Management Card */}
+        {hasRisk && (
+          <div 
+            onClick={() => navigate(role === 'faculty' ? '/faculty/risk' : '/admin/risk')}
+            className="group relative bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-rose-200 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-bl-full group-hover:bg-rose-500/10 transition-colors" />
+            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl w-fit mb-5 group-hover:scale-110 transition-transform">
+              <ShieldAlert size={24} />
+            </div>
+            <h4 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-rose-600 transition-colors">Risk Management</h4>
+            <p className="text-slate-500 text-sm leading-relaxed">
+              Assess risk logs, mitigate academic and institutional vulnerabilities, and generate executive compliance reports.
+            </p>
+          </div>
+        )}
+
+        {/* Databases Card */}
+        {hasDb && (
+          <div 
+            onClick={() => navigate(role === 'faculty' ? '/faculty/databases' : '/admin/databases')}
+            className="group relative bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-emerald-200 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-bl-full group-hover:bg-emerald-500/10 transition-colors" />
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl w-fit mb-5 group-hover:scale-110 transition-transform">
+              <Database size={24} />
+            </div>
+            <h4 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-emerald-600 transition-colors">Central Databases</h4>
+            <p className="text-slate-500 text-sm leading-relaxed">
+              View and manage core system master datasets for faculty rosters, student lists, course mappings, and committees.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Info footer or support box */}
+      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+          <h5 className="font-bold text-slate-800 text-sm mb-1">Need help or permissions missing?</h5>
+          <p className="text-xs text-slate-500">Contact the QAIE Department if you require additional module rights or need system onboarding.</p>
+        </div>
+        <div className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 font-bold text-xs">
+          Role: {userMeta?.custom_role_name || (role === 'technical_admin' ? 'Technical Administrator' : role === 'student' ? 'Student' : 'Faculty')}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Portals
 function AdminPortal({ session, userMeta, permissions }) {
   const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const isStudentPortal = params.get('course') !== null || params.get('room') !== null;
-  const currentTab = location.pathname.split('/')[2] || 'risk';
+  const currentTab = location.pathname.split('/')[2] || 'welcome';
   const [dbSubTab, setDbSubTab] = useState('faculty');
   const [adminDbSubTab, setAdminDbSubTab] = useState('faculty');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -151,6 +271,7 @@ function AdminPortal({ session, userMeta, permissions }) {
           )}
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+          <SidebarItem id="welcome" icon={Home} label="Home Dashboard" active={currentTab === 'welcome'} onClick={() => navigate('/admin/welcome')} isExpanded={isExpanded} />
           <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/admin/risk')} isExpanded={isExpanded} />
           <SidebarItem id="analytics" icon={Activity} label="DMU Analytics" active={currentTab === 'analytics'} onClick={() => navigate('/admin/analytics')} isExpanded={isExpanded} />
           <SidebarItem id="online_courses" icon={PlaySquare} label="Online Courses" active={currentTab === 'online_courses'} onClick={() => navigate('/admin/online_courses')} isExpanded={isExpanded} />
@@ -194,7 +315,8 @@ function AdminPortal({ session, userMeta, permissions }) {
       <main className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible">
         <div className="max-w-6xl mx-auto h-full flex flex-col">
           <Routes>
-            <Route path="/" element={<Navigate to="/admin/risk" replace />} />
+            <Route path="/" element={<Navigate to="/admin/welcome" replace />} />
+            <Route path="welcome" element={<WelcomeHub role="technical_admin" navigate={navigate} userMeta={userMeta} />} />
             <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={true} />} />
             <Route path="analytics" element={
               <ErrorBoundary fallback={<div className="p-8 text-center bg-white border-2 border-dashed border-rose-200 rounded-[2.5rem] text-rose-500 font-bold shadow-sm">Analytics dashboard failed to initialize. Please check your internet connection or contact support.</div>}>
@@ -226,7 +348,7 @@ function AdminPortal({ session, userMeta, permissions }) {
 function FacultyPortal({ session, userMeta, permissions }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const currentTab = location.pathname.split('/')[2] || '';
+  const currentTab = location.pathname.split('/')[2] || 'welcome';
   const [isExpanded, setIsExpanded] = useState(false);
   const sidebarRef = useRef(null);
 
@@ -315,6 +437,7 @@ function FacultyPortal({ session, userMeta, permissions }) {
           )}
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+          <SidebarItem id="welcome" icon={Home} label="Home Dashboard" active={currentTab === 'welcome'} onClick={() => navigate('/faculty/welcome')} isExpanded={isExpanded} />
           {hasRisk && (
             <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/faculty/risk')} isExpanded={isExpanded} />
           )}
@@ -369,7 +492,8 @@ function FacultyPortal({ session, userMeta, permissions }) {
       <main className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible">
         <div className="max-w-6xl mx-auto h-full flex flex-col">
           <Routes>
-            <Route path="/" element={<Navigate to={hasRisk ? "/faculty/risk" : (hasDb ? "/faculty/databases" : "/faculty/welcome")} replace />} />
+            <Route path="/" element={<Navigate to="/faculty/welcome" replace />} />
+            <Route path="welcome" element={<WelcomeHub role="faculty" navigate={navigate} permissions={permissions} userMeta={userMeta} />} />
             
             {hasRisk && (
               <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={false} allowedSubTabs={allowedRiskTabs} permissions={permissions} />} />
@@ -427,7 +551,7 @@ function FacultyPortal({ session, userMeta, permissions }) {
 function StudentPortal({ session, userMeta }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const currentTab = location.pathname.split('/')[2] || 'online_courses';
+  const currentTab = location.pathname.split('/')[2] || 'welcome';
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
       <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 print:hidden">
@@ -438,6 +562,7 @@ function StudentPortal({ session, userMeta }) {
           <p className="text-xs text-slate-400 mt-1">Student Portal</p>
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+          <SidebarItem id="welcome" icon={Home} label="Home Dashboard" active={currentTab === 'welcome'} onClick={() => navigate('/student/welcome')} />
           <SidebarItem id="online_courses" icon={PlaySquare} label="Online Courses" active={currentTab === 'online_courses'} onClick={() => navigate('/student/online_courses')} />
           <div className="pt-4 mt-auto pb-4">
             <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors">
@@ -450,7 +575,8 @@ function StudentPortal({ session, userMeta }) {
 
       <main className="flex-1 overflow-y-auto p-8">
           <Routes>
-            <Route path="/" element={<Navigate to="/student/online_courses" replace />} />
+            <Route path="/" element={<Navigate to="/student/welcome" replace />} />
+            <Route path="welcome" element={<WelcomeHub role="student" navigate={navigate} userMeta={userMeta} />} />
             <Route path="online_courses" element={<OnlineCourses session={session} userMeta={userMeta} />} />
             <Route path="*" element={
               <div className="text-center">
