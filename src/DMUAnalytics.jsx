@@ -758,6 +758,297 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
     setLoading(false);
   };
 
+  const exportToExcel = () => {
+    const myCaps = caps.filter(cap => cap.created_by === session?.user?.email);
+    
+    if (myCaps.length === 0) {
+      alert("You have not created any Corrective Action Plans yet.");
+      return;
+    }
+
+    const dataRows = myCaps.map(cap => {
+      const programsStr = Array.isArray(cap.program) && cap.program.length > 0 
+        ? cap.program.join(', ') 
+        : 'Institution Level';
+        
+      const actionsStr = cap.actions && cap.actions.length > 0
+        ? cap.actions.map((act, i) => `${i+1}. ${act.owner || 'No Owner'}: ${act.details || ''}`).join('\n')
+        : 'No actions defined';
+
+      return {
+        'KPI Number': cap.kpi_no || '',
+        'KPI Title': cap.kpi_title || '',
+        'Pillar': cap.pillar || '',
+        'Scope / Programs': programsStr,
+        'Target Next Year': cap.target_next_year || '',
+        'Target Next Value': cap.target_next_value || '',
+        'Target After Two Years': cap.target_after_two_years || '',
+        'Target After Two Value': cap.target_after_two_value || '',
+        'Reflection / Analysis': cap.reflection || '',
+        'Action Steps': actionsStr,
+        'Created At': cap.created_at ? new Date(cap.created_at).toLocaleDateString() : ''
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(dataRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "My Action Plans");
+    
+    // Set auto column widths for beautiful spreadsheet formatting
+    const max_widths = Object.keys(dataRows[0] || {}).map(key => {
+      return Math.max(
+        key.length,
+        ...dataRows.map(row => String(row[key] || '').length)
+      ) + 3;
+    });
+    ws['!cols'] = max_widths.map(w => ({ w: w }));
+
+    const safeEmail = session?.user?.email ? session.user.email.split('@')[0] : 'user';
+    XLSX.writeFile(wb, `My_Corrective_Action_Plans_${safeEmail}.xlsx`);
+  };
+
+  const exportToWord = () => {
+    const myCaps = caps.filter(cap => cap.created_by === session?.user?.email);
+    
+    if (myCaps.length === 0) {
+      alert("You have not created any Corrective Action Plans yet.");
+      return;
+    }
+
+    let html = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <title>My Corrective Action Plans Report</title>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+          </w:WordDocument>
+        </xml>
+        <![endif]-->
+        <style>
+          body {
+            font-family: 'Arial', sans-serif;
+            color: #333333;
+            line-height: 1.5;
+            padding: 20px;
+          }
+          .header-table {
+            width: 100%;
+            border-bottom: 2px solid #4f46e5;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+          }
+          .title {
+            font-size: 22px;
+            font-weight: bold;
+            color: #1e1b4b;
+            margin: 0;
+          }
+          .subtitle {
+            font-size: 11px;
+            color: #4f46e5;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: bold;
+            margin: 0;
+          }
+          .cap-card {
+            border: 1px solid #e2e8f0;
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+          }
+          .section-title {
+            font-size: 13px;
+            color: #4f46e5;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 5px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+          }
+          .field-label {
+            font-weight: bold;
+            color: #475569;
+            font-size: 12px;
+            width: 200px;
+            background-color: #f8fafc;
+            padding: 6px;
+            border: 1px solid #e2e8f0;
+          }
+          .field-value {
+            color: #0f172a;
+            font-size: 12px;
+            padding: 6px;
+            border: 1px solid #e2e8f0;
+          }
+          .table-style {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 20px;
+          }
+          .table-style th {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 8px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #475569;
+            text-align: left;
+          }
+          .table-style td {
+            border: 1px solid #cbd5e1;
+            padding: 8px;
+            font-size: 11px;
+            color: #0f172a;
+          }
+          .footer-text {
+            font-size: 10px;
+            color: #94a3b8;
+            text-align: center;
+            margin-top: 50px;
+          }
+        </style>
+      </head>
+      <body>
+        <table class="header-table">
+          <tr>
+            <td>
+              <div class="subtitle">Dubai Medical University</div>
+              <div class="title">My Corrective Action Plans Report</div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 5px;">
+                Generated by: <b>${session?.user?.email || 'User'}</b> | Date: ${new Date().toLocaleDateString()}
+              </div>
+            </td>
+          </tr>
+        </table>
+    `;
+
+    myCaps.forEach((cap, index) => {
+      const programsStr = Array.isArray(cap.program) && cap.program.length > 0 
+        ? cap.program.join(', ') 
+        : 'Institution Level';
+
+      html += `
+        <div class="cap-card">
+          <table style="width:100%; margin-bottom: 15px;">
+            <tr>
+              <td style="width: 50px; background-color: #f1f5f9; text-align: center; font-size: 16px; font-weight: bold; color: #4f46e5; border-radius: 8px; padding: 10px;">
+                ${cap.kpi_no || ''}
+              </td>
+              <td style="padding-left: 15px;">
+                <div style="font-size: 10px; color: #4f46e5; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">
+                  Pillar: ${cap.pillar || ''}
+                </div>
+                <div style="font-size: 15px; font-weight: bold; color: #1e293b;">
+                  ${cap.kpi_title || ''}
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <table class="table-style" style="margin-top: 15px;">
+            <tr>
+              <td class="field-label">Scope / Programs</td>
+              <td class="field-value">${programsStr}</td>
+            </tr>
+            <tr>
+              <td class="field-label">Target Next Year</td>
+              <td class="field-value"><b>${cap.target_next_year || 'N/A'}</b> (Value: ${cap.target_next_value || 'N/A'})</td>
+            </tr>
+            <tr>
+              <td class="field-label">Target After Two Years</td>
+              <td class="field-value"><b>${cap.target_after_two_years || 'N/A'}</b> (Value: ${cap.target_after_two_value || 'N/A'})</td>
+            </tr>
+          </table>
+
+          <div class="section-title">Reflection & Analysis</div>
+          <div style="font-size: 11px; color: #334155; margin-bottom: 20px; white-space: pre-wrap;">
+            ${cap.reflection || 'No reflection analysis entered.'}
+          </div>
+
+          <div class="section-title">Action Steps & Implementation Steps</div>
+      `;
+
+      if (cap.actions && cap.actions.length > 0) {
+        html += `
+          <table class="table-style">
+            <thead>
+              <tr>
+                <th style="width: 30px;">#</th>
+                <th style="width: 120px;">Owner</th>
+                <th>Action details</th>
+                <th style="width: 230px;">Timeline & Progress</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        cap.actions.forEach((act, actIdx) => {
+          let timelineStr = '';
+          if (act.timeline && act.timeline.length > 0) {
+            timelineStr = act.timeline.map(t => {
+              const qStr = [];
+              if (t.q1?.progress) qStr.push(`Q1: ${t.q1.progress}% ${t.q1.comment ? `(${t.q1.comment})` : ''}`);
+              if (t.q2?.progress) qStr.push(`Q2: ${t.q2.progress}% ${t.q2.comment ? `(${t.q2.comment})` : ''}`);
+              if (t.q3?.progress) qStr.push(`Q3: ${t.q3.progress}% ${t.q3.comment ? `(${t.q3.comment})` : ''}`);
+              if (t.q4?.progress) qStr.push(`Q4: ${t.q4.progress}% ${t.q4.comment ? `(${t.q4.comment})` : ''}`);
+              return `<b>Year ${t.year || 'N/A'}</b><br/>${qStr.join('<br/>') || 'No progress reported'}`;
+            }).join('<br/><br/>');
+          } else {
+            timelineStr = 'No timeline defined';
+          }
+
+          html += `
+            <tr>
+              <td>${actIdx + 1}</td>
+              <td><b>${act.owner || 'No Owner'}</b></td>
+              <td style="white-space: pre-wrap;">${act.details || ''}</td>
+              <td>${timelineStr}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+      } else {
+        html += `<div style="font-size: 11px; color: #94a3b8; font-style: italic">No action steps defined.</div>`;
+      }
+
+      html += `</div>`; // Close card
+    });
+
+    html += `
+        <div class="footer-text">
+          Dubai Medical University - Quality Assurance & Institutional Effectiveness Portal<br/>
+          Confidential - Internal Reporting Only
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeEmail = session?.user?.email ? session.user.email.split('@')[0] : 'user';
+    a.download = `My_Corrective_Action_Plans_${safeEmail}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     const payload = {
@@ -859,6 +1150,22 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
           <div>
             <h2 className="text-2xl font-black text-slate-800">Corrective Action Plans</h2>
             <p className="text-sm text-slate-400 mt-1 font-medium">Monitor and manage institutional improvement strategies</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={exportToExcel}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold rounded-2xl transition-all shadow-sm cursor-pointer"
+              title="Export my action plans to Excel"
+            >
+              <Download size={14} /> Export My Plans (Excel)
+            </button>
+            <button
+              onClick={exportToWord}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-bold rounded-2xl transition-all shadow-sm cursor-pointer"
+              title="Export my action plans to Word"
+            >
+              <FileText size={14} /> Export My Plans (Word)
+            </button>
           </div>
         </div>
 
