@@ -794,14 +794,13 @@ const CorrectiveActionPlan = ({ session, userMeta, dashboardData, programs, onCa
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "My Action Plans");
     
-    // Set auto column widths for beautiful spreadsheet formatting
+    // Set auto column widths securely using the official wch property
     const max_widths = Object.keys(dataRows[0] || {}).map(key => {
-      return Math.max(
-        key.length,
-        ...dataRows.map(row => String(row[key] || '').length)
-      ) + 3;
+      const valLengths = dataRows.map(row => String(row[key] || '').length);
+      const maxLen = Math.max(key.length, ...valLengths);
+      return Math.min(Math.max(maxLen + 3, 10), 45); // Cap between 10 and 45 characters
     });
-    ws['!cols'] = max_widths.map(w => ({ w: w }));
+    ws['!cols'] = max_widths.map(w => ({ wch: w }));
 
     const safeEmail = session?.user?.email ? session.user.email.split('@')[0] : 'user';
     XLSX.writeFile(wb, `My_Corrective_Action_Plans_${safeEmail}.xlsx`);
