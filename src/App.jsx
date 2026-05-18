@@ -331,8 +331,8 @@ function AdminPortal({ session, userMeta, permissions }) {
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <SidebarItem id="welcome" icon={Home} label="Home Dashboard" active={currentTab === 'welcome'} onClick={() => navigate('/admin/welcome')} isExpanded={isExpanded} />
-          <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/admin/risk')} isExpanded={isExpanded} />
           <SidebarItem id="analytics" icon={Activity} label="DMU Analytics" active={currentTab === 'analytics'} onClick={() => navigate('/admin/analytics')} isExpanded={isExpanded} />
+          <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/admin/risk')} isExpanded={isExpanded} />
           <SidebarItem id="online_courses" icon={PlaySquare} label="Online Courses" active={currentTab === 'online_courses'} onClick={() => navigate('/admin/online_courses')} isExpanded={isExpanded} />
           <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/admin/databases')} isExpanded={isExpanded} />
           <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/admin/roles')} isExpanded={isExpanded} />
@@ -501,11 +501,11 @@ function FacultyPortal({ session, userMeta, permissions }) {
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <SidebarItem id="welcome" icon={Home} label="Home Dashboard" active={currentTab === 'welcome'} onClick={() => navigate('/faculty/welcome')} isExpanded={isExpanded} />
-          {hasRisk && (
-            <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/faculty/risk')} isExpanded={isExpanded} />
-          )}
           {hasAnalytics && (
             <SidebarItem id="analytics" icon={Activity} label="DMU Analytics" active={currentTab === 'analytics'} onClick={() => navigate('/faculty/analytics')} isExpanded={isExpanded} />
+          )}
+          {hasRisk && (
+            <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/faculty/risk')} isExpanded={isExpanded} />
           )}
           {hasCourses && (
             <SidebarItem id="online_courses" icon={PlaySquare} label="Online Courses" active={currentTab === 'online_courses'} onClick={() => navigate('/faculty/online_courses')} isExpanded={isExpanded} />
