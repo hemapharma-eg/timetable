@@ -42,13 +42,15 @@ const sendApprovalEmail = async (userEmail) => {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify(emailContent)
-    }).catch(e => console.error("Error sending to qaie_dept@dmu.ae", e));
+    }).then(r => r.json()).then(data => console.log("[FormSubmit dmu.ae Response]:", data))
+      .catch(e => console.error("Error sending to qaie_dept@dmu.ae", e));
     
     fetch("https://formsubmit.co/ajax/qaie.dmu@gmail.com", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify(emailContent)
-    }).catch(e => console.error("Error sending to qaie.dmu@gmail.com", e));
+    }).then(r => r.json()).then(data => console.log("[FormSubmit gmail Response]:", data))
+      .catch(e => console.error("Error sending to qaie.dmu@gmail.com", e));
     
     console.log("[QA Hub] Sent approval request notification emails successfully!");
   } catch (err) {
