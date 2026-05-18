@@ -9,7 +9,6 @@ export function RolesManager() {
   const [dynamicModules, setDynamicModules] = useState([]);
   const [faculty, setFaculty] = useState([]);
   const [appUsers, setAppUsers] = useState([]);
-  
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
