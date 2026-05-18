@@ -181,7 +181,19 @@ const cacheFile = async (fileData) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  } catch (e) { console.warn('Cache write failed', e); }
+};
+
+const getAllCachedFiles = async () => {
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) { return []; }
 };
 
 const matchAcademicYear = (rowValue, filterValue) => {
@@ -1592,11 +1604,34 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
   }, [folderId]);
 
   // --- GOOGLE DRIVE SYNC LOGIC ---
-  const syncDriveFolder = async () => {
+  const syncDriveFolder = async (force = false) => {
     if (!folderId) return;
     setIsSyncing(true);
     setAuthError('');
-    console.log('[DMU Analytics] Starting Drive Sync for Folder:', folderId);
+
+    const todayStr = new Date().toLocaleDateString();
+    if (!force) {
+      const lastSync = localStorage.getItem('lastDriveSyncDate');
+      if (lastSync === todayStr) {
+        console.log('[DMU Analytics] Data already synced today. Loading from local IndexedDB cache...');
+        const cachedRecords = await getAllCachedFiles();
+        if (cachedRecords && cachedRecords.length > 0) {
+          const fetchedDocs = [];
+          cachedRecords.forEach(rec => {
+            if (rec && rec.docs) fetchedDocs.push(...rec.docs);
+          });
+          if (fetchedDocs.length > 0) {
+            setDocuments(fetchedDocs);
+            setIsSyncing(false);
+            console.log('[DMU Analytics] Wrote cached files from IndexedDB into memory successfully!');
+            return;
+          }
+        }
+        console.log('[DMU Analytics] No local cache found, falling back to full drive sync.');
+      }
+    }
+
+    console.log('[DMU Analytics] Starting Drive Sync for Folder (Force=' + force + '):', folderId);
     try {
       const listUrl = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+mimeType!='application/vnd.google-apps.folder'+and+trashed=false&fields=files(id,name,mimeType,modifiedTime)&key=${GOOGLE_API_KEY}`;
       const listRes = await fetch(listUrl);
@@ -1745,6 +1780,7 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
       
       if (fetchedDocs.length > 0) {
         setDocuments(fetchedDocs);
+        localStorage.setItem('lastDriveSyncDate', todayStr);
         if (skippedFiles.length > 0) {
           setAuthError(`Synced ${fetchedDocs.length} files. Skipped unsupported formats: ${skippedFiles.join(', ')}.`);
         }
@@ -4058,7 +4094,7 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
                   )}
                 </div>
                 <button 
-                  onClick={syncDriveFolder}
+                  onClick={() => syncDriveFolder(true)}
                   disabled={isSyncing}
                   className="w-full py-1.5 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg transition-colors flex items-center justify-center disabled:opacity-50"
                 >
@@ -4451,7 +4487,7 @@ export function DMUAnalytics({ isPublic = false, session, userMeta }) {
                   <p className="text-[10px] font-mono text-rose-600 break-all">{dashboardData.error}</p>
                 </div>
                 <button 
-                  onClick={syncDriveFolder}
+                  onClick={() => syncDriveFolder(true)}
                   className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2"
                 >
                   <RefreshCw className="w-4 h-4" />
