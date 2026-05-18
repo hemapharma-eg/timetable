@@ -181,6 +181,7 @@ const cacheFile = async (fileData) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+  } catch (e) { console.warn('Cache write failed', e); }
 };
 
 const getAllCachedFiles = async () => {
