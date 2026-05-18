@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck, Clock, Settings } from 'lucide-react';
+import { Calendar, Users, BookOpen, LayoutGrid, ShieldAlert, LogOut, LogIn, Database, UserCheck, Clock, BarChart3, Activity, PlaySquare, GraduationCap, ChevronRight, KeyRound, Check, X, Mail } from 'lucide-react';
 import { FacultyManager } from './FacultyManager';
 import { StudentManager } from './StudentManager';
 import { CourseManager } from './CourseManager';
@@ -8,16 +8,34 @@ import { RolesManager } from './RolesManager';
 import { supabase } from './supabase';
 import { RiskManagement, PublicRiskReport } from './RiskManagement';
 import { CollegesManager, ProgramsManager, CommitteesManager } from './OrgManager';
-import { DatabaseBuilder } from './DatabaseBuilder';
+import { DynamicPage } from './DynamicPage';
+import { DMUAnalytics } from './DMUAnalytics';
+import OnlineCourses from './OnlineCourses';
+import { fetchAll } from './supabaseUtils';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || <div className="p-8 text-center bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 font-bold">A component encountered a critical error. Please reload.</div>;
+    }
+    return this.props.children;
+  }
+}
 
 // Reusable Layout Components
-const SidebarItem = ({ icon: Icon, label, path, active, onClick }) => (
+const SidebarItem = ({ icon: Icon, label, path, active, onClick, isExpanded }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+    title={!isExpanded ? label : ""}
+    className={`w-full flex items-center ${isExpanded ? 'space-x-3 px-4' : 'justify-center'} py-3 rounded-lg transition-all duration-300 ${active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
   >
-    <Icon size={20} />
-    <span className="font-medium">{label}</span>
+    <Icon size={20} className="flex-shrink-0" />
+    {isExpanded && <span className="font-medium whitespace-nowrap overflow-hidden">{label}</span>}
   </button>
 );
 
@@ -48,38 +66,126 @@ const PageContainer = ({ title, description, tabs, activeSubTab, setActiveSubTab
 function AdminPortal({ session, userMeta, permissions }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const isStudentPortal = params.get('course') !== null || params.get('room') !== null;
   const currentTab = location.pathname.split('/')[2] || 'risk';
   const [dbSubTab, setDbSubTab] = useState('faculty');
+  const [adminDbSubTab, setAdminDbSubTab] = useState('faculty');
+  const [isExpanded, setIsExpanded] = useState(false);
+  const sidebarRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isExpanded && sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        setIsExpanded(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isExpanded]);
 
   // Shared Data States
   const [faculty, setFaculty] = useState([]);
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
 
+  // Dynamic Navigation
+  const [sections, setSections] = useState([]);
+  const [pages, setPages] = useState([]);
+
+
   useEffect(() => {
-    supabase.from('faculty').select('*').then(({ data }) => setFaculty(data || []));
-    supabase.from('courses').select('*').then(({ data }) => setCourses(data || []));
-    supabase.from('students').select('*').then(({ data }) => setStudents(data || []));
+    fetchAll('faculty').then(data => setFaculty(data));
+    fetchAll('courses').then(data => setCourses(data));
+    fetchAll('students').then(data => setStudents(data));
+    
+    supabase.from('app_sections').select('*').order('order_index').then(({ data }) => setSections(data || []));
+    supabase.from('app_pages').select('*').order('order_index').then(({ data }) => setPages(data || []));
   }, []);
 
+  if (isStudentPortal) {
+    return (
+      <div className="h-screen w-screen bg-white">
+        <OnlineCourses session={session} userMeta={userMeta} />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
-      <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 print:hidden">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center">
-            <Calendar className="mr-2 text-indigo-400" /> Admin <span className="text-indigo-400 font-light">Hub</span>
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">QA & Management</p>
+    <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden print:h-auto print:overflow-visible">
+      <style>{`
+        @media print {
+          html, body { height: auto !important; overflow: visible !important; }
+          .h-screen { height: auto !important; }
+          .overflow-hidden { overflow: visible !important; }
+          .overflow-y-auto { overflow: visible !important; }
+          aside { display: none !important; }
+          main { width: 100% !important; padding: 0 !important; margin: 0 !important; display: block !important; overflow: visible !important; }
+          .max-w-6xl { max-width: none !important; width: 100% !important; }
+          .animate-in { animation: none !important; }
+          .shadow-lg, .shadow-md, .shadow-sm { box-shadow: none !important; }
+          button { display: none !important; }
+        }
+      `}</style>
+      <aside 
+        ref={sidebarRef}
+        className={`${isExpanded ? 'w-64' : 'w-20'} bg-slate-900 text-white flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out print:hidden relative group`}
+      >
+        <button 
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="absolute -right-3 top-20 bg-indigo-600 text-white rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 hover:bg-indigo-700"
+        >
+          <ChevronRight size={14} className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+        </button>
+
+        <div className={`p-6 ${!isExpanded ? 'flex justify-center' : ''}`}>
+          {isExpanded ? (
+            <>
+              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center">
+                <Calendar className="mr-2 text-indigo-400" /> Admin <span className="text-indigo-400 font-light">Hub</span>
+              </h1>
+              <p className="text-xs text-slate-400 mt-1">QA & Management</p>
+            </>
+          ) : (
+            <Calendar className="text-indigo-400" size={28} />
+          )}
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
-          <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/admin/risk')} />
-          <SidebarItem id="db_builder" icon={Settings} label="Database Builder" active={currentTab === 'db_builder'} onClick={() => navigate('/admin/db_builder')} />
-          <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/admin/roles')} />
+          <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/admin/risk')} isExpanded={isExpanded} />
+          <SidebarItem id="analytics" icon={Activity} label="DMU Analytics" active={currentTab === 'analytics'} onClick={() => navigate('/admin/analytics')} isExpanded={isExpanded} />
+          <SidebarItem id="online_courses" icon={PlaySquare} label="Online Courses" active={currentTab === 'online_courses'} onClick={() => navigate('/admin/online_courses')} isExpanded={isExpanded} />
+          <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/admin/databases')} isExpanded={isExpanded} />
+          <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/admin/roles')} isExpanded={isExpanded} />
+
+          {sections.filter(s => !['POLICIES', 'BENCHMARKING'].includes(s.name?.toUpperCase())).map(section => {
+            const sectionPages = pages.filter(p => p.section_id === section.id);
+            if (sectionPages.length === 0) return null;
+            return (
+              <div key={section.id} className="pt-4">
+                {isExpanded ? (
+                  <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 truncate">{section.name}</p>
+                ) : (
+                  <div className="h-px bg-slate-800 mx-2 mb-4" />
+                )}
+                {sectionPages.map(page => (
+                  <SidebarItem 
+                    key={page.id} 
+                    id={`page_${page.id}`} 
+                    icon={page.type === 'app' ? BookOpen : LayoutGrid} 
+                    label={page.name} 
+                    active={currentTab === `page_${page.id}`} 
+                    onClick={() => navigate(`/admin/page/${page.id}`)} 
+                    isExpanded={isExpanded}
+                  />
+                ))}
+              </div>
+            );
+          })}
           
           <div className="pt-4 mt-auto pb-4">
-            <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors">
+            <button onClick={() => supabase.auth.signOut()} className={`w-full flex items-center ${isExpanded ? 'space-x-3 px-4' : 'justify-center'} py-3 rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors`}>
               <LogOut size={20} />
-              <span className="font-medium">Sign Out</span>
+              {isExpanded && <span className="font-medium">Sign Out</span>}
             </button>
           </div>
         </nav>
@@ -90,13 +196,26 @@ function AdminPortal({ session, userMeta, permissions }) {
           <Routes>
             <Route path="/" element={<Navigate to="/admin/risk" replace />} />
             <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={true} />} />
+            <Route path="analytics" element={
+              <ErrorBoundary fallback={<div className="p-8 text-center bg-white border-2 border-dashed border-rose-200 rounded-[2.5rem] text-rose-500 font-bold shadow-sm">Analytics dashboard failed to initialize. Please check your internet connection or contact support.</div>}>
+                <DMUAnalytics session={session} userMeta={userMeta} />
+              </ErrorBoundary>
+            } />
+            <Route path="online_courses" element={<OnlineCourses session={session} userMeta={userMeta} />} />
 
-            <Route path="db_builder" element={
-              <PageContainer title="Database Builder" description="Create databases, manage schemas, and import/export data">
-                <DatabaseBuilder />
+            <Route path="databases" element={
+              <PageContainer title="Databases" description="Core institutional databases synced from Google Sheets" activeSubTab={adminDbSubTab} setActiveSubTab={setAdminDbSubTab} tabs={[
+                { id: 'faculty', label: 'Faculty & Staff' },
+                { id: 'students', label: 'Students' },
+                { id: 'courses', label: 'Courses' },
+              ]}>
+                {adminDbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} showSyncButton={true} />}
+                {adminDbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} showSyncButton={true} />}
+                {adminDbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} showSyncButton={true} />}
               </PageContainer>
             } />
-            <Route path="roles" element={<RolesManager />} />
+             <Route path="roles" element={<RolesManager />} />
+            <Route path="page/:pageId" element={<DynamicPage session={session} userMeta={userMeta} permissions={permissions} />} />
           </Routes>
         </div>
       </main>
@@ -108,6 +227,18 @@ function FacultyPortal({ session, userMeta, permissions }) {
   const navigate = useNavigate();
   const location = useLocation();
   const currentTab = location.pathname.split('/')[2] || '';
+  const [isExpanded, setIsExpanded] = useState(false);
+  const sidebarRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isExpanded && sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        setIsExpanded(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isExpanded]);
 
   const riskPerms = permissions.filter(p => p.module_name.startsWith('risk_') && p.can_view);
   const dbPerms = permissions.filter(p => p.module_name.startsWith('db_') && p.can_view);
@@ -117,6 +248,10 @@ function FacultyPortal({ session, userMeta, permissions }) {
 
   const allowedRiskTabs = riskPerms.map(p => p.module_name.replace('risk_', ''));
   const allowedDbTabs = dbPerms.map(p => p.module_name.replace('db_', ''));
+  
+  // Assume true for now to match user's prompt request, you could restrict this further
+  const hasAnalytics = true;
+
 
   const [dbSubTab, setDbSubTab] = useState(allowedDbTabs.length > 0 ? allowedDbTabs[0] : '');
 
@@ -125,35 +260,107 @@ function FacultyPortal({ session, userMeta, permissions }) {
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
 
+  // Dynamic Navigation
+  const [sections, setSections] = useState([]);
+  const [pages, setPages] = useState([]);
+
   useEffect(() => {
     if (hasDb) {
-      supabase.from('faculty').select('*').then(({ data }) => setFaculty(data || []));
-      supabase.from('courses').select('*').then(({ data }) => setCourses(data || []));
-      supabase.from('students').select('*').then(({ data }) => setStudents(data || []));
+      fetchAll('faculty').then(data => setFaculty(data));
+      fetchAll('courses').then(data => setCourses(data));
+      fetchAll('students').then(data => setStudents(data));
     }
+    
+    supabase.from('app_sections').select('*').order('order_index').then(({ data }) => setSections(data || []));
+    supabase.from('app_pages').select('*').order('order_index').then(({ data }) => setPages(data || []));
   }, [hasDb]);
 
   return (
-    <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
-      <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 print:hidden">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center">
-            <Calendar className="mr-2 text-indigo-400" /> Faculty <span className="text-indigo-400 font-light">Hub</span>
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">{userMeta?.custom_role_name || 'Faculty Portal'}</p>
+    <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden print:h-auto print:overflow-visible">
+      <style>{`
+        @media print {
+          html, body { height: auto !important; overflow: visible !important; }
+          .h-screen { height: auto !important; }
+          .overflow-hidden { overflow: visible !important; }
+          .overflow-y-auto { overflow: visible !important; }
+          aside { display: none !important; }
+          main { width: 100% !important; padding: 0 !important; margin: 0 !important; display: block !important; overflow: visible !important; }
+          .max-w-6xl { max-width: none !important; width: 100% !important; }
+          .animate-in { animation: none !important; }
+          .shadow-lg, .shadow-md, .shadow-sm { box-shadow: none !important; }
+          button { display: none !important; }
+        }
+      `}</style>
+      <aside 
+        ref={sidebarRef}
+        className={`${isExpanded ? 'w-64' : 'w-20'} bg-slate-900 text-white flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out print:hidden relative group`}
+      >
+        <button 
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="absolute -right-3 top-20 bg-indigo-600 text-white rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 hover:bg-indigo-700"
+        >
+          <ChevronRight size={14} className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+        </button>
+
+        <div className={`p-6 ${!isExpanded ? 'flex justify-center' : ''}`}>
+          {isExpanded ? (
+            <>
+              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center">
+                <Calendar className="mr-2 text-indigo-400" /> Faculty <span className="text-indigo-400 font-light">Hub</span>
+              </h1>
+              <p className="text-xs text-slate-400 mt-1">{userMeta?.custom_role_name || 'Faculty Portal'}</p>
+            </>
+          ) : (
+            <Calendar className="text-indigo-400" size={28} />
+          )}
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           {hasRisk && (
-            <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/faculty/risk')} />
+            <SidebarItem id="risk" icon={ShieldAlert} label="Risk Management" active={currentTab === 'risk'} onClick={() => navigate('/faculty/risk')} isExpanded={isExpanded} />
           )}
+          {hasAnalytics && (
+            <SidebarItem id="analytics" icon={Activity} label="DMU Analytics" active={currentTab === 'analytics'} onClick={() => navigate('/faculty/analytics')} isExpanded={isExpanded} />
+          )}
+          <SidebarItem id="online_courses" icon={PlaySquare} label="Online Courses" active={currentTab === 'online_courses'} onClick={() => navigate('/faculty/online_courses')} isExpanded={isExpanded} />
           {hasDb && (
-            <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/faculty/databases')} />
+            <SidebarItem id="databases" icon={Database} label="Databases" active={currentTab === 'databases'} onClick={() => navigate('/faculty/databases')} isExpanded={isExpanded} />
           )}
+          {(permissions.some(p => p.module_name === 'roles' && p.can_view) || userMeta?.email === 'dribrahimpharmaceutics@gmail.com') && (
+            <SidebarItem id="roles" icon={UserCheck} label="Role Management" active={currentTab === 'roles'} onClick={() => navigate('/faculty/roles')} isExpanded={isExpanded} />
+          )}
+
+          {sections.filter(s => {
+            const n = s.name?.toUpperCase();
+            return n !== 'BENCHMARKING' && n !== 'POLICIES';
+          }).map(section => {
+            const sectionPages = pages.filter(p => p.section_id === section.id && permissions.some(perm => perm.module_name === `page_${p.id}` && perm.can_view));
+            if (sectionPages.length === 0) return null;
+            return (
+              <div key={section.id} className="pt-4">
+                {isExpanded ? (
+                  <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 truncate">{section.name}</p>
+                ) : (
+                  <div className="h-px bg-slate-800 mx-2 mb-4" />
+                )}
+                {sectionPages.map(page => (
+                  <SidebarItem 
+                    key={page.id} 
+                    id={`page_${page.id}`} 
+                    icon={page.type === 'app' ? BookOpen : LayoutGrid} 
+                    label={page.name} 
+                    active={currentTab === `page_${page.id}`} 
+                    onClick={() => navigate(`/faculty/page/${page.id}`)} 
+                    isExpanded={isExpanded}
+                  />
+                ))}
+              </div>
+            );
+          })}
           
           <div className="pt-4 mt-auto pb-4">
-            <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors">
+            <button onClick={() => supabase.auth.signOut()} className={`w-full flex items-center ${isExpanded ? 'space-x-3 px-4' : 'justify-center'} py-3 rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors`}>
               <LogOut size={20} />
-              <span className="font-medium">Sign Out</span>
+              {isExpanded && <span className="font-medium">Sign Out</span>}
             </button>
           </div>
         </nav>
@@ -167,6 +374,15 @@ function FacultyPortal({ session, userMeta, permissions }) {
             {hasRisk && (
               <Route path="risk" element={<RiskManagement session={session} userMeta={userMeta} isTechAdmin={false} allowedSubTabs={allowedRiskTabs} permissions={permissions} />} />
             )}
+
+            {hasAnalytics && (
+              <Route path="analytics" element={
+                <ErrorBoundary fallback={<div className="p-8 text-center bg-white border-2 border-dashed border-rose-200 rounded-[2.5rem] text-rose-500 font-bold shadow-sm">Analytics dashboard failed to initialize. Please contact support.</div>}>
+                  <DMUAnalytics session={session} userMeta={userMeta} />
+                </ErrorBoundary>
+              } />
+            )}
+            <Route path="online_courses" element={<OnlineCourses session={session} userMeta={userMeta} />} />
             
             {hasDb && (
               <Route path="databases" element={
@@ -178,15 +394,18 @@ function FacultyPortal({ session, userMeta, permissions }) {
                   ...(allowedDbTabs.includes('programs') ? [{ id: 'programs', label: 'Programs' }] : []),
                   ...(allowedDbTabs.includes('committees') ? [{ id: 'committees', label: 'Committees' }] : [])
                 ]}>
-                  {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} isReadOnly={!permissions.some(p => p.module_name === 'db_faculty' && p.can_edit)} />}
-                  {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} isReadOnly={!permissions.some(p => p.module_name === 'db_students' && p.can_edit)} />}
-                  {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} isReadOnly={!permissions.some(p => p.module_name === 'db_courses' && p.can_edit)} />}
+                  {dbSubTab === 'faculty' && <FacultyManager faculty={faculty} setFaculty={setFaculty} showSyncButton={true} />}
+                  {dbSubTab === 'students' && <StudentManager students={students} setStudents={setStudents} showSyncButton={true} />}
+                  {dbSubTab === 'courses' && <CourseManager courses={courses} setCourses={setCourses} showSyncButton={true} />}
                   {dbSubTab === 'colleges' && <CollegesManager />}
                   {dbSubTab === 'programs' && <ProgramsManager />}
                   {dbSubTab === 'committees' && <CommitteesManager />}
                 </PageContainer>
               } />
             )}
+
+            <Route path="roles" element={<RolesManager />} />
+            <Route path="page/:pageId" element={<DynamicPage session={session} userMeta={userMeta} permissions={permissions} />} />
 
             <Route path="welcome" element={
               <div className="flex h-full items-center justify-center">
@@ -206,6 +425,9 @@ function FacultyPortal({ session, userMeta, permissions }) {
 }
 
 function StudentPortal({ session, userMeta }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const currentTab = location.pathname.split('/')[2] || 'online_courses';
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
       <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 print:hidden">
@@ -216,6 +438,7 @@ function StudentPortal({ session, userMeta }) {
           <p className="text-xs text-slate-400 mt-1">Student Portal</p>
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+          <SidebarItem id="online_courses" icon={PlaySquare} label="Online Courses" active={currentTab === 'online_courses'} onClick={() => navigate('/student/online_courses')} />
           <div className="pt-4 mt-auto pb-4">
             <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors">
               <LogOut size={20} />
@@ -226,16 +449,21 @@ function StudentPortal({ session, userMeta }) {
       </aside>
 
       <main className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-6xl mx-auto h-full flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-slate-800">Welcome to Student Portal</h2>
-            <p className="text-slate-500 mt-2">More sections will be added here soon.</p>
-          </div>
-        </div>
+          <Routes>
+            <Route path="/" element={<Navigate to="/student/online_courses" replace />} />
+            <Route path="online_courses" element={<OnlineCourses session={session} userMeta={userMeta} />} />
+            <Route path="*" element={
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-slate-800">Welcome to Student Portal</h2>
+                <p className="text-slate-500 mt-2">More sections will be added here soon.</p>
+              </div>
+            } />
+          </Routes>
       </main>
     </div>
   );
 }
+
 
 function PendingPortal() {
   return (
@@ -263,19 +491,28 @@ export default function App() {
   const [appUserMeta, setAppUserMeta] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
+    // Check if URL has recovery tokens
+    const hasRecoveryToken = window.location.hash.includes('type=recovery') || window.location.search.includes('type=recovery');
+    if (hasRecoveryToken) {
+      setShowResetPassword(true);
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchRoleAndData(session.user.id, session.user.email);
       else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setShowResetPassword(true);
+      }
       setSession(session);
       if (session) {
         fetchRoleAndData(session.user.id, session.user.email);
@@ -284,7 +521,15 @@ export default function App() {
         setAppUserMeta(null);
         setPermissions([]);
         setLoading(false);
-        navigate('/login');
+        
+        // Don't redirect to login if we are viewing a public report
+        const params = new URLSearchParams(window.location.search);
+        const viewParam = params.get('view');
+        const isPublicView = (viewParam === 'public_risk_report') || (viewParam === 'benchmarking') || (viewParam === 'obef_dashboard');
+        
+        if (!isPublicView) {
+          navigate('/login');
+        }
       }
     });
 
@@ -297,13 +542,31 @@ export default function App() {
       
       let matchedFaculty = null;
       let matchedStudent = null;
-
+      let matchedOnlineStudent = null;
+      let matchedCollaborator = null;
       if (userEmail && userEmail !== 'dribrahimpharmaceutics@gmail.com') {
         const { data: facData } = await supabase.from('faculty').select('*').eq('email', userEmail).maybeSingle();
         if (facData) matchedFaculty = facData;
         else {
           const { data: stuData } = await supabase.from('students').select('*').eq('email', userEmail).maybeSingle();
           if (stuData) matchedStudent = stuData;
+          else {
+            const { data: ocData } = await supabase.from('oc_class_students').select('*').ilike('user_email', userEmail).maybeSingle();
+            if (ocData) matchedOnlineStudent = ocData;
+            else {
+              const { data: collabData } = await supabase.from('oc_collaborators').select('*').ilike('user_email', userEmail).maybeSingle();
+              if (collabData) matchedCollaborator = collabData;
+            }
+          }
+        }
+
+        // STRICT ACCESS CONTROL: If not in any known database, reject them
+        if (!matchedFaculty && !matchedStudent && !matchedOnlineStudent && !matchedCollaborator && (!userData || userData.role === 'pending')) {
+          await supabase.auth.signOut();
+          localStorage.removeItem('oc_active_course');
+          alert('Access Denied: Your email is not registered in our system. Please contact your administrator or course instructor for access.');
+          setLoading(false);
+          return;
         }
       }
 
@@ -318,14 +581,31 @@ export default function App() {
       setAppRole(roleToSet);
       
       let meta = userData || {};
+      const { data: roleAssigns } = await supabase.from('staff_roles').select('custom_role_id').eq('email', userEmail);
+      const customRoleIds = roleAssigns?.map(ra => ra.custom_role_id) || [];
+      
+      if (customRoleIds.length === 0 && matchedFaculty?.custom_role_id) {
+        customRoleIds.push(matchedFaculty.custom_role_id);
+      }
+
       if (matchedFaculty) {
-         meta = { ...meta, role: 'faculty', faculty_id: matchedFaculty.id, custom_role_id: matchedFaculty.custom_role_id };
-         if (matchedFaculty.custom_role_id) {
-           const { data: roleData } = await supabase.from('custom_roles').select('name').eq('id', matchedFaculty.custom_role_id).single();
-           if (roleData) meta.custom_role_name = roleData.name;
+         meta = { ...meta, role: 'faculty', faculty_id: matchedFaculty.id, customRoleIds };
+         if (customRoleIds.length > 0) {
+           const { data: roleData } = await supabase.from('custom_roles').select('name').in('id', customRoleIds);
+           if (roleData) meta.custom_role_names = roleData.map(r => r.name);
            
-           const { data: perms } = await supabase.from('role_permissions').select('*').eq('role_id', matchedFaculty.custom_role_id);
-           if (perms) setPermissions(perms);
+           const { data: perms } = await supabase.from('role_permissions').select('*').in('role_id', customRoleIds);
+           if (perms) {
+             const merged = Object.values(perms.reduce((acc, p) => {
+               if (!acc[p.module_name]) acc[p.module_name] = { ...p };
+               else {
+                 acc[p.module_name].can_view = acc[p.module_name].can_view || p.can_view;
+                 acc[p.module_name].can_edit = acc[p.module_name].can_edit || p.can_edit;
+               }
+               return acc;
+             }, {}));
+             setPermissions(merged);
+           }
          }
       } else if (matchedStudent) {
          meta = { ...meta, role: 'student', group_id: matchedStudent.group_id };
@@ -336,11 +616,22 @@ export default function App() {
         await supabase.from('app_users').upsert({ id: userId, email: userEmail, role: roleToSet }, { onConflict: 'id' });
       }
 
-      // Auto route to appropriate portal if at root or login
-      if (location.pathname === '/' || location.pathname === '/login') {
+      // Auto route to appropriate portal
+      const urlParams = new URLSearchParams(location.search);
+      const courseFromUrl = urlParams.get('course');
+      const courseFromStorage = localStorage.getItem('oc_active_course');
+      const courseParam = courseFromUrl || courseFromStorage;
+
+      if (courseParam) {
+        // Direct link — always prioritize it
+        setAppRole('course');
+        localStorage.setItem('oc_active_course', courseParam);
+        navigate(`/course?course=${courseParam}`);
+      } else if (location.pathname === '/' || location.pathname === '/login') {
         if (roleToSet === 'technical_admin' || roleToSet === 'academic_admin') navigate('/admin');
         else if (roleToSet === 'faculty') navigate('/faculty');
         else if (roleToSet === 'student') navigate('/student');
+        else if (matchedOnlineStudent || matchedCollaborator) navigate('/course');
         else navigate('/pending');
       }
 
@@ -358,8 +649,37 @@ export default function App() {
     return <PublicRiskReport year={params.get('year')} />;
   }
 
+  if (!session && viewParam === 'benchmarking' && (params.get('report') || params.get('data'))) {
+    return <Benchmarking initialPage="dashboard" />;
+  }
+
+  if (viewParam === 'obef_dashboard') {
+    return (
+      <div className="h-screen w-screen bg-slate-50 overflow-auto print:h-auto print:overflow-visible">
+        <ErrorBoundary fallback={<div className="p-8 text-center bg-white border-2 border-dashed border-rose-200 rounded-[2.5rem] text-rose-500 font-bold shadow-sm m-8">Public dashboard failed to initialize. Please reload the page.</div>}>
+          <DMUAnalytics isPublic={true} />
+        </ErrorBoundary>
+      </div>
+    );
+  }
+
+
+
   if (loading) {
     return <div className="flex h-screen items-center justify-center bg-slate-900 text-white font-sans">Loading...</div>;
+  }
+
+  // GLOBAL INTERCEPT: If course ID is in URL or localStorage, show course portal
+  // This ensures students are never stuck on /pending after logout/login
+  const coursePortalId = params.get('course') || params.get('room') || localStorage.getItem('oc_active_course');
+  if (coursePortalId && session) {
+    // Persist so it survives URL changes during auth flow
+    localStorage.setItem('oc_active_course', coursePortalId);
+    return (
+      <div className="h-screen w-screen bg-white">
+        <OnlineCourses session={session} userMeta={appUserMeta} />
+      </div>
+    );
   }
 
   if (!session) {
@@ -370,22 +690,13 @@ export default function App() {
             <Calendar size={48} />
           </div>
           <h2 className="text-2xl font-bold text-center mb-2">DMU QA Hub</h2>
-          <p className="text-slate-400 text-center text-sm mb-8">
-            {isSignUp ? "Create your account" : "Sign in to access your portal"}
-          </p>
+          <p className="text-slate-400 text-center text-sm mb-8">Sign in to access your portal</p>
           <form onSubmit={async (e) => {
             e.preventDefault();
             const email = e.target.email.value;
             const password = e.target.password.value;
-            
-            if (isSignUp) {
-              const { error } = await supabase.auth.signUp({ email, password });
-              if (error) alert(error.message);
-              else alert("Signup successful! Please check your email for verification (if enabled) or sign in now.");
-            } else {
-              const { error } = await supabase.auth.signInWithPassword({ email, password });
-              if (error) alert(error.message);
-            }
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) alert(error.message);
           }} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
@@ -396,22 +707,13 @@ export default function App() {
               <input name="password" type="password" required className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
             </div>
             <button type="submit" className="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 flex items-center justify-center">
-              {isSignUp ? "Sign Up" : <><LogIn size={18} className="mr-2" /> Sign In</>}
+              <LogIn size={18} className="mr-2" /> Sign In
             </button>
           </form>
           
-          <div className="mt-6 pt-4 border-t border-slate-700 text-center text-sm">
-            <span className="text-slate-400">
-              {isSignUp ? "Already have an account?" : "Don't have an account?"}
-            </span>
-            <button 
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="ml-2 text-indigo-400 hover:text-indigo-300 font-medium"
-            >
-              {isSignUp ? "Sign In" : "Sign Up"}
-            </button>
+          <div className="mt-6 pt-4 border-t border-slate-700 text-center text-sm text-slate-500">
+            Contact admin if your account has no assigned permissions.
           </div>
-          <p className="mt-4 text-center text-xs text-slate-500">Contact admin if your account has no assigned permissions.</p>
         </div>
       </div>
     );
@@ -420,6 +722,12 @@ export default function App() {
   return (
     <>
       <Routes>
+        {/* Course portal — accessible by ANY authenticated user, no role required */}
+        <Route path="/course" element={
+          <div className="h-screen w-screen bg-white">
+            <OnlineCourses session={session} userMeta={appUserMeta} />
+          </div>
+        } />
         <Route path="/admin/*" element={
           (appRole === 'technical_admin' || appRole === 'academic_admin') 
             ? <AdminPortal session={session} userMeta={appUserMeta} permissions={permissions} /> 
@@ -442,6 +750,121 @@ export default function App() {
         } />
         <Route path="/login" element={<Navigate to="/" replace />} />
       </Routes>
+      <ResetPasswordModal isOpen={showResetPassword} onClose={() => setShowResetPassword(false)} />
     </>
+  );
+}
+
+function ResetPasswordModal({ isOpen, onClose }) {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (password.length < 6) {
+      setMessage({ type: 'error', text: 'Password must be at least 6 characters long.' });
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMessage({ type: 'error', text: 'Passwords do not match.' });
+      return;
+    }
+
+    setLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        setMessage({ type: 'error', text: error.message });
+      } else {
+        setMessage({ type: 'success', text: 'Your password has been successfully reset! Redirecting...' });
+        setTimeout(() => {
+          onClose();
+          // Remove hash from URL to keep clean
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }, 2000);
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({ type: 'error', text: 'An unexpected error occurred.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-300 font-sans">
+      <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md text-white border-t-4 border-t-indigo-500 relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
+        
+        <div className="flex justify-center mb-6 text-indigo-400">
+          <div className="p-3 bg-indigo-500/10 rounded-full ring-4 ring-indigo-500/5 animate-pulse">
+            <KeyRound size={36} />
+          </div>
+        </div>
+        
+        <h2 className="text-2xl font-bold text-center mb-2">Reset Your Password</h2>
+        <p className="text-slate-400 text-center text-sm mb-6">Choose a strong, secure new password for your account.</p>
+
+        {message.text && (
+          <div className={`p-4 mb-6 rounded-xl border text-sm flex items-center gap-2 ${
+            message.type === 'success' 
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+              : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+          }`}>
+            {message.type === 'success' ? <Check size={18} className="flex-shrink-0" /> : <X size={18} className="flex-shrink-0" />}
+            <span>{message.text}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 text-left">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">New Password</label>
+            <input 
+              type="password" 
+              required 
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-white transition-all text-sm"
+              placeholder="Min. 6 characters"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Confirm New Password</label>
+            <input 
+              type="password" 
+              required 
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              className="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-white transition-all text-sm"
+              placeholder="Confirm new password"
+            />
+          </div>
+          
+          <button 
+            type="submit" 
+            disabled={loading}
+            className={`w-full font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-all mt-6 ${
+              loading 
+                ? 'bg-indigo-600/50 text-white/50 cursor-not-allowed text-sm' 
+                : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98] text-sm'
+            }`}
+          >
+            {loading ? (
+              <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <>
+                <KeyRound size={18} /> Update Password
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }

@@ -1,1 +1,12 @@
 @import "tailwindcss";
+
+@theme {
+  @keyframes progress-indefinite {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+}
+
+.animate-progress-indefinite {
+  animation: progress-indefinite 2s infinite linear;
+}

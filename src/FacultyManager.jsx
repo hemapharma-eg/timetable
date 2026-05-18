@@ -1,16 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Plus, Pencil, Trash2, X, Search, User, CheckSquare } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, User, RefreshCw, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import { supabase } from './supabase';
-import ImportModeDialog from './ImportModeDialog';
+import { fetchAll } from './supabaseUtils';
+import { syncFacultyFromSheet, isSyncDue, getLastSyncTime } from './facultySyncService';
 
 export const FACULTY_FIELDS = [
   { key: 'category', label: 'Category', group: 'Basic Info' },
   { key: 'employee_id', label: 'ID', group: 'Basic Info' },
   { key: 'name', label: 'Name', group: 'Basic Info' },
+  { key: 'first_name', label: 'First Name', group: 'Basic Info' },
+  { key: 'last_name', label: 'Last Name', group: 'Basic Info' },
   { key: 'college', label: 'College', group: 'Basic Info' },
   { key: 'dept', label: 'Dept', group: 'Basic Info' },
   { key: 'email', label: 'Email', group: 'Basic Info' },
-  { key: 'custom_role_id', label: 'Role', group: 'Basic Info', type: 'select', options: [] }, // Options injected dynamically
+  { key: 'admin_role', label: 'Admin Role', group: 'Basic Info' },
+  { key: 'custom_role_id', label: 'Role', group: 'Basic Info', type: 'select', options: [] },
 
   { key: 'active', label: 'Active', group: 'Employment', type: 'select', options: [{value: "Yes", label: "Yes"}, {value: "No", label: "No"}] },
   { key: 'designation', label: 'Designation', group: 'Employment' },
@@ -51,237 +55,83 @@ export const FACULTY_FIELDS = [
   { key: 'specialty', label: 'Specialty', group: 'Medical / Clinical' }
 ];
 
-export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
+export const FacultyManager = ({ faculty, setFaculty, showSyncButton = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [activeTab, setActiveTab] = useState('Basic Info');
-  const [customRoles, setCustomRoles] = useState([]);
-  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [syncState, setSyncState] = useState('idle'); // idle | syncing | success | error
+  const [syncMessage, setSyncMessage] = useState('');
+  const [lastSync, setLastSync] = useState(getLastSyncTime());
 
-  // Import dialog state
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [pendingImportData, setPendingImportData] = useState(null);
-  const [importFileName, setImportFileName] = useState('');
-  
+  // Auto-sync on mount if 12 hours have passed
   useEffect(() => {
-    supabase.from('custom_roles').select('*').then(({ data }) => setCustomRoles(data || []));
+    if (isSyncDue()) {
+      handleSync(true);
+    }
   }, []);
 
-  const initialForm = FACULTY_FIELDS.reduce((acc, f) => ({ ...acc, [f.key]: '' }), {});
-  const [form, setForm] = useState(initialForm);
-  const fileInputRef = useRef(null);
-
-  const groups = [...new Set(FACULTY_FIELDS.map(f => f.group))];
-
-  const filteredFaculty = faculty.filter(f => 
-    (f.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredFaculty = faculty.filter(f =>
+    (f.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (f.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (f.employee_id || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // ── Selection helpers ──
-  const allVisibleSelected = filteredFaculty.length > 0 && filteredFaculty.every(f => selectedIds.has(f.id));
-  const someSelected = selectedIds.size > 0;
-
-  const toggleSelect = (id) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleSelectAll = () => {
-    if (allVisibleSelected) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredFaculty.map(f => f.id)));
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    const count = selectedIds.size;
-    if (!confirm(`Delete ${count} selected record${count !== 1 ? 's' : ''}? This cannot be undone.`)) return;
-    const ids = [...selectedIds];
-    const { error } = await supabase.from('faculty').delete().in('id', ids);
-    if (error) { alert('Bulk delete failed: ' + error.message); return; }
-    setFaculty(faculty.filter(x => !selectedIds.has(x.id)));
-    setSelectedIds(new Set());
-  };
-
-  // ── File Import (parse → show dialog) ──
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (typeof XLSX === 'undefined') {
-      alert('Excel engine is still loading. Please try again in a moment.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const bstr = evt.target.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-        
-        if (data.length < 2) {
-          alert('File is empty or missing data rows.');
-          return;
-        }
-
-        const headers = data[0].map(h => h ? h.toString().trim() : '');
-        const newItems = [];
-
-        for (let i = 1; i < data.length; i++) {
-          const row = data[i];
-          if (!row || row.length === 0) continue;
-          
-          let item = {};
-          FACULTY_FIELDS.forEach((f) => {
-            const hIdx = headers.indexOf(f.key);
-            if (hIdx >= 0 && row[hIdx] !== undefined) {
-              item[f.key] = row[hIdx].toString().trim();
-            }
-          });
-          
-          if (item.name) newItems.push(item);
-        }
-
-        if (newItems.length === 0) {
-          alert('No valid records found in the file.');
-          return;
-        }
-
-        // Store parsed data and show the Replace/Append dialog
-        setPendingImportData(newItems);
-        setImportFileName(file.name);
-        setImportDialogOpen(true);
-        e.target.value = '';
-      } catch (err) {
-        console.error(err);
-        alert('Failed to parse Excel file.');
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
-  const executeImport = async (mode) => {
-    if (!pendingImportData) return;
-    setImportDialogOpen(false);
+  const handleSync = async (silent = false) => {
+    if (syncState === 'syncing') return;
+    setSyncState('syncing');
+    if (!silent) setSyncMessage('Syncing from Google Sheet...');
 
     try {
-      if (mode === 'replace') {
-        const { error: delErr } = await supabase.from('faculty').delete().neq('id', 0);
-        if (delErr) { alert('Failed to clear existing records: ' + delErr.message); return; }
-        const { error } = await supabase.from('faculty').insert(pendingImportData);
-        if (error) { alert('Import failed: ' + error.message); return; }
-        alert(`Imported ${pendingImportData.length} records.`);
-      } else if (mode === 'update') {
-        let updatedCount = 0;
-        let insertedCount = 0;
-        for (const item of pendingImportData) {
-          if (item.employee_id) {
-            const existing = faculty.find(f => f.employee_id === item.employee_id);
-            if (existing) {
-              await supabase.from('faculty').update(item).eq('id', existing.id);
-              updatedCount++;
-            } else {
-              await supabase.from('faculty').insert(item);
-              insertedCount++;
-            }
-          } else {
-            await supabase.from('faculty').insert(item);
-            insertedCount++;
-          }
-        }
-        alert(`Updated ${updatedCount} existing records and inserted ${insertedCount} new records.`);
-      } else {
-        const existingIds = new Set(faculty.map(f => f.employee_id).filter(Boolean));
-        const newRecords = [];
-        const rejectedRecords = [];
-        pendingImportData.forEach(item => {
-          if (item.employee_id && existingIds.has(item.employee_id)) {
-            rejectedRecords.push(item);
-          } else {
-            newRecords.push(item);
-            if (item.employee_id) existingIds.add(item.employee_id);
-          }
-        });
-        
-        if (newRecords.length > 0) {
-          const { error } = await supabase.from('faculty').insert(newRecords);
-          if (error) { alert('Import failed: ' + error.message); return; }
-        }
-        
-        if (rejectedRecords.length > 0) {
-          alert(`Imported ${newRecords.length} new records.\nRejected ${rejectedRecords.length} duplicate records.`);
-        } else {
-          alert(`Successfully imported all ${newRecords.length} records.`);
-        }
+      const result = await syncFacultyFromSheet();
+
+      if (result.errors.length > 0) {
+        setSyncState('error');
+        setSyncMessage(`Sync failed: ${result.errors[0]}`);
+        return;
       }
 
-      const { data: refreshed } = await supabase.from('faculty').select('*');
-      if (refreshed) setFaculty(refreshed);
-    } catch (err) {
-      alert('Import error: ' + err.message);
-    }
-
-    setPendingImportData(null);
-    setImportFileName('');
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm('Delete this employee?')) return;
-    const { error } = await supabase.from('faculty').delete().eq('id', id);
-    if (error) { alert('Delete failed: ' + error.message); return; }
-    setFaculty(faculty.filter(x => x.id !== id));
-    setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-  };
-
-  const openForm = (facultyMember = null) => {
-    if (facultyMember) {
-      setForm({ ...initialForm, ...facultyMember });
-      setEditingId(facultyMember.id);
-    } else {
-      setForm(initialForm);
-      setEditingId(null);
-    }
-    setActiveTab('Basic Info');
-    setIsModalOpen(true);
-  };
-
-  const saveForm = async (e) => {
-    e.preventDefault();
-    if (!form.name.trim()) return alert("Name is required");
-
-    // Build the record object (exclude client-side 'id' for new inserts)
-    const record = {};
-    FACULTY_FIELDS.forEach(f => {
-      if (form[f.key] !== undefined && form[f.key] !== '') record[f.key] = form[f.key];
-    });
-
-    try {
-      if (editingId) {
-        const { error } = await supabase.from('faculty').update(record).eq('id', editingId);
-        if (error) { alert('Save failed: ' + error.message); return; }
-      } else {
-        const { error } = await supabase.from('faculty').insert(record);
-        if (error) { alert('Save failed: ' + error.message); return; }
-      }
-      // Refresh from database
-      const { data } = await supabase.from('faculty').select('*');
+      // Refresh data from Supabase
+      const data = await fetchAll('faculty');
       if (data) setFaculty(data);
+
+      setLastSync(getLastSyncTime());
+      setSyncState('success');
+      setSyncMessage(`✓ Synced ${result.synced} records from Google Sheet`);
+
+      // Reset to idle after 5 seconds
+      setTimeout(() => {
+        setSyncState('idle');
+        setSyncMessage('');
+      }, 5000);
     } catch (err) {
-      alert('Error saving: ' + err.message);
-      return;
+      setSyncState('error');
+      setSyncMessage(`Error: ${err.message}`);
     }
-    setIsModalOpen(false);
   };
+
+  const syncButtonConfig = {
+    idle: {
+      label: 'Sync from Sheet',
+      className: 'bg-indigo-600 text-white hover:bg-indigo-700',
+      icon: RefreshCw,
+    },
+    syncing: {
+      label: 'Syncing...',
+      className: 'bg-indigo-400 text-white cursor-not-allowed',
+      icon: RefreshCw,
+    },
+    success: {
+      label: 'Synced!',
+      className: 'bg-emerald-600 text-white',
+      icon: CheckCircle,
+    },
+    error: {
+      label: 'Retry Sync',
+      className: 'bg-red-600 text-white hover:bg-red-700',
+      icon: AlertCircle,
+    },
+  };
+
+  const btn = syncButtonConfig[syncState];
+  const BtnIcon = btn.icon;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full max-h-[85vh]">
@@ -291,54 +141,74 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
           <h2 className="text-2xl font-bold text-slate-800 flex items-center">
             <User className="mr-2 text-indigo-600" /> Faculty & Staff
           </h2>
-          <p className="text-sm text-slate-500 mt-1">Manage all campus employees and their details ({faculty.length} total)</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Synced from Google Sheet — {faculty.length} total records
+          </p>
+          {lastSync !== 'Never' && (
+            <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+              <Clock size={11} /> Last synced: {lastSync}
+            </p>
+          )}
         </div>
-        
-        <div className="flex flex-wrap items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search specific staff..." 
+            <input
+              type="text"
+              placeholder="Search staff..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-64"
             />
           </div>
-          <div className="flex gap-3 mt-4 md:mt-0">
-              {!isReadOnly && (
-                <>
-                  <button onClick={() => fileInputRef.current.click()} className="flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm text-sm">
-                    <Upload size={16} /> Import
-                  </button>
-                  <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx,.xls" className="hidden" />
 
-                  <button onClick={() => { setForm(initialForm); setEditingId(null); setIsModalOpen(true); }} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm text-sm">
-                    <Plus size={16} /> Add Staff
-                  </button>
-                </>
-              )}
-            </div>
+          {/* Sync Button — only shown to admins */}
+          {showSyncButton && (
+            <button
+              onClick={() => handleSync(false)}
+              disabled={syncState === 'syncing'}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm shadow-sm transition-colors ${btn.className}`}
+            >
+              <BtnIcon size={16} className={syncState === 'syncing' ? 'animate-spin' : ''} />
+              {btn.label}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Bulk Action Bar */}
-      {!isReadOnly && someSelected && (
-        <div className="px-6 py-3 bg-indigo-50 border-b border-indigo-200 flex items-center justify-between animate-in slide-in-from-top duration-200">
-          <span className="text-sm font-medium text-indigo-800 flex items-center gap-2">
-            <CheckSquare size={16} />
-            {selectedIds.size} record{selectedIds.size !== 1 ? 's' : ''} selected
-          </span>
-          <div className="flex items-center gap-2">
-            <button onClick={handleBulkDelete} className="px-3 py-1.5 text-xs font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1.5">
-              <Trash2 size={14} /> Delete Selected
-            </button>
-            <button onClick={() => setSelectedIds(new Set())} className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
-              Clear Selection
-            </button>
-          </div>
+      {/* Sync Status Banner */}
+      {syncMessage && (
+        <div className={`px-6 py-2.5 text-sm font-medium flex items-center gap-2 ${
+          syncState === 'error'
+            ? 'bg-red-50 text-red-700 border-b border-red-100'
+            : syncState === 'success'
+            ? 'bg-emerald-50 text-emerald-700 border-b border-emerald-100'
+            : 'bg-indigo-50 text-indigo-700 border-b border-indigo-100'
+        }`}>
+          {syncState === 'syncing' && <RefreshCw size={14} className="animate-spin" />}
+          {syncState === 'success' && <CheckCircle size={14} />}
+          {syncState === 'error' && <AlertCircle size={14} />}
+          {syncMessage}
         </div>
       )}
+
+      {/* Read-Only Info Banner */}
+      <div className="px-6 py-2 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+        <span className="text-xs text-amber-700 font-medium">
+          📋 This database is read-only. To make changes, edit the{' '}
+          <a
+            href="https://docs.google.com/spreadsheets/d/1fzvoz7rqMbRqs5vhUQ06cc33JItrAqyPkg2NPeqRO10/edit"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-amber-900"
+          >
+            DMU Faculty Google Sheet
+          </a>
+          {' '}and click Sync.
+        </span>
+      </div>
 
       {/* Main Data Table */}
       <div className="flex-1 overflow-auto bg-slate-50 p-6">
@@ -346,55 +216,46 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-medium text-sm">
-                {!isReadOnly && (
-                  <th className="p-3 pl-4 w-10">
-                    <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
-                  </th>
-                )}
-                <th className={`p-3 ${isReadOnly ? 'pl-4' : ''} sticky left-0 bg-slate-100 z-10 w-64`}>Name / Email</th>
+                <th className="p-3 pl-4 sticky left-0 bg-slate-100 z-10 w-64">Name / Email</th>
                 <th className="p-3">ID</th>
+                <th className="p-3">Category</th>
                 <th className="p-3">Designation</th>
                 <th className="p-3">College / Dept</th>
                 <th className="p-3">Status</th>
-                {!isReadOnly && <th className="p-3 text-right pr-4">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredFaculty.map(f => (
-                <tr key={f.id} className={`hover:bg-slate-50 transition-colors group ${selectedIds.has(f.id) ? 'bg-indigo-50/50' : ''}`}>
-                  {!isReadOnly && (
-                    <td className="p-3 pl-4">
-                      <input type="checkbox" checked={selectedIds.has(f.id)} onChange={() => toggleSelect(f.id)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
-                    </td>
-                  )}
-                  <td className={`p-3 ${isReadOnly ? 'pl-4' : ''} sticky left-0 bg-white group-hover:bg-slate-50 z-10`}>
+                <tr key={f.id} className="hover:bg-slate-50 transition-colors group">
+                  <td className="p-3 pl-4 sticky left-0 bg-white group-hover:bg-slate-50 z-10">
                     <div className="font-medium text-slate-800">{f.name || 'Unnamed Employee'}</div>
                     <div className="text-xs text-slate-500">{f.email || 'No email'}</div>
                   </td>
                   <td className="p-3 text-sm text-slate-600 font-mono">{f.employee_id || '-'}</td>
+                  <td className="p-3 text-sm text-slate-600">{f.category || '-'}</td>
                   <td className="p-3 text-sm text-slate-600">{f.designation || '-'}</td>
                   <td className="p-3 text-sm text-slate-600">
-                    {f.college || f.dept ? `${f.college || ''} ${f.dept ? `/ ${f.dept}` : ''}` : '-'}
+                    {f.college || f.dept ? `${f.college || ''}${f.dept ? ` / ${f.dept}` : ''}` : '-'}
                   </td>
                   <td className="p-3">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${f.active === 'Yes' ? 'bg-emerald-100 text-emerald-700' : f.active === 'No' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                      f.active === 'Yes'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : f.active === 'No'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
                       {f.active || 'Unknown'}
                     </span>
                   </td>
-                  {!isReadOnly && (
-                    <td className="p-3 pr-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                         <button onClick={() => openForm(f)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><Pencil size={16} /></button>
-                         <button onClick={() => handleDelete(f.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={16} /></button>
-                      </div>
-                    </td>
-                  )}
                 </tr>
               ))}
               {filteredFaculty.length === 0 && (
                 <tr>
-                  <td colSpan={isReadOnly ? 6 : 7} className="p-8 text-center text-slate-500">
-                    No faculty or staff members found.
+                  <td colSpan={6} className="p-8 text-center text-slate-500">
+                    {faculty.length === 0
+                      ? 'No faculty data yet — click "Sync from Sheet" to load data.'
+                      : 'No faculty or staff members found matching your search.'}
                   </td>
                 </tr>
               )}
@@ -402,97 +263,6 @@ export const FacultyManager = ({ faculty, setFaculty, isReadOnly = false }) => {
           </table>
         </div>
       </div>
-
-      {/* Editing Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            
-            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-              <h3 className="text-xl font-bold text-slate-800">
-                {editingId ? 'Edit Employee Details' : 'Add New Employee'}
-              </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200 transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="flex flex-col md:flex-row flex-1 min-h-0">
-              {/* Sidebar Tabs */}
-              <div className="w-full md:w-56 bg-slate-50 border-r border-slate-200 flex md:flex-col overflow-x-auto md:overflow-y-auto">
-                {groups.map(group => (
-                  <button 
-                    key={group}
-                    onClick={() => setActiveTab(group)}
-                    className={`px-4 py-3 text-left font-medium text-sm transition-colors whitespace-nowrap ${activeTab === group ? 'bg-white text-indigo-700 border-l-4 border-indigo-600 shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border-l-4 border-transparent'}`}
-                  >
-                    {group}
-                  </button>
-                ))}
-              </div>
-
-              {/* Form Content */}
-              <div className="flex-1 overflow-y-auto p-6 bg-white">
-                <form id="facultyForm" onSubmit={saveForm}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                    {FACULTY_FIELDS.filter(f => f.group === activeTab).map(field => {
-                      const options = field.key === 'custom_role_id' 
-                        ? customRoles.map(cr => ({ value: cr.id, label: cr.name }))
-                        : field.options;
-                        
-                      return (
-                      <div key={field.key} className="space-y-1">
-                        <label className="block text-sm font-medium text-slate-700">{field.label} {field.key === 'name' && <span className="text-red-500">*</span>}</label>
-                        {field.type === 'select' ? (
-                          <select 
-                            value={form[field.key] || ''} 
-                            onChange={e => setForm({...form, [field.key]: e.target.value})}
-                            required={field.key === 'name'}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none block"
-                          >
-                            <option value="">Select...</option>
-                            {options && options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                          </select>
-                        ) : (
-                          <input
-                            type={field.type || 'text'}
-                            value={form[field.key] || ''}
-                            onChange={e => setForm({...form, [field.key]: e.target.value})}
-                            required={field.key === 'name'}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none block"
-                          />
-                        )}
-                      </div>
-                    )})}
-                  </div>
-                </form>
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-               <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
-                 Cancel
-               </button>
-               <button type="submit" form="facultyForm" className="px-6 py-2 font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
-                 Save Changes
-               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Import Mode Dialog */}
-      <ImportModeDialog
-        isOpen={importDialogOpen}
-        fileName={importFileName}
-        recordCount={pendingImportData?.length || 0}
-        existingCount={faculty.length}
-        uniqueFieldLabel="Employee ID"
-        onReplace={() => executeImport('replace')}
-        onAppend={() => executeImport('append')}
-        onUpdate={() => executeImport('update')}
-        onCancel={() => { setImportDialogOpen(false); setPendingImportData(null); }}
-      />
     </div>
   );
 };
