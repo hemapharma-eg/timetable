@@ -10,10 +10,6 @@ export function RolesManager() {
   const [faculty, setFaculty] = useState([]);
   const [appUsers, setAppUsers] = useState([]);
   const [dbAppUsers, setDbAppUsers] = useState([]);
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [resetSending, setResetSending] = useState({});
   
   const [isEditingRole, setIsEditingRole] = useState(null);
   const [roleForm, setRoleForm] = useState({ name: '', description: '' });
@@ -121,24 +117,7 @@ export function RolesManager() {
     fetchRoles();
   };
 
-  const handleSendResetEmail = async (email) => {
-    setResetSending(prev => ({ ...prev, [email]: true }));
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin
-      });
-      if (error) {
-        alert(`Error: ${error.message}`);
-      } else {
-        alert(`Password reset invitation email sent successfully to ${email}!`);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('An unexpected error occurred.');
-    } finally {
-      setResetSending(prev => ({ ...prev, [email]: false }));
-    }
-  };
+
 
   const setPermissionLevel = async (role_id, module_name, level) => {
     // level: 'none' | 'view' | 'edit'
@@ -411,15 +390,9 @@ export function RolesManager() {
           <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
               <h3 className="text-lg font-semibold text-slate-800">User Role Assignment</h3>
-              <p className="text-sm text-slate-500 mt-1">Assign custom application roles to faculty members and send password reset invitations.</p>
+              <p className="text-sm text-slate-500 mt-1">Assign custom application roles and manage user account approvals.</p>
             </div>
             <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setShowInviteModal(true)}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center hover:bg-indigo-700 transition-colors shadow-sm"
-              >
-                <Mail size={16} className="mr-1.5" /> Invite User
-              </button>
               <div className="relative w-72">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -508,23 +481,6 @@ export function RolesManager() {
                               <Check size={13} /> Approve
                             </button>
                           )}
-                          <button
-                            onClick={() => handleSendResetEmail(f.email)}
-                            disabled={resetSending[f.email]}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                              resetSending[f.email]
-                                ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                                : 'bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 shadow-sm active:scale-[0.98]'
-                            }`}
-                            title="Send password reset invitation email"
-                          >
-                            {resetSending[f.email] ? (
-                              <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
-                            ) : (
-                              <KeyRound size={13} />
-                            )}
-                            Reset PW
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -536,91 +492,7 @@ export function RolesManager() {
         </div>
       )}
 
-      {/* Invite User Modal */}
-      {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4 animate-in fade-in duration-200 font-sans">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-full max-w-md animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Mail className="text-indigo-600" size={20} />
-                Send Password Reset Invitation
-              </h3>
-              <button 
-                onClick={() => { setShowInviteModal(false); setInviteEmail(''); }} 
-                className="text-slate-400 hover:text-slate-600 rounded-lg p-1 hover:bg-slate-100 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            
-            <p className="text-sm text-slate-500 mb-6">
-              Enter the email address of the user you wish to invite or reset the password for. They will receive an email containing a link to choose a new password.
-            </p>
-            
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              if (!inviteEmail) return;
-              setInviteLoading(true);
-              try {
-                const { error } = await supabase.auth.resetPasswordForEmail(inviteEmail, {
-                  redirectTo: window.location.origin
-                });
-                if (error) {
-                  alert(`Error: ${error.message}`);
-                } else {
-                  alert(`Password reset invitation email sent successfully to ${inviteEmail}!`);
-                  setShowInviteModal(false);
-                  setInviteEmail('');
-                }
-              } catch (err) {
-                console.error(err);
-                alert('An unexpected error occurred.');
-              } finally {
-                setInviteLoading(false);
-              }
-            }} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Email Address</label>
-                <input 
-                  type="email" 
-                  required 
-                  value={inviteEmail}
-                  onChange={e => setInviteEmail(e.target.value)}
-                  placeholder="name@institution.com"
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                />
-              </div>
-              
-              <div className="flex gap-3 justify-end pt-2">
-                <button 
-                  type="button"
-                  onClick={() => { setShowInviteModal(false); setInviteEmail(''); }}
-                  className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 font-medium text-sm transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={inviteLoading}
-                  className={`px-5 py-2 rounded-lg font-medium text-sm flex items-center gap-1.5 text-white transition-all ${
-                    inviteLoading 
-                      ? 'bg-indigo-600/50 cursor-not-allowed' 
-                      : 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98]'
-                  }`}
-                >
-                  {inviteLoading ? (
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Mail size={15} /> Send Invitation
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
